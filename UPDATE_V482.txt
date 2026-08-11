@@ -1,0 +1,7 @@
+V482 - Interaction Stability
+
+- แก้ปัญหาช่องค้นหา ช่องเช็คชื่อ Input/Textarea และ Dropdown เด้งออก/เสีย Focus จาก Firebase background refresh
+- ล็อกการ re-render ระหว่างผู้ใช้กำลังคลิก พิมพ์ เลือก Dropdown หรือใช้งาน Modal/Form ทุกหน้า
+- Firebase ยังรับข้อมูล realtime เข้าหน่วยความจำ/Cache ตามปกติ แต่เลื่อนการวาดหน้าใหม่จนกว่าผู้ใช้หยุดใช้งาน
+- ปิด forced render จาก window focus / visibility / startup refresh ที่เคยแย่ง focus ของช่องกรอกข้อมูล
+- ต่อเนื่องจาก V480 Firebase Employee Master และ V479 Cloud Shift Master
