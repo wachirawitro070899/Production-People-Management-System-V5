@@ -1,0 +1,4 @@
+V488 Restored Stable UI
+- Restored normal external app.css/app.js loading (reverts broken V487 inline embedding).
+- Keeps V486 Firebase key-safe serialization and V485 interaction stability fixes.
+- Cache version bumped to 488.
