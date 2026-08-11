@@ -1,0 +1,7 @@
+V475 - Examination NCN Support
+- Examination employee-code field now accepts letters and numbers on mobile and desktop.
+- Subcontractor IDs such as NCN12345 can be entered directly.
+- Employee code is automatically converted to uppercase while typing.
+- Employee lookup is case-insensitive.
+- Error message reminds subcontractors to include the NCN prefix.
+- Updated cache-busting version to V475 so other devices load the latest app.js.

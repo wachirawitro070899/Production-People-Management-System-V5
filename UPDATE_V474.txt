@@ -1,0 +1,4 @@
+V474 - Monthly Attendance Checksheet
+- Added employee monthly checklist for On time / Late / Personal leave / Sick leave / Absent.
+- Added month selector in Attendance & KPI.
+- Uses Firebase-synced attendance data; no separate local-only record.

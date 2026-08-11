@@ -775,3 +775,21 @@ body.print-matrix .matrix-print-logo{padding:.35mm;box-sizing:border-box;}
 .division-sorting-split .division-section-head{background:#eef9ff}.division-sorting-split .division-section-head h3:after{content:" · แยกกลุ่ม";font-size:9px;font-weight:700;color:#0c7aa6}
 @media(max-width:700px){.org-current-shift-banner{align-items:flex-start;flex-direction:column}.org-current-shift-banner strong{align-self:flex-start}.org-shift-title{flex-wrap:wrap}}
 @media print{.org-current-shift-banner{display:none!important}.org-shift-secondary{opacity:1}.org-shift-secondary .person{transform:none}.org-shift-title{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
+
+/* V474 Monthly Attendance Checksheet */
+.attendance-checksheet{margin-top:14px}
+.checksheet-head{display:flex;gap:16px;align-items:flex-start;justify-content:space-between;flex-wrap:wrap}
+.checksheet-head h3{margin:0 0 4px}
+.checksheet-head p{margin:0}
+.checksheet-summary{display:flex;gap:8px;flex-wrap:wrap}
+.checksheet-summary span{background:#f3f6fa;border:1px solid #d7e0ea;border-radius:999px;padding:6px 10px;font-size:12px;white-space:nowrap}
+.monthly-checksheet-table th,.monthly-checksheet-table td{text-align:center;vertical-align:middle;white-space:nowrap}
+.monthly-checksheet-table td:nth-child(10){text-align:left;white-space:normal;min-width:170px}
+.monthly-checksheet-table .check-cell{font-weight:900;font-size:18px;min-width:58px}
+.monthly-checksheet-table .check-cell.ok{color:#15803d}
+.monthly-checksheet-table .check-cell.warn{color:#b45309}
+.monthly-checksheet-table .check-cell.leave{color:#7c3aed}
+.monthly-checksheet-table .check-cell.sick{color:#0284c7}
+.monthly-checksheet-table .check-cell.absent{color:#dc2626}
+.monthly-checksheet-table .checksheet-holiday td{background:#f8fafc;color:#64748b}
+@media(max-width:700px){.checksheet-summary{width:100%}.checksheet-summary span{flex:1 1 30%;text-align:center}}

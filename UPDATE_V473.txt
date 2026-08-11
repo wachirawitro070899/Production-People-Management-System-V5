@@ -1,0 +1,13 @@
+V473 - Cross Device Live Sync
+
+Changes:
+- Prevent Firebase realtime updates from being discarded while this device is writing.
+- Queue the newest remote snapshot and apply it immediately after the write finishes.
+- Pull fresh Firebase data every 15 seconds while the page is visible.
+- Refresh from Firebase when the browser/tab gets focus or becomes visible again.
+- Refresh immediately after reconnecting to the internet.
+- Bump app.js and employees-data.js cache version to v=473.
+- Add cache-control hints to index.html to reduce stale pages on other computers.
+
+Expected result:
+Attendance / organization chart changes written to Firebase should appear on other computers without requiring a hard refresh (normally realtime; 15-second polling is a fallback).
