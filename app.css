@@ -795,3 +795,8 @@ body.print-matrix .matrix-print-logo{padding:.35mm;box-sizing:border-box;}
 @media(max-width:700px){.checksheet-summary{width:100%}.checksheet-summary span{flex:1 1 30%;text-align:center}}
 .attendance-checksheet-group .monthly-checksheet-summary-table td:nth-child(2),.attendance-checksheet-group .monthly-checksheet-summary-table td:nth-child(3){text-align:left}
 .attendance-checksheet-group .monthly-checksheet-summary-table tr.checksheet-has-event td{background:#fffdf5}
+
+/* V491: Supervisor / Leader stay fixed above shift groups */
+.org-fixed-leadership{background:#fff;border-bottom:3px solid #e5edf5}
+.org-fixed-leadership .level{background:#fff}
+.org-fixed-leadership .rank-level-supervisor h4,.org-fixed-leadership .rank-level-leader h4{background:#f7fbff;border-color:#b8cce0;color:#173b72}

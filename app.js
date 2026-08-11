@@ -1,4 +1,4 @@
-// V490 DEPENDENT FILTER LIVE SYNC
+// V491 FIXED LEADER SUPERVISOR ORG CHART
 (()=>{'use strict';
 const SEED=Array.isArray(window.EMPLOYEE_SEED)?window.EMPLOYEE_SEED:[];
 const KEY='ppms_v3_employees', ATTENDANCE_KEY='ppms_v3_attendance', ATTENDANCE_SETTINGS_KEY='ppms_v3_attendance_settings', ATTENDANCE_DEVICES_KEY='ppms_v3_attendance_devices', SHIFT_SCHEDULE_KEY='ppms_v3_shift_schedules', SHIFT_CLOUD_DIRTY_KEY='ppms_v3_shift_cloud_dirty', HOLIDAY_KEY='ppms_v3_holidays', SKILL_OVERRIDE_KEY='ppms_v3_skill_overrides', EVAL_KEY='ppms_v3_evaluations', TRAIN_KEY='ppms_v3_training', EXAM_RESULT_KEY='ppms_v3_exam_results', EXAM_BANK_KEY='ppms_v3_exam_bank', SHARED_KEY='ppms_v3_shared_data_version', DELETED_KEY='ppms_v3_deleted_employee_ids', CLOUD_DIRTY_KEY='ppms_v3_cloud_dirty', LOCAL_UPDATED_KEY='ppms_v3_local_updated_at';
@@ -590,14 +590,15 @@ function orgSectionDescriptors(){
 }
 function orgEmployeesForDescriptor(d){return employees.filter(e=>e.section===d.section&&rank(e.position)!=='manager'&&(!d.sortingGroup||String(e.sortingGroup||'')===d.sortingGroup))}
 function orgFixedLeadershipLevels(list){
- // Supervisor / Leader เป็นโครงสร้างประจำ Section: แสดงด้านบนเสมอและไม่สลับตำแหน่งตามกะ
- return ['supervisor','leader'].map(r=>{
+ const order=['supervisor','leader'];
+ const levels=order.map(r=>{
   const group=list.filter(e=>rank(e.position)===r);
-  return group.length?`<div class="level rank-level-${r} org-fixed-leadership"><h4>${levelName(r)}</h4><div class="people">${group.map(e=>person(e,true)).join('')}</div></div>`:'';
+  return group.length?`<div class="level rank-level-${r}"><h4>${levelName(r)}</h4><div class="people">${group.map(e=>person(e,true)).join('')}</div></div>`:'';
  }).join('');
+ return levels?`<div class="org-fixed-leadership">${levels}</div>`:'';
 }
 function orgShiftLevels(list,shiftKey,isActive){
- // คนที่สลับขึ้น/ลงตามกะ ไม่รวม Supervisor และ Leader
+ // Supervisor และ Leader เป็นโครงสร้างประจำ Section จึงไม่ย้ายตาม Day/Night Shift
  const order=['engineer','technician','operator','other'];
  const shiftList=list.filter(e=>!['supervisor','leader'].includes(rank(e.position))&&employeeShiftKey(e,thaiDateKey())===shiftKey);
  const levels=order.map(r=>{
@@ -611,8 +612,12 @@ function dashboard(){
  const managerTop=managers.length?`<div class="division-manager-top"><div class="people">${managers.map(e=>person(e,true)).join('')}</div><div class="manager-line"></div><h4 class="manager-pill">Manager</h4><div class="manager-line manager-line-bottom"></div></div>`:'';
  const activeShift=orgActiveShiftKey(),otherShift=activeShift==='day'?'night':'day',today=thaiDateKey();
  const sectionCards=orgSectionDescriptors().map(d=>{
-  const list=orgEmployeesForDescriptor(d),activeCount=list.filter(e=>employeeShiftKey(e,today)===activeShift).length,otherCount=list.length-activeCount;
-  return `<section class="division-section ${d.sortingGroup?'division-sorting-split':''}"><div class="division-section-head"><h3>${esc(d.title)}</h3><small>${list.length} Employees · ${orgShiftLabel(activeShift)} ${activeCount} · ${orgShiftLabel(otherShift)} ${otherCount}</small></div>${orgFixedLeadershipLevels(list)}${orgShiftLevels(list,activeShift,true)}${orgShiftLevels(list,otherShift,false)}</section>`;
+  const list=orgEmployeesForDescriptor(d);
+  const shiftWorkers=list.filter(e=>!['supervisor','leader'].includes(rank(e.position)));
+  const activeCount=shiftWorkers.filter(e=>employeeShiftKey(e,today)===activeShift).length,otherCount=shiftWorkers.length-activeCount;
+  const leadershipCount=list.length-shiftWorkers.length;
+  const leadershipText=leadershipCount?` · Supervisor/Leader ${leadershipCount}`:'';
+  return `<section class="division-section ${d.sortingGroup?'division-sorting-split':''}"><div class="division-section-head"><h3>${esc(d.title)}</h3><small>${list.length} Employees${leadershipText} · ${orgShiftLabel(activeShift)} ${activeCount} · ${orgShiftLabel(otherShift)} ${otherCount}</small></div>${orgFixedLeadershipLevels(list)}${orgShiftLevels(list,activeShift,true)}${orgShiftLevels(list,otherShift,false)}</section>`;
  }).join('');
  const newThisMonth=employees.filter(e=>{const d=new Date(e.startDate),n=new Date();return !Number.isNaN(d.getTime())&&d.getMonth()===n.getMonth()&&d.getFullYear()===n.getFullYear()}).length;
  const activeCount=employees.filter(e=>rank(e.position)!=='manager'&&employeeShiftKey(e,today)===activeShift).length;
