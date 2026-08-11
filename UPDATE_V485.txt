@@ -1,0 +1,6 @@
+V485 - HARD INTERACTION FIX
+- render() is blocked whenever input/select/textarea/contenteditable has focus.
+- Any deferred render runs only after the control loses focus.
+- Prevents every code path (Firebase, filters, timers, handlers) from replacing a native dropdown or keyboard field while in use.
+- Examination history typing no longer triggers a full DOM replacement while typing.
+- Firebase data sync remains active in memory/cache.
