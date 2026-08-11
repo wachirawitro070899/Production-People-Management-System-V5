@@ -1,0 +1,10 @@
+V478 - Cloud Shift Authoritative
+
+- Updated from V477.
+- Shift schedules are now treated as Firebase-authoritative after migration.
+- Existing V477 local shift schedules are migrated/merged to Firebase during the V478 migration path.
+- Shift planner saves directly to the ppms Firebase root and marks shiftCloudAuthoritative metadata.
+- Other devices receive shiftSchedules from Firebase and no longer re-add stale local shift data during normal live refresh.
+- Offline shift edits are marked dirty and synchronized when Firebase reconnects.
+- Day/Night shift separation in Attendance and Organization Chart continues to use the shared cloud shift schedule.
+- Cache/version bumped to V478.

@@ -1,0 +1,7 @@
+V477 - Optional Employee Checksheet
+
+- Added a blank option: "ไม่ระบุชื่อ / ยังไม่เลือกพนักงาน" to the employee dropdown in Attendance & KPI.
+- The system no longer auto-selects the first employee when opening the page or changing Section.
+- Individual monthly checksheet stays hidden until an employee is intentionally selected.
+- Section and Production monthly views continue to work without selecting an employee.
+- Cache/version bumped to V477.
