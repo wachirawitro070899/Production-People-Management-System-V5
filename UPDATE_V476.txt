@@ -1,0 +1,8 @@
+V476 - Monthly Attendance Scope Checksheet
+
+- Monthly attendance checksheet now supports 3 views: individual employee, whole Section, and whole Production.
+- Section view summarizes every employee in the selected Section for the selected month.
+- Production view summarizes all Production employees across Sections for the selected month.
+- Group summaries include On time, Late, Personal leave, Sick leave, Absent, and KPI deduction totals.
+- Individual view keeps the detailed day-by-day checksheet.
+- Cache version updated to 476 for cross-device deployment.

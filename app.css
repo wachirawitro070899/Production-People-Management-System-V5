@@ -793,3 +793,5 @@ body.print-matrix .matrix-print-logo{padding:.35mm;box-sizing:border-box;}
 .monthly-checksheet-table .check-cell.absent{color:#dc2626}
 .monthly-checksheet-table .checksheet-holiday td{background:#f8fafc;color:#64748b}
 @media(max-width:700px){.checksheet-summary{width:100%}.checksheet-summary span{flex:1 1 30%;text-align:center}}
+.attendance-checksheet-group .monthly-checksheet-summary-table td:nth-child(2),.attendance-checksheet-group .monthly-checksheet-summary-table td:nth-child(3){text-align:left}
+.attendance-checksheet-group .monthly-checksheet-summary-table tr.checksheet-has-event td{background:#fffdf5}
