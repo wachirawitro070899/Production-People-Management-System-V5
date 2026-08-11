@@ -1,0 +1,7 @@
+V481 - Dropdown Stability
+
+- แก้ Dropdown ทุกหน้าเปิดแล้วเด้งปิด/เลือกไม่ได้ โดยล็อกการ re-render ระหว่างเปิด native select
+- ป้องกัน Firebase live refresh, window focus refresh และ periodic refresh เปลี่ยน DOM ขณะกำลังเลือก Dropdown
+- ใช้กับ select ทั้งในหน้าเว็บหลักและ Modal โดย event guard ระดับ document
+- หลังเลือก/ปิด Dropdown ระบบจะปลดล็อกและรับข้อมูล Firebase ต่ออัตโนมัติ
+- ต่อเนื่องจาก V480 Firebase Employee Master และคง Firebase เป็น Master สำหรับรายชื่อพนักงาน

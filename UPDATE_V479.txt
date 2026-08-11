@@ -1,0 +1,19 @@
+V479 - Shift Master Reconcile
+
+Purpose
+- Fix cases where the main PC and other PCs show different Day/Night Shift assignments.
+- Firebase remains the authoritative source after reconciliation.
+
+Important workflow
+1. Deploy V479 to GitHub Pages.
+2. On the MAIN PC (the PC that currently shows the correct shifts), open Admin > shift planning.
+3. Click "ใช้กะจากเครื่องนี้เป็น Master" once.
+4. Confirm. V479 publishes the pre-cloud local shift schedule from that main PC directly to Firebase.
+5. Other devices then read the same Firebase shiftSchedules and refresh automatically / on page focus.
+
+Technical changes
+- Keeps a startup snapshot of the local shift schedule before Firebase can overwrite it.
+- Adds an explicit one-time Master publish action for the primary PC.
+- Shift-roster saves now SET the authoritative Firebase shiftSchedules instead of merging stale schedules from multiple devices.
+- Marks Firebase meta with shiftCloudVersion V479.
+- Local shift data becomes cache after the Master reconciliation; normal cloud refresh uses Firebase.

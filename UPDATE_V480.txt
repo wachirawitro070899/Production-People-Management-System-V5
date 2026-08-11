@@ -1,0 +1,17 @@
+PPMS V480 - Firebase Employee Master / Prevent Employee Rollback
+
+ปัญหาที่แก้:
+- หลังอัปเดตไฟล์เว็บเวอร์ชันใหม่ รายชื่อ/ชื่อที่เคยแก้ไขหรือลบอาจกลับมาเพราะ browser cache/localStorage เก่าถูกนำมารวมกับ Firebase
+
+การแก้ไข V480:
+1. เมื่อ Firebase มีข้อมูลแล้ว รายชื่อพนักงานบน Firebase เป็น Master 100%
+2. ตอนเปิดเว็บ/Refresh/Live Sync จะไม่เอารายชื่อเก่าจาก localStorage กลับมารวมกับ Employee Master
+3. การแก้ไข/เพิ่มพนักงานบันทึกตรงเข้า Firebase เหมือนเดิม และติด employeeMasterVersion V480
+4. การลบพนักงานเพิ่มการลบตรงบน Firebase พร้อม deletedEmployeeIds tombstone
+5. employees-data.js ยังคงว่าง ไม่มีรายชื่อพนักงานฝังอยู่ในไฟล์ deploy
+6. localStorage ใช้เป็น cache เฉพาะกรณี Firebase ใช้งานไม่ได้ ไม่ใช่แหล่ง Master ของรายชื่อ
+
+ผลที่ต้องการ:
+- แก้ชื่อ -> อัปเดตเวอร์ชันเว็บใหม่ -> ชื่อที่แก้ยังอยู่
+- เพิ่มพนักงาน -> อัปเดตเวอร์ชันเว็บใหม่ -> พนักงานยังอยู่
+- ลบพนักงาน -> อัปเดตเวอร์ชันเว็บใหม่ -> พนักงานไม่กลับมา
