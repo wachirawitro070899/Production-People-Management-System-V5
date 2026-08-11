@@ -1,0 +1,5 @@
+V486 - Firebase Key Safe
+
+Fixes Firebase Realtime Database invalid-key failures caused by skill names such as "Drawing / Specification".
+All Firebase-bound object keys are now reversibly encoded for . # $ / [ ] and decoded when read back, while the UI keeps the original skill names.
+Also applies the safe encoding boundary to employee, attendance, shift, exam, backup, and full ppms sync writes.
