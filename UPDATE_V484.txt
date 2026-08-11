@@ -1,0 +1,10 @@
+V484 - Native Control Stability
+
+แก้ปัญหา Dropdown / ช่องค้นหา / ช่องพิมพ์เด้งหรือเสีย focus
+- ปิด searchable-select enhancement และใช้ native select 100%
+- ปิด cloud refresh จาก focus / visibilitychange
+- ปิด periodic cloud read ที่อาจรบกวน native picker / keyboard
+- Firebase realtime listener ยังซิงก์ข้อมูลข้ามเครื่องเข้า memory/cache
+- background Drive photo sync ไม่สั่ง render หน้าเอง
+- timer เหลือเฉพาะ retry local changes ที่ยังส่ง Firebase ไม่สำเร็จ
+- cache version 484
