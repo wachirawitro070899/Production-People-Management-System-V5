@@ -1,0 +1,7 @@
+V490 Dependent Filter Live Sync
+
+Fixes:
+1. Section -> Employee list updates immediately after a user confirms the dropdown selection.
+2. KPI dashboard, monthly checksheet, detail table, year/month/view filters refresh in the same UI update without browser refresh.
+3. User-confirmed filter changes bypass only the background focus render guard; Firebase/background renders remain guarded.
+4. Critical cache fix: V489 HTML still loaded app.js?v=483. V490 now loads app.js?v=490, app.css?v=490 and employees-data.js?v=490.
