@@ -546,6 +546,12 @@ function isSundayDate(date=thaiDateKey()){const m=String(date||'').match(/^(\d{4
 function isHoliday(date=thaiDateKey()){return isSundayDate(date)||!!(holidays&&holidays[String(date)])}
 function holidayInfo(date=thaiDateKey()){const h=holidays&&holidays[String(date)];if(h)return h&&typeof h==='object'?h:{name:String(h)};return isSundayDate(date)?{name:'วันอาทิตย์ (วันหยุดประจำ)',automatic:true,type:'sunday'}:null}
 function holidayLabel(date=thaiDateKey()){const h=holidayInfo(date);return h?.name||'วันหยุด'}
+function dateKeyOffsetFrom(date,days=1){
+ const m=String(date||'').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+ if(!m)return thaiDateKey();
+ const d=new Date(Date.UTC(Number(m[1]),Number(m[2])-1,Number(m[3])+Number(days||0),12,0,0));
+ return new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Bangkok',year:'numeric',month:'2-digit',day:'2-digit'}).format(d);
+}
 function holidayManagementModal(){
  const rows=Object.entries(holidays||{}).sort((a,b)=>a[0].localeCompare(b[0]));
  modal(`<h2>จัดการวันหยุด / Holiday Calendar</h2><p class="modal-note"><b>ทุกวันอาทิตย์เป็นวันหยุดอัตโนมัติ</b> ไม่ต้องเพิ่มเอง และจะไม่ถูกตัดขาดงาน/ไม่หัก KPI หากไม่มีการเช็คชื่อ หากมี OT วันอาทิตย์และพนักงานเช็คชื่อ ระบบยังเก็บ Attendance ได้ตามปกติ ส่วนวันหยุดโรงงานเพิ่มเติมให้เพิ่มด้านล่าง</p><form id="holidayForm"><div class="form-grid"><label>วันที่หยุด<input type="date" name="date" required></label><label>ชื่อวันหยุด<input name="name" placeholder="เช่น วันหยุดบริษัท / วันหยุดนักขัตฤกษ์" required></label></div><div class="actions"><button type="submit">เพิ่มวันหยุด</button><button type="button" class="secondary" data-action="close">ปิด</button></div></form><div class="table-wrap" style="margin-top:12px"><table><thead><tr><th>วันที่</th><th>วันหยุด</th><th>จัดการ</th></tr></thead><tbody>${rows.map(([d,h])=>`<tr><td>${esc(d)}</td><td>${esc(h?.name||h||'วันหยุด')}</td><td><button type="button" class="danger compact" data-action="deleteHoliday" data-holiday-date="${esc(d)}">ลบ</button></td></tr>`).join('')||'<tr><td colspan="3">ยังไม่ได้กำหนดวันหยุด</td></tr>'}</tbody></table></div>`);
@@ -558,6 +564,16 @@ function liveAttendanceState(emp){
  const prevRec=clock<720&&employeeShiftKey(emp,prev)==='night'?attendanceFor(emp.id,prev):null;
  if(prevRec?.checkIn&&!prevRec?.checkOut)return {key:'working',label:'ทำงาน • กะดึก',detail:thaiTime(new Date(prevRec.checkIn))};
  const date=today,rec=attendanceFor(emp.id,date),sh=shiftConfig(emp,date),open=timeMinutes(sh.checkInOpen),late=timeMinutes(sh.lateReasonAfter),now=clock;
+ // V492: หลัง 19:00 สถานะของพนักงานกะเช้าจะจบรอบของวันนี้และเตรียมแสดงวันถัดไป
+ // เพื่อไม่ให้ป้ายกะเช้าค้างเป็น ทำงาน/ขาดงาน ของวันเดิมเมื่อระบบสลับเข้าสู่กะดึก
+ if(sh.key==='day'&&now>=1140){
+  const nextDate=dateKeyOffsetFrom(date,1),nextHoliday=holidayInfo(nextDate);
+  if(nextHoliday)return {key:'waiting',label:'วันถัดไป • วันหยุด',detail:`${nextDate} • ${nextHoliday.name||'วันหยุดบริษัท'}`};
+  const nextShift=shiftConfig(emp,nextDate);
+  return nextShift.key==='night'
+   ?{key:'offshift',label:'รอเข้ากะวันถัดไป • กะดึก',detail:`${nextDate} • เช็คชื่อ ${nextShift.checkInOpen}`}
+   :{key:'waiting',label:'รอเช็คชื่อวันถัดไป',detail:`${nextDate} • กะเช้า • เช็คชื่อ ${nextShift.checkInOpen}`};
+ }
  if(rec?.checkIn)return {key:'working',label:sh.key==='night'?'ทำงาน • กะดึก':'ทำงาน',detail:thaiTime(new Date(rec.checkIn))};
  const todayHoliday=holidayInfo(date);if(todayHoliday)return {key:'waiting',label:'วันหยุด',detail:todayHoliday.name||'วันหยุดบริษัท'};
  if(rec?.exception?.type==='leave')return {key:'leave',label:rec.exception.leaveType==='sick'?'ลาป่วย':'ลากิจ',detail:sh.key==='night'?'กะดึก':'กะเช้า'};

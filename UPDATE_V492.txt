@@ -1,0 +1,8 @@
+V492 - Day Shift rollover at 19:00
+
+1. At 19:00 or later, employees assigned to Day Shift no longer keep the current-day live badge.
+2. Their badge changes to "รอเช็คชื่อวันถัดไป" and shows the next date/check-in time.
+3. If the next day is a holiday (including automatic Sunday), the badge shows "วันถัดไป • วันหยุด" and the holiday name.
+4. If the employee is scheduled to switch to Night Shift on the next day, the badge shows the next Night Shift check-in instead.
+5. Cache query updated to v492.
+6. V491 fixed Supervisor/Leader placement is preserved.
