@@ -1,0 +1,11 @@
+V483 - Stable UI / No Automatic Full-Page Re-render
+
+แก้ต้นเหตุอาการช่องค้นหา ช่องพิมพ์ เช็คชื่อ และ Dropdown เด้ง/หลุด focus:
+- Firebase ยังรับ-ส่งและอัปเดตข้อมูลใน memory/cache ตามปกติ
+- ยกเลิกการ full render หน้าเว็บอัตโนมัติจาก Firebase listener, polling, focus/visibility และ timer
+- หน้าเว็บจะ render ใหม่เฉพาะ action ที่ผู้ใช้ตั้งใจ เช่น เปลี่ยนหน้า, เลือก filter, บันทึก, เช็คชื่อ หรือ reload หน้า
+- รักษา focus/caret ของ input/textarea เมื่อมี explicit render ที่จำเป็น
+- Examination History search ไม่ render ใหม่ทุกตัวอักษรทันที (debounce + focus restore)
+- ลบ dashboard auto-render ทุก 60 วินาที
+
+ผลลัพธ์: native dropdown บนมือถือ/คอมไม่ถูก DOM replacement ปิดกลางคัน และช่องพิมพ์ไม่ถูกล้าง/หลุด focus จาก background sync
