@@ -1,0 +1,3 @@
+V489 - Dropdown Dependent UI Refresh
+
+Fixes a regression from the interaction guard: native select controls no longer block the explicit render triggered by their own change event. Dependent data refreshes immediately after a user selects Section, Employee, KPI year, checksheet view, matrix filters, cards, exam history filters, and other dropdowns. Background Firebase/timer renders remain blocked while a control is actively focused, preserving dropdown stability.
