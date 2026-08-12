@@ -1,0 +1,7 @@
+V493 Attendance Employee Lookup Fix
+
+- Attendance now waits for Firebase employee master before showing employee-not-found on fresh/mobile devices.
+- If the employee is not in the local cache, the system refreshes cloud data once and searches again.
+- Employee ID comparison now normalizes Unicode, invisible characters, case, and common separators/spaces.
+- Applied the same cloud-ready lookup to check-in, advance late notice, leave, and medical-certificate actions.
+- Bumped app.js cache query to v493 in index.html and 404.html.
