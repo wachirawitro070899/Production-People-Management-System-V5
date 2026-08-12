@@ -1,0 +1,11 @@
+V494 - Attendance Master Separated
+
+- แยก Attendance ออกจากข้อมูล ppms หลักไปเก็บที่ Firebase root: ppmsAttendance
+- ppmsAttendance/records เป็น Master ของประวัติเช็คชื่อ
+- ppmsAttendance/settings เก็บค่าพื้นที่/เวลา Attendance
+- ppmsAttendance/devices เก็บการผูกอุปกรณ์
+- อัปเดตเวอร์ชันเว็บจะไม่ merge Attendance จาก localStorage หรือข้อมูลเก่าในไฟล์กลับเข้า Master
+- การลบ Attendance จะเขียนทับ Master โดยตรง จึงไม่ถูก cache เครื่องอื่นใน V494 ดึงกลับมา
+- มี one-time migration จาก ppms เดิมไป ppmsAttendance เฉพาะครั้งแรก
+- หาก Firebase เดิมมี Attendance ว่าง ระบบถือว่าเป็นการลบโดยตั้งใจและจะไม่เติมจาก local cache
+- ppmsArchive/attendance ยังคงเป็นคลังสำรองแยกต่างหาก
