@@ -1,0 +1,16 @@
+V499 - Trial Data Permanent Deletion
+
+Attendance
+- Removed the fixed 2026-08-11 cleanup rule.
+- Added Admin action: "ล้าง Attendance ตามวันที่" for any YYYY-MM-DD trial day.
+- Every deleted day is stored as a deletion tombstone both locally and in Firebase.
+- Pending check-ins, browser cache, old versions, and attendance archive data cannot restore an Admin-deleted day.
+- If Firebase is temporarily unavailable, the deleted-day tombstone remains queued locally and is applied when Firebase reconnects.
+- Clearing all Attendance now marks every affected date as deleted before clearing records.
+
+Examination
+- Added permanent deletion tombstones for exam-result records.
+- Deleting one result or clearing trial Examination History saves the deletion list locally and in Firebase.
+- Old browser cache/version merge can no longer recreate results that Admin intentionally deleted.
+
+Keeps all V495-V498 attendance reconciliation, pending sync fixes, and V497 grading thresholds.

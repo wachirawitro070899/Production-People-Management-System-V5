@@ -1,0 +1,7 @@
+V498 - Attendance Deletion Tombstone
+
+- Prevent intentionally deleted Attendance from being restored by old V495/V496 recovery cache.
+- Add deleted-date tombstones in Firebase so pending local records cannot re-upload a deleted date.
+- One-time purge for trial date 2026-08-11, including attendance archive for that date.
+- Disable legacy attendance rescue records marked recoveredFromV495.
+- Clear-by-year/section now records deleted dates in Firebase.
