@@ -1,0 +1,8 @@
+V496 - Attendance Pending Sync Recovery
+
+- Fix check-in saved on employee device but missing from Admin/Firebase when network drops after GPS succeeds.
+- Mark new check-ins as pendingCloudSync until Firebase transaction succeeds.
+- Firebase realtime refresh no longer erases pending local check-ins.
+- Pressing Check-in again retries the original saved timestamp instead of blocking at Already checked in.
+- Startup automatically retries pending attendance records after Firebase is ready.
+- pendingCloudSync is local-only retry state; cloud record is saved clean after successful sync.
