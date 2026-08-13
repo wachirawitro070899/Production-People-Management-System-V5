@@ -1,0 +1,9 @@
+V500 - Per-Skill Skill Matrix & Target-Level Examination
+
+- Admin Skill Matrix update is limited to 1-2 selected topics per save.
+- Unselected skill topics keep their existing values; no bulk row update.
+- Examination targets exactly one skill topic per attempt.
+- Exam question Level is the target level (current + 1), not the current level.
+- Level 1-4: PASS >=80 updates only the tested topic automatically.
+- Level 5: includes 10 written questions and requires Admin approval before the tested topic becomes Level 5.
+- Exam set A/B/C remains deterministically randomized by employee, quarter, target level, section, and skill topic.

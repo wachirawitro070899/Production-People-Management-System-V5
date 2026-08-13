@@ -800,3 +800,11 @@ body.print-matrix .matrix-print-logo{padding:.35mm;box-sizing:border-box;}
 .org-fixed-leadership{background:#fff;border-bottom:3px solid #e5edf5}
 .org-fixed-leadership .level{background:#fff}
 .org-fixed-leadership .rank-level-supervisor h4,.org-fixed-leadership .rank-level-leader h4{background:#f7fbff;border-color:#b8cce0;color:#173b72}
+
+/* V500: Admin Skill Matrix edits are per-topic (max 2 topics per save). */
+.skill-level-editor.per-topic .skill-single-editor{display:grid;grid-template-columns:28px minmax(0,1fr) 120px;gap:8px;align-items:center;cursor:pointer}
+.skill-level-editor.per-topic .skill-single-editor>input[type="checkbox"]{width:18px;height:18px;margin:0}
+.skill-level-editor.per-topic .skill-single-editor span{display:flex;flex-direction:column;gap:2px}
+.skill-level-editor.per-topic .skill-single-editor small{font-size:11px;color:#66788a}
+.skill-level-editor.per-topic .skill-single-editor select:disabled{opacity:.55;background:#eef2f5}
+@media(max-width:700px){.skill-level-editor.per-topic .skill-single-editor{grid-template-columns:28px minmax(0,1fr)}.skill-level-editor.per-topic .skill-single-editor select{grid-column:2}}
