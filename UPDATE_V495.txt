@@ -1,0 +1,9 @@
+V495 - Attendance Identity + Status Reconcile
+
+- จับคู่รหัสพนักงาน Attendance แบบมาตรฐานเดียวกัน (NFKC, ตัด zero-width, ไม่สนตัวพิมพ์, ช่องว่าง, จุด, _ และ -)
+- ป้องกันพนักงานบางคนค้นรหัสไม่พบเพราะรูปแบบ Emp.ID ต่างกันเล็กน้อย
+- Deduplicate Attendance ต่อ Emp.ID + วันที่ ตอนโหลดและตอน merge Firebase
+- ถ้ามี Check-in จริง ให้ Check-in มีสิทธิ์เหนือสถานะขาดงานที่ค้างจาก Auto Absent
+- KPI/Absent จะไม่นับเป็นขาดเมื่อ Record นั้นมี Check-in
+- Merge Firebase จะรักษา Check-in เดิม แม้มี Auto Absent ที่อัปเดตใหม่กว่าเข้ามา
+- อัปเดต cache-buster เป็น app.js?v=495
