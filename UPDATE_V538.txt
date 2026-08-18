@@ -1,0 +1,5 @@
+V538 Examination History Sync Fix
+- Exam submit waits for Firebase write before success confirmation.
+- Direct transaction merge to ppms/examResults prevents results being lost by delayed whole-app sync.
+- Startup repair uploads local exam results left on employee devices to Firebase.
+- Admin Examination History reads the same examResults cloud data.

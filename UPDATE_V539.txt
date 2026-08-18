@@ -1,0 +1,4 @@
+V539 startup render hotfix
+- Fixes blank page caused by sectionSkillCatalog initializing before SECTION_SKILLS existed.
+- Keeps V537 Examination Plan + unlimited Section Skills.
+- Keeps V538 Examination History cloud sync fixes.
