@@ -1,0 +1,4 @@
+V537
+- Employee Examination page shows personal Q1-Q4 Examination Plan with date windows and status.
+- Section Skill Matrix Admin can add unlimited skills per Section.
+- Added skills persist locally and sync with Firebase cloud payload.
