@@ -1,0 +1,7 @@
+V503 - Attendance Cloud Verification Fix
+
+- Prevent automatic absence reconciliation until Attendance Firebase master is fully loaded.
+- Existing local check-in is now verified against central Attendance records when employee taps Check-in again.
+- If the phone has a valid local check-in but the central record is missing, the system automatically re-uploads/repairs it.
+- If central verification cannot be completed, the local record is marked pending so the employee can retry without losing the original timestamp.
+- Admin-deleted attendance dates remain protected and are not resurrected.
