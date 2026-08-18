@@ -3,7 +3,7 @@
 const SEED=Array.isArray(window.EMPLOYEE_SEED)?window.EMPLOYEE_SEED:[];
 const KEY='ppms_v3_employees', ATTENDANCE_KEY='ppms_v3_attendance', ATTENDANCE_SETTINGS_KEY='ppms_v3_attendance_settings', ATTENDANCE_DEVICES_KEY='ppms_v3_attendance_devices', ATTENDANCE_DELETED_DATES_KEY='ppms_v3_attendance_deleted_dates', SHIFT_SCHEDULE_KEY='ppms_v3_shift_schedules', SHIFT_CLOUD_DIRTY_KEY='ppms_v3_shift_cloud_dirty', HOLIDAY_KEY='ppms_v3_holidays', SKILL_OVERRIDE_KEY='ppms_v3_skill_overrides', EVAL_KEY='ppms_v3_evaluations', TRAIN_KEY='ppms_v3_training', EXAM_RESULT_KEY='ppms_v3_exam_results', EXAM_DELETED_KEY='ppms_v3_exam_deleted_keys', EXAM_BANK_KEY='ppms_v3_exam_bank', SHARED_KEY='ppms_v3_shared_data_version', DELETED_KEY='ppms_v3_deleted_employee_ids', CLOUD_DIRTY_KEY='ppms_v3_cloud_dirty', LOCAL_UPDATED_KEY='ppms_v3_local_updated_at';
 const SHARED_VERSION=String(window.EMPLOYEE_DATA_VERSION||'legacy');
-const APP_DATA_VERSION='V504-Trial-Period-Cleanup';
+const APP_DATA_VERSION='V505-Night-Shift-End-Status-Fix';
 const ATTENDANCE_CLOUD_ROOT='ppmsAttendance';
 const EMPLOYEE_PHOTO_DRIVE_FOLDER='https://drive.google.com/drive/folders/1teHJMKOl5wbmayEehnA-fObS4hQJRT9q?usp=drive_link';
 const DRIVE_UPLOAD_CONFIG=window.PPMS_DRIVE_UPLOAD_CONFIG||{};
@@ -679,7 +679,8 @@ function liveAttendanceState(emp){
  // Organization Chart แสดงกะของ "วันนี้" เป็นหลัก เพื่อไม่ตีพนักงานกะดึกเป็นขาดงานตั้งแต่ช่วงเช้า
  // กรณีหลังเที่ยงคืน ถ้ามีพนักงานเช็คอินกะดึกของวันก่อนจริง จึงแสดงสถานะของ record นั้นต่อเนื่อง
  const today=thaiDateKey(),prev=dateOffsetKey(-1),clock=currentThaiMinutes();
- const prevRec=clock<720&&employeeShiftKey(emp,prev)==='night'?attendanceFor(emp.id,prev):null;
+ // V505: กะดึกสิ้นสุดเมื่อเริ่มกะเช้า 07:00 น. ห้ามให้ record ของคืนก่อนค้างเป็นสีเขียวถึงเที่ยง
+ const prevRec=clock<420&&employeeShiftKey(emp,prev)==='night'?attendanceFor(emp.id,prev):null;
  if(prevRec?.checkIn&&!prevRec?.checkOut)return {key:'working',label:'ทำงาน • กะดึก',detail:thaiTime(new Date(prevRec.checkIn))};
  const date=today,rec=attendanceFor(emp.id,date),sh=shiftConfig(emp,date),open=timeMinutes(sh.checkInOpen),late=timeMinutes(sh.lateReasonAfter),now=clock;
  // V492: หลัง 19:00 สถานะของพนักงานกะเช้าจะจบรอบของวันนี้และเตรียมแสดงวันถัดไป
@@ -1380,6 +1381,14 @@ window.addEventListener('online',()=>{setCloudStatus('อินเทอร์�
 // V485: no refresh on focus/visibility and no periodic cloud reads. Mobile browsers
 // can emit focus/visibility events while a native select or keyboard is open.
 // Keep only retry of unsent local writes; Firebase realtime listener handles remote updates.
+// V505: หน้าผังองค์กรอาจเปิดค้างบนจอทั้งกะ จึงอัปเดตสีสถานะตามเวลาอัตโนมัติทุก 60 วินาที
+// โดยไม่รบกวนหน้าอื่นหรือ modal ที่ Admin กำลังใช้งาน
+setInterval(()=>{
+ if(current!=='dashboard'||!isAdmin)return;
+ const modalOpen=!document.getElementById('modal')?.classList.contains('hidden');
+ if(modalOpen||userInteractionBusy())return;
+ render();
+},60000);
 setInterval(()=>{if(localStorage.getItem(CLOUD_DIRTY_KEY)==='1')syncPendingCloudData()},CLOUD_REFRESH_INTERVAL_MS);
 setInterval(autoSyncDrivePhotos,10*60*1000);
 })();
