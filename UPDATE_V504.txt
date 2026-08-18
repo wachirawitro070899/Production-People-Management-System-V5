@@ -1,0 +1,10 @@
+V504 - Trial Period Attendance Cleanup
+
+- Added Admin action: ล้างขาดงานช่วงทดลอง
+- Admin can choose start/end date and section/all sections.
+- Deletes only automatic absence records (-10) created by the system.
+- Preserves genuine check-ins, leave, late notices, medical certificates, and employee data.
+- Stores trial-period exclusions in Attendance settings on Firebase so automatic absence reconciliation will not recreate -10 records in the excluded period.
+- Monthly checksheet shows ช่วงทดลองระบบ / ไม่นับคะแนน for empty dates inside an excluded trial period.
+- Existing trial exclusions can be removed by Admin.
+- Cache version bumped to app.js?v=504.
