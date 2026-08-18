@@ -1,0 +1,1 @@
+V530: Shift planner always shows current round + next 3 rounds. Round numbers continue from the 2026-08-10 anchor (1-4, then 5-8, etc.). Existing shift data is preserved.
