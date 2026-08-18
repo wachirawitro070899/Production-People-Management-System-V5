@@ -9,3 +9,7 @@ Required runtime files are kept in this repository. Historical backup files and 
 - Employee photo save no longer fails when Google Apps Script Drive uploader is not configured.
 - Local photo selection is compressed and saved with the employee record/Firebase as fallback.
 - Google Drive upload remains optional when configured.
+
+
+## V521
+Attendance GPS check-in radius can be configured by Admin from 50-500 meters.

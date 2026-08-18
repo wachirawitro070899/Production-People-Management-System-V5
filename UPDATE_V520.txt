@@ -1,0 +1,6 @@
+V520 - One Device One Employee Lock
+- 1 browser/device token can bind to only 1 employee
+- 1 employee can bind to only 1 device
+- Firebase transaction makes binding authoritative and prevents race conditions
+- Bound device locks employee ID field and blocks check-in/leave/late for other IDs
+- Admin can Reset Device from Attendance device management

@@ -1,0 +1,7 @@
+V521 - Adjustable GPS Check-in Radius 50-500 m
+
+- Admin can set the attendance GPS check-in radius from 50 to 500 meters.
+- Radius input uses 10-meter increments.
+- The map circle preview updates with the configured radius.
+- The saved radius is published through the existing Attendance Settings/Firebase sync so employee devices use the same value.
+- Existing 1-device-1-employee lock and prior Attendance fixes are retained.
