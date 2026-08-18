@@ -1,0 +1,8 @@
+V515 - Attendance Reset / New Go-Live Fix
+
+- แก้ปัญหาล้าง Attendance แล้วระบบสร้างขาดงานย้อนหลังให้พนักงานทุกคน
+- ปุ่มล้าง Attendance ทั้งหมดจะตั้งวันเริ่มนับ Attendance/KPI ใหม่เป็นวันที่ล้าง
+- วันที่ก่อน Go-Live ใหม่จะไม่ถูก Auto Absence สร้าง -10 ย้อนหลัง
+- ล้าง Attendance ช่วงทดลองแบบทุกแผนกจะตั้ง Go-Live ใหม่อัตโนมัติ
+- การล้างข้อมูลทดลองทั้งหมดจะส่ง Attendance Settings ใหม่ขึ้น Firebase ด้วย
+- Summary จะเริ่มนับจาก Go-Live ใหม่ ไม่รวมช่วงทดลองเก่า
