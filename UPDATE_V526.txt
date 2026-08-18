@@ -1,0 +1,6 @@
+V526 - All Departments Current 4 Rounds
+- Adds Admin button to seed the current four 14-day rounds for every department.
+- Uses each employee current Attendance default shift as the initial Day/Night value.
+- Current window: 2026-08-17 through 2026-10-11 when run on 2026-08-18.
+- Publishes shift schedule to Firebase so all devices use the same schedule.
+- Existing manual per-employee overrides remain editable after seeding.
