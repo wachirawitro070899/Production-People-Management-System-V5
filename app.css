@@ -824,3 +824,6 @@ input[id*="exam"][id*="Emp"], input[id*="Exam"][id*="Emp"] {
  .exam-entry-row { grid-template-columns:1fr !important; gap:8px !important; }
  .exam-entry-row button { width:100% !important; min-height:44px; }
 }
+
+/* V536 Examination Plan by Section */
+.exam-plan-controls{display:flex;gap:12px;align-items:end;flex-wrap:wrap}.exam-plan-controls label{min-width:220px}.exam-plan-controls input,.exam-plan-controls select{width:100%}.exam-plan-table th,.exam-plan-table td{vertical-align:top}.exam-plan-range{display:block;margin-top:4px;white-space:nowrap;font-weight:400}.exam-plan-done,.exam-plan-pending{display:inline-block;margin-top:7px;padding:3px 8px;border-radius:999px;font-size:12px}.exam-plan-done{background:#dcfce7}.exam-plan-pending{background:#fef3c7}@media(max-width:700px){.exam-plan-controls label{min-width:100%}.exam-plan-table{min-width:1000px}}

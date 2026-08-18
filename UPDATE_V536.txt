@@ -1,0 +1,6 @@
+V536
+- Removed Training Plan from navigation.
+- Added Examination Plan separated by Section.
+- Every employee shows Q1-Q4 required exam date windows and completion status.
+- Q1 Mar 10-20; Q2 Jun 10-20; Q3 Sep 10-20; Q4 Dec 10-20.
+- Existing Training data is preserved in storage/backup; only its page/menu is removed.
