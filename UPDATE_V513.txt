@@ -1,0 +1,8 @@
+V513 - Trial Attendance Full Cleanup
+
+- เปลี่ยนปุ่มล้างช่วงทดลองให้ล้าง Attendance ทุกประเภทในช่วงวันที่ที่เลือก
+- ลบ Check-in, Late, Sick Leave, Personal Leave, Absent และคะแนน Attendance ที่เกี่ยวข้อง
+- ทำเครื่องหมาย deletedDates ครบทุกวันในช่วงที่ล้าง เพื่อป้องกัน cache/pending จากมือถือกู้ข้อมูลกลับมา
+- ตั้ง trial period เพื่อป้องกันระบบสร้างขาดงานอัตโนมัติย้อนหลัง
+- ไม่ลบข้อมูลพนักงาน, Skill Matrix, Training, Examination หรือข้อมูล Master อื่น
+- ต้องพิมพ์ RESET ก่อนล้างจริง

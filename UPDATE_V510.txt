@@ -1,0 +1,8 @@
+V510 - Employee ID Lookup Reliability
+
+- Fix intermittent “employee ID not found” on Attendance.
+- Attendance waits for Firebase and performs a direct Firebase employee lookup when the local employee list has not caught up yet.
+- Supports employee master stored as either an array or Firebase object keyed by employee ID, including records whose id field is missing.
+- Normalizes whitespace, punctuation, Unicode/full-width digits and an unambiguous numeric leading-zero variant.
+- Canonical employee ID is written back into the Attendance input after a successful lookup.
+- Cache buster updated to app.js?v=510 and employees-data.js?v=510.
