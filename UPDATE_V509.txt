@@ -1,0 +1,6 @@
+V509 - Employee Attendance History Card
+- Pull Attendance & KPI history into employee card/editor.
+- Show current-year Present, Late, Personal Leave, Sick Leave, Absent, KPI.
+- Show 12 latest Attendance records with reason, deduction, and medical certificate button.
+- Employee cards in live organization view show Late/Leave/Absent counts.
+- Add shortcut to filtered Attendance & KPI page for the selected employee.
