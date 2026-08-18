@@ -1,0 +1,10 @@
+V541 - Attendance Employee Lookup Fix
+
+- Attendance check-in now uses the Firebase-ready employee lookup flow before rejecting an employee ID.
+- Direct Firebase fallback remains enabled for ppms/employees and ppms root.
+- Employee ID matching supports normalized/compact IDs and unique numeric tails for subcontractor IDs.
+- Removed the misleading legacy "employee ID not found" path from the old synchronous helper.
+- Bumped static asset query versions to v=541 to force GitHub Pages/mobile browsers to load the new JavaScript.
+- Added no-cache HTML meta directives to index.html and 404.html.
+
+Deploy all files in this folder to the same GitHub Pages branch/folder.
