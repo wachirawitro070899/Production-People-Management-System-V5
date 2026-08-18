@@ -1,0 +1,9 @@
+V519 - Go-Live Force Unlock Fix
+
+- Go-Live/reset now clears ALL Attendance deletedDates tombstones from the new live date forward, regardless of legacy deletion reason.
+- Prevents the current live date from remaining blocked after trial cleanup/reset.
+- Cloud overwrite uses the same force-clear behavior, so stale Firebase markers cannot be merged back during reset.
+- V519 reset metadata lets startup preserve the forced unlock behavior.
+- Cache bumped to app.js?v=519.
+
+After deploying: Admin -> Attendance & KPI -> Reset and start live again -> type LIVE. Employees can check in immediately on the live date.
