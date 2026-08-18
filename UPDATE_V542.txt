@@ -1,0 +1,6 @@
+V542 Attendance Shift Roster Sync Fix
+
+- Attendance now resolves the same 14-day round rule shown on the employee 4-round shift card.
+- Priority remains: Employee override > Stamping Team > Default attendance shift.
+- Fixes cases where the employee card shows Night but Attendance incorrectly uses Day/08:05 because an older partial rule overlaps the active 14-day round.
+- Cache version bumped to v=542 for GitHub Pages/mobile browsers.

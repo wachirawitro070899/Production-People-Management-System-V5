@@ -3,7 +3,7 @@
 const SEED=Array.isArray(window.EMPLOYEE_SEED)?window.EMPLOYEE_SEED:[];
 const KEY='ppms_v3_employees', ATTENDANCE_KEY='ppms_v3_attendance', ATTENDANCE_SETTINGS_KEY='ppms_v3_attendance_settings', ATTENDANCE_DEVICES_KEY='ppms_v3_attendance_devices', ATTENDANCE_DELETED_DATES_KEY='ppms_v3_attendance_deleted_dates', ATTENDANCE_DELETED_RECORDS_KEY='ppms_v3_attendance_deleted_records', SHIFT_SCHEDULE_KEY='ppms_v3_shift_schedules', SHIFT_CLOUD_DIRTY_KEY='ppms_v3_shift_cloud_dirty', HOLIDAY_KEY='ppms_v3_holidays', SKILL_OVERRIDE_KEY='ppms_v3_skill_overrides', EVAL_KEY='ppms_v3_evaluations', TRAIN_KEY='ppms_v3_training', EXAM_RESULT_KEY='ppms_v3_exam_results', EXAM_DELETED_KEY='ppms_v3_exam_deleted_keys', EXAM_BANK_KEY='ppms_v3_exam_bank', SHARED_KEY='ppms_v3_shared_data_version', DELETED_KEY='ppms_v3_deleted_employee_ids', CLOUD_DIRTY_KEY='ppms_v3_cloud_dirty', LOCAL_UPDATED_KEY='ppms_v3_local_updated_at';
 const SHARED_VERSION=String(window.EMPLOYEE_DATA_VERSION||'legacy');
-const APP_DATA_VERSION='V541-Attendance-Employee-Lookup-Fix';
+const APP_DATA_VERSION='V542-Attendance-Shift-Roster-Sync-Fix';
 const ATTENDANCE_CLOUD_ROOT='ppmsAttendance';
 const EMPLOYEE_PHOTO_DRIVE_FOLDER='https://drive.google.com/drive/folders/1teHJMKOl5wbmayEehnA-fObS4hQJRT9q?usp=drive_link';
 const DRIVE_UPLOAD_CONFIG=window.PPMS_DRIVE_UPLOAD_CONFIG||{};
@@ -901,7 +901,24 @@ function attendanceIsLive(){return attendanceOperatingMode()==='live'}
 function attendanceModeLabel(){return attendanceIsLive()?'ใช้งานจริง / LIVE':'ทดลองใช้ / TRIAL'}
 
 function defaultEmployeeShiftKey(emp){return String(emp?.attendanceShift||'day')==='night'?'night':'day'}
-function activeShiftRulesFor(emp,date){const d=String(date||thaiDateKey()),rules=Object.values(shiftSchedules||{}).filter(r=>r&&!r.deleted&&String(r.section||'')===String(emp?.section||'')&&String(r.startDate||'')<=d&&String(r.endDate||'')>=d);return rules.filter(r=>r.scope==='employee'?String(r.employeeId||'')===String(emp?.id||''):r.scope==='team'?String(r.team||'')===String(emp?.stampingShift||''):false).sort((a,b)=>{const p=x=>x.scope==='employee'?2:1;return p(b)-p(a)||String(b.updatedAt||'').localeCompare(String(a.updatedAt||''))})}
+function activeShiftRulesFor(emp,date){
+ const d=String(date||thaiDateKey()),section=String(emp?.section||''),empId=String(emp?.id||''),team=String(emp?.stampingShift||'');
+ const rules=Object.values(shiftSchedules||{}).filter(r=>r&&!r.deleted&&String(r.section||'')===section);
+ const inExactDate=r=>String(r.startDate||'')<=d&&String(r.endDate||'')>=d;
+ const subjectMatch=r=>r.scope==='employee'?String(r.employeeId||'')===empId:r.scope==='team'?team&&String(r.team||'')===team:false;
+ const priority=r=>r.scope==='employee'?2:1;
+ const exact=rules.filter(r=>subjectMatch(r)&&inExactDate(r)).sort((a,b)=>priority(b)-priority(a)||String(b.updatedAt||'').localeCompare(String(a.updatedAt||'')));
+ if(exact.length)return exact;
+ // V542: The employee 4-round card uses rosterRule(), which treats an older/partial rule
+ // overlapping the 14-day round as that round's plan. Attendance must resolve the same way.
+ // Otherwise the employee card can show Night while check-in silently falls back to Day.
+ try{
+  const cycleStart=currentShiftCycleStart(d),round={start:cycleStart,end:addDaysToKey(cycleStart,13)};
+  const employeeRule=rosterRule(section,'employee',empId,round);
+  const teamRule=team?rosterRule(section,'team',team,round):null;
+  return [employeeRule,teamRule].filter(Boolean);
+ }catch(_){return []}
+}
 function employeeShiftKey(emp,date=thaiDateKey()){const rule=activeShiftRulesFor(emp,date)[0];return rule&&['day','night'].includes(rule.shift)?rule.shift:defaultEmployeeShiftKey(emp)}
 function shiftConfig(emp,date=thaiDateKey(),shiftOverride=''){const c=attendanceConfig(),key=['day','night'].includes(shiftOverride)?shiftOverride:employeeShiftKey(emp,date);return {...c[key],key}}
 function dateOffsetKey(days){const d=new Date();d.setTime(d.getTime()+days*86400000);return thaiDateKey(d)}
