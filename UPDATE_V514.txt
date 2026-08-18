@@ -1,0 +1,10 @@
+V514 - Trial Attendance Hard Delete Fix
+
+- Full-cleanup trial periods are now hard exclusions for Attendance.
+- attendanceFor() ignores any stale record inside a full-cleanup trial period.
+- Auto-absence reconciliation purges all stale records in those periods, including legacy -10 rows that were not tagged autoAbsent.
+- Firebase live sync filters hard-cleanup trial rows after loading settings.
+- Old employee-phone pending sync cannot upload records back into a hard-cleanup trial period.
+- Archive restore cannot restore records into a hard-cleanup trial period.
+- Monthly checksheet shows Trial period / cleared / no score before evaluating stale absence records.
+- Cache version bumped to V514.
