@@ -1199,10 +1199,13 @@ function dateKeyFromParts(y,m,d){return `${String(y).padStart(4,'0')}-${String(m
 function addDaysToKey(key,days){const [y,m,d]=String(key).split('-').map(Number),x=new Date(y,m-1,d,12,0,0);x.setDate(x.getDate()+Number(days||0));return dateKeyFromParts(x.getFullYear(),x.getMonth()+1,x.getDate())}
 function mondayOfKey(key=thaiDateKey()){const [y,m,d]=String(key).split('-').map(Number),x=new Date(y,m-1,d,12,0,0),dow=x.getDay(),back=(dow+6)%7;x.setDate(x.getDate()-back);return dateKeyFromParts(x.getFullYear(),x.getMonth()+1,x.getDate())}
 function isMondayKey(key){const [y,m,d]=String(key).split('-').map(Number);return new Date(y,m-1,d,12,0,0).getDay()===1}
-function fourShiftRounds(startMonday){const base=mondayOfKey(startMonday||thaiDateKey());return Array.from({length:4},(_,i)=>({no:i+1,start:addDaysToKey(base,i*14),end:addDaysToKey(base,i*14+13)}))}
+const SHIFT_CYCLE_ANCHOR='2026-08-10';
+function daysBetweenKeys(a,b){const pa=String(a).split('-').map(Number),pb=String(b).split('-').map(Number);return Math.floor((Date.UTC(pb[0],pb[1]-1,pb[2])-Date.UTC(pa[0],pa[1]-1,pa[2]))/86400000)}
+function currentShiftCycleStart(key=thaiDateKey()){const diff=daysBetweenKeys(SHIFT_CYCLE_ANCHOR,key),n=Math.floor(diff/14);return addDaysToKey(SHIFT_CYCLE_ANCHOR,n*14)}
+function fourShiftRounds(startMonday){const base=startMonday?mondayOfKey(startMonday):currentShiftCycleStart();return Array.from({length:4},(_,i)=>({no:i+1,start:addDaysToKey(base,i*14),end:addDaysToKey(base,i*14+13)}))}
 async function initializeCurrentFourRoundsAllDepartments(){
  if(!isAdmin)return alert('กรุณา Login เป็น Admin');
- const start=mondayOfKey(thaiDateKey()),rounds=fourShiftRounds(start),now=new Date().toISOString();
+ const start=currentShiftCycleStart(),rounds=fourShiftRounds(start),now=new Date().toISOString();
  if(!confirm(`ตั้งกะ 4 รอบปัจจุบันให้พนักงานทุกแผนกหรือไม่?\n\nรอบ 1 ${rounds[0].start} - ${rounds[0].end}\nรอบ 2 ${rounds[1].start} - ${rounds[1].end}\nรอบ 3 ${rounds[2].start} - ${rounds[2].end}\nรอบ 4 ${rounds[3].start} - ${rounds[3].end}\n\nระบบจะใช้กะปัจจุบันของพนักงานแต่ละคนเป็นค่าเริ่มต้นสำหรับทั้ง 4 รอบ คุณยังแก้ Day/Night รายคนได้ภายหลัง`))return;
  const activeEmployees=employees.filter(e=>e&&e.id!=null);
  for(const emp of activeEmployees){
@@ -1210,6 +1213,7 @@ async function initializeCurrentFourRoundsAllDepartments(){
   const shift=defaultEmployeeShiftKey(emp);
   for(const r of rounds){
    const id=shiftRuleId(section,'employee',emp.id,r.start,r.end);
+   if(rosterRule(section,'employee',String(emp.id),r))continue;
    shiftSchedules[id]={id,section,scope:'employee',employeeId:String(emp.id),startDate:r.start,endDate:r.end,roundNo:r.no,shift,createdAt:shiftSchedules[id]?.createdAt||now,updatedAt:now,deleted:false,v526Seed:true};
   }
  }
@@ -1220,10 +1224,10 @@ async function initializeCurrentFourRoundsAllDepartments(){
  render();
  alert(`ตั้งกะ 4 รอบปัจจุบันให้ทุกแผนกเรียบร้อย ${activeEmployees.length} คน\n${rounds[0].start} ถึง ${rounds[3].end}`+(ready?' • ซิงก์ Firebase แล้ว':' • บันทึกในเครื่องแล้วและจะซิงก์เมื่อเชื่อมต่อ'));
 }
-function rosterRule(section,scope,subject,round){return Object.values(shiftSchedules||{}).filter(r=>r&&!r.deleted&&String(r.section)===String(section)&&String(r.scope)===String(scope)&&String(r.startDate)===round.start&&String(r.endDate)===round.end&&(scope==='team'?String(r.team)===String(subject):String(r.employeeId)===String(subject))).sort((a,b)=>String(b.updatedAt||'').localeCompare(String(a.updatedAt||'')))[0]||null}
+function rosterRule(section,scope,subject,round){const rules=Object.values(shiftSchedules||{}).filter(r=>r&&!r.deleted&&String(r.section)===String(section)&&String(r.scope)===String(scope)&&(scope==='team'?String(r.team)===String(subject):String(r.employeeId)===String(subject)));const exact=rules.filter(r=>String(r.startDate)===round.start&&String(r.endDate)===round.end).sort((a,b)=>String(b.updatedAt||'').localeCompare(String(a.updatedAt||'')))[0];if(exact)return exact;return rules.filter(r=>String(r.startDate||'')<=round.end&&String(r.endDate||'')>=round.start).sort((a,b)=>String(b.updatedAt||'').localeCompare(String(a.updatedAt||'')))[0]||null}
 function rosterShiftSelect(name,value='',blankLabel='ใช้ค่าเดิม'){return `<select name="${esc(name)}"><option value="">${esc(blankLabel)}</option><option value="day" ${value==='day'?'selected':''}>☀️ Day</option><option value="night" ${value==='night'?'selected':''}>🌙 Night</option></select>`}
 function shiftManagementModal(sectionValue='',startValue=''){
- const rosterSection=sectionValue||sessionStorage.getItem('shiftRosterSection')||'Stamping Section',sortingGroup=rosterSection==='Sorting 1 Section'?'Sorting 1':rosterSection==='Sorting 2 Section'?'Sorting 2':'',section=sortingGroup?'Sorting Section':rosterSection,currentMonday=mondayOfKey(thaiDateKey()),base=mondayOfKey(startValue||currentMonday),rounds=fourShiftRounds(base),todayKey=thaiDateKey(),list=employees.filter(e=>String(e.section)===section&&(!sortingGroup||String(e.sortingGroup||'')===sortingGroup)).slice().sort((a,b)=>String(a.id).localeCompare(String(b.id))),teamMode=section==='Stamping Section';
+ const rosterSection=sectionValue||sessionStorage.getItem('shiftRosterSection')||'Stamping Section',sortingGroup=rosterSection==='Sorting 1 Section'?'Sorting 1':rosterSection==='Sorting 2 Section'?'Sorting 2':'',section=sortingGroup?'Sorting Section':rosterSection,currentMonday=currentShiftCycleStart(),base=mondayOfKey(startValue||currentMonday),rounds=fourShiftRounds(base),todayKey=thaiDateKey(),list=employees.filter(e=>String(e.section)===section&&(!sortingGroup||String(e.sortingGroup||'')===sortingGroup)).slice().sort((a,b)=>String(a.id).localeCompare(String(b.id))),teamMode=section==='Stamping Section';
  const rosterSections=sections.flatMap(x=>x==='Sorting Section'?['Sorting 1 Section','Sorting 2 Section']:[x]);
  const sectionOpts=rosterSections.map(x=>`<option value="${esc(x)}" ${x===rosterSection?'selected':''}>${esc(x)}</option>`).join('');
  const roundHeads=rounds.map(r=>`<th><b>รอบ ${r.no}${todayKey>=r.start&&todayKey<=r.end?' • ปัจจุบัน':''}</b><br><small>${esc(r.start)} → ${esc(r.end)}</small></th>`).join('');
@@ -1308,14 +1312,14 @@ function employeeAttendanceHistoryPanel(emp){
 }
 function employeeQuickShiftPanel(emp){
  if(!isAdmin)return '';
- const base=mondayOfKey(thaiDateKey()),rounds=fourShiftRounds(base),today=thaiDateKey();
+ const base=currentShiftCycleStart(),rounds=fourShiftRounds(base),today=thaiDateKey();
  const cells=rounds.map(r=>{const rule=rosterRule(String(emp.section||''),'employee',String(emp.id),r),shift=rule?.shift||'',label=shift==='night'?'Night':shift==='day'?'Day':'Default';return `<div class="card metric"><small>รอบ ${r.no}${today>=r.start&&today<=r.end?' • ปัจจุบัน':''}</small><b>${label}</b><small>${esc(r.start)} → ${esc(r.end)}</small></div>`}).join('');
  return `<div class="panel employee-quick-shift" style="margin:12px 0"><div style="display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap"><div><h3 style="margin:0">แผนเข้ากะรายบุคคล</h3><p class="modal-note" style="margin:4px 0 0">ปรับ Day / Night ของพนักงานคนนี้สำหรับ 4 รอบปัจจุบันได้ทันที</p></div><button type="button" class="secondary" data-quick-shift-plan="${esc(emp.id)}">ปรับแผนกะ 4 รอบ</button></div><div class="cards" style="margin-top:10px">${cells}</div></div>`;
 }
 async function employeeQuickShiftModal(employeeId){
  if(!isAdmin)return alert('กรุณา Login เป็น Admin');
  const emp=employees.find(e=>String(e.id)===String(employeeId));if(!emp)return alert('ไม่พบข้อมูลพนักงาน');
- const base=mondayOfKey(thaiDateKey()),rounds=fourShiftRounds(base),section=String(emp.section||''),today=thaiDateKey();
+ const base=currentShiftCycleStart(),rounds=fourShiftRounds(base),section=String(emp.section||''),today=thaiDateKey();
  const row=rounds.map(r=>{const v=rosterRule(section,'employee',String(emp.id),r)?.shift||'';return `<label>รอบ ${r.no}${today>=r.start&&today<=r.end?' • ปัจจุบัน':''}<small style="display:block;margin:3px 0 5px">${esc(r.start)} → ${esc(r.end)}</small>${rosterShiftSelect(`quick_r${r.no}`,v,'ใช้ค่า Default')}</label>`}).join('');
  modal(`<h2>ปรับแผนเข้ากะรายบุคคล</h2><p class="modal-note"><b>${esc(emp.id)} · ${esc(emp.name)}</b><br>${esc(emp.section||'')} • Default ${defaultEmployeeShiftKey(emp)==='night'?'Night':'Day'}<br>ตั้งเฉพาะพนักงานคนนี้ โดยไม่กระทบพนักงานคนอื่น</p><form id="employeeQuickShiftForm"><div class="form-grid">${row}</div><div class="actions"><button type="submit">บันทึกแผนกะรายบุคคล</button><button type="button" class="secondary" data-action="close">ยกเลิก</button></div></form>`);
  setTimeout(()=>{const f=document.querySelector('#employeeQuickShiftForm');if(!f)return;f.onsubmit=async ev=>{ev.preventDefault();const fd=new FormData(f),now=new Date().toISOString();for(const r of rounds){const id=shiftRuleId(section,'employee',String(emp.id),r.start,r.end),shift=String(fd.get(`quick_r${r.no}`)||'');if(shift){shiftSchedules[id]={id,section,scope:'employee',employeeId:String(emp.id),startDate:r.start,endDate:r.end,roundNo:r.no,shift,createdAt:shiftSchedules[id]?.createdAt||now,updatedAt:now,deleted:false,v527QuickCard:true};}else if(shiftSchedules[id]){delete shiftSchedules[id];}}

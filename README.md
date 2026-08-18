@@ -13,3 +13,9 @@ Required runtime files are kept in this repository. Historical backup files and 
 
 ## V521
 Attendance GPS check-in radius can be configured by Admin from 50-500 meters.
+
+
+## V528
+- Removed legacy per-employee Attendance shift selector from employee edit UI.
+- Shift source is the 4-round plan / individual override.
+- Engineering Support Section and Support Production Section remain fixed Day shift.

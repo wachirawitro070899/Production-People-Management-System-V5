@@ -1,0 +1,2 @@
+V529
+Shift anchor 2026-08-10; every 14 days. Existing shift data is preserved and overlapping legacy rules remain visible until resaved.
