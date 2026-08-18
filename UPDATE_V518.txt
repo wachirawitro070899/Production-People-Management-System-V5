@@ -1,0 +1,7 @@
+V518 Attendance Live Sync Fix
+
+- Fixes check-in success on employee phone but 0 records on Admin dashboard.
+- Clears stale Trial/Reset deletedDates tombstones on/after the new Go-Live date.
+- Go-Live reset now clears old trial deletion blocks from Firebase and local cache.
+- Check-in no longer shows success when Firebase rejected the date because of a cleanup tombstone.
+- Existing intentional Admin deletion markers that are not trial/reset related are preserved.
