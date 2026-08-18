@@ -1,0 +1,7 @@
+V508 - Admin quick attendance from employee name/card
+- Click an employee card/name to open the employee editor.
+- Added quick Admin actions: Absent / Leave / Late.
+- Choose date and add reason directly.
+- Leave supports sick/personal leave and medical certificate attachment.
+- Late supports actual arrival time and uses existing KPI deduction rules.
+- Saves into the same Attendance/KPI records and syncs to Firebase.

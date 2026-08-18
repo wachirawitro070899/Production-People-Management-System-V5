@@ -1,0 +1,7 @@
+V506 - Absence Delete Persist Fix
+
+- Fix: Admin deleting an automatic absence (-10) now creates a permanent employee+date exclusion.
+- The automatic reconciliation process will not recreate that deleted absence after refresh.
+- Fix: trial-period cleanup now saves Attendance records and trial settings atomically to Firebase.
+- Prevents Firebase live sync from restoring old settings between separate writes.
+- Existing real check-ins, leave records, late records, medical certificates, V503 sync fixes, V504 trial cleanup and V505 night-shift display fixes remain unchanged.
