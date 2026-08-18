@@ -1,0 +1,7 @@
+V534 Attendance retro leave rules
+- Sick retroactive leave: only within 3 days, medical certificate required, -3.
+- Sick retroactive over 3 days: rejected; remains absence -10.
+- Personal retroactive leave: only within 3 days, -4; same-day after cutoff -4.
+- Personal retroactive over 3 days: rejected; remains absence -10.
+- Auto absence remains visible until a valid leave notice arrives within 3 days; then the same employee/date record is replaced with leave and KPI deduction recalculates to the leave rule.
+- Medical-certificate late attachment window reduced to 3 days.

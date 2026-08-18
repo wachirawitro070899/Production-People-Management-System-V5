@@ -1,0 +1,4 @@
+V532 Attendance leave fix
+- Future personal leave (advanceFuture / advanceDays > 0) deducts -1 in Admin exactly like employee confirmation.
+- Prevent duplicate leave form submission.
+- Merge same employee+date Attendance records before saving.

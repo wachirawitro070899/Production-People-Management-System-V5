@@ -1,0 +1,1 @@
+V535 Attendance rules updated per latest policy: same-day sick no certificate -1 then -2 after 3 days; retro sick <=3 requires certificate -2; retro sick >3 converts to personal retro -4; personal retro >3 absence -10; other existing rules preserved.

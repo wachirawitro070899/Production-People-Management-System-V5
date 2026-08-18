@@ -1,0 +1,18 @@
+V533 Attendance KPI rules audit
+
+Verified canonical deductions:
+- Holiday: 0
+- Absent: -10
+- Personal leave future up to 7 days or same day before shift cutoff: -1
+- Personal leave retro / same day after cutoff: -4
+- Sick leave same day with medical certificate: 0
+- Sick leave same day without certificate: -1
+- Sick leave retro (up to 7 days): -3
+- Late 1-15 min: -1
+- Late 16-30 min: -2
+- Late >30 min: -3
+
+Fixes:
+- Admin manual leave now calculates future/retro/same-day cutoff exactly like employee flow.
+- Admin manual late rejects times that are not actually late.
+- Existing duplicate-record guard from V532 remains.
