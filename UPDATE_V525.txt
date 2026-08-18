@@ -1,0 +1,5 @@
+V525 Current Shift Rounds
+- Shift planner defaults to the current Monday instead of a stale session date.
+- Current 14-day round is highlighted.
+- Added Use current round button.
+- On 2026-08-18, Round 1 is 2026-08-17 to 2026-08-30.
