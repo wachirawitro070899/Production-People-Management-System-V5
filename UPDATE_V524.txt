@@ -1,0 +1,4 @@
+V524
+- Add separate web employee-code entry cards for quarterly, Sup permanent/regularization, and new employee exams.
+- Add Sup permanent exam type (40 questions), separate from Q1-Q4.
+- New employee and Sup permanent exams are 40 questions and opened directly from their own code-entry fields.

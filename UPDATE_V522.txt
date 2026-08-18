@@ -1,0 +1,5 @@
+V522 Attendance permanent record delete
+- Delete button writes per-employee/per-date tombstone to Firebase.
+- Deleted record is removed from central records and archive.
+- Phone/local cache cannot restore an Admin-deleted record after refresh.
+- Auto absence exclusion remains for deleted automatic absence.
