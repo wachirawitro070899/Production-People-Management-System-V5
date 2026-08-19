@@ -3,8 +3,9 @@
 const SEED=Array.isArray(window.EMPLOYEE_SEED)?window.EMPLOYEE_SEED:[];
 const KEY='ppms_v3_employees', ATTENDANCE_KEY='ppms_v3_attendance', ATTENDANCE_SETTINGS_KEY='ppms_v3_attendance_settings', ATTENDANCE_DEVICES_KEY='ppms_v3_attendance_devices', ATTENDANCE_DELETED_DATES_KEY='ppms_v3_attendance_deleted_dates', ATTENDANCE_DELETED_RECORDS_KEY='ppms_v3_attendance_deleted_records', SHIFT_SCHEDULE_KEY='ppms_v3_shift_schedules', SHIFT_CLOUD_DIRTY_KEY='ppms_v3_shift_cloud_dirty', HOLIDAY_KEY='ppms_v3_holidays', SKILL_OVERRIDE_KEY='ppms_v3_skill_overrides', EVAL_KEY='ppms_v3_evaluations', TRAIN_KEY='ppms_v3_training', EXAM_RESULT_KEY='ppms_v3_exam_results', EXAM_DELETED_KEY='ppms_v3_exam_deleted_keys', EXAM_BANK_KEY='ppms_v3_exam_bank', SHARED_KEY='ppms_v3_shared_data_version', DELETED_KEY='ppms_v3_deleted_employee_ids', CLOUD_DIRTY_KEY='ppms_v3_cloud_dirty', LOCAL_UPDATED_KEY='ppms_v3_local_updated_at';
 const SHARED_VERSION=String(window.EMPLOYEE_DATA_VERSION||'legacy');
-const APP_DATA_VERSION='V559-Attendance-Today-Recovery';
+const APP_DATA_VERSION='V560-Attendance-Live-Mirror';
 const ATTENDANCE_CLOUD_ROOT='ppmsAttendance';
+const ATTENDANCE_LIVE_ROOT='ppmsAttendanceLive'; // V560 append-only live mirror by date/employee
 const EMPLOYEE_PHOTO_DRIVE_FOLDER='https://drive.google.com/drive/folders/1teHJMKOl5wbmayEehnA-fObS4hQJRT9q?usp=drive_link';
 const DRIVE_UPLOAD_CONFIG=window.PPMS_DRIVE_UPLOAD_CONFIG||{};
 const MEDICAL_CERT_MAX_BYTES=5*1024*1024;
@@ -587,11 +588,14 @@ async function syncAttendanceRecordCloud(rec){
   const upload={...rec,pendingCloudSync:false,cloudSyncedAt:new Date().toISOString()};
   const keyedRef=db.ref(ATTENDANCE_CLOUD_ROOT+'/recordsByKey/'+attendanceRecordStorageKey(upload.employeeId,upload.date));
   await keyedRef.transaction(server=>{const old=firebaseDecodeData(server);return firebaseEncodeData(mergeAttendanceRecords(old?[old]:[],[upload])[0]||upload)});
+  // V560: write an independent live mirror. Admin listens to this path directly, so a stale legacy array can never hide a verified check-in.
+  const liveRef=db.ref(ATTENDANCE_LIVE_ROOT+'/'+firebaseSafeKey(upload.date)+'/'+firebaseSafeKey(attendanceEmployeeKey(upload.employeeId)));
+  await liveRef.transaction(server=>{const old=firebaseDecodeData(server);return firebaseEncodeData(mergeAttendanceRecords(old?[old]:[],[upload])[0]||upload)});
   // Keep the legacy array synchronized for backward compatibility, but recordsByKey is now the durable source.
   await db.ref(ATTENDANCE_CLOUD_ROOT+'/records').transaction(server=>firebaseEncodeData(mergeAttendanceRecords(firebaseDecodeData(server)||[],[upload])));
   // Never show success until the exact employee/date node is read back from Firebase.
-  const verifyKeyedSnap=await keyedRef.once('value');
-  let verified=firebaseDecodeData(verifyKeyedSnap.val());
+  const [verifyKeyedSnap,verifyLiveSnap]=await Promise.all([keyedRef.once('value'),liveRef.once('value')]);
+  let verified=firebaseDecodeData(verifyKeyedSnap.val())||firebaseDecodeData(verifyLiveSnap.val());
   if(!verified?.checkIn){const verifySnap=await db.ref(ATTENDANCE_CLOUD_ROOT+'/records').once('value'),verifyDecoded=firebaseDecodeData(verifySnap.val()),verifyRows=Array.isArray(verifyDecoded)?verifyDecoded:Object.values(verifyDecoded||{});verified=verifyRows.find(r=>r&&sameAttendanceEmployeeId(r.employeeId,upload.employeeId)&&String(r.date||'')===String(upload.date||'')&&r.checkIn)}
   if(upload.checkIn&&!verified?.checkIn){
    rec.pendingCloudSync=true;localStorage.setItem(ATTENDANCE_KEY,JSON.stringify(attendance));
@@ -603,7 +607,7 @@ async function syncAttendanceRecordCloud(rec){
   }
   await archiveAttendanceRecordCloud(upload,db);
   await db.ref(ATTENDANCE_CLOUD_ROOT+'/devices').set(firebaseEncodeData(attendanceDevices||{}));
-  await db.ref(ATTENDANCE_CLOUD_ROOT+'/meta').update({master:true,separated:true,version:APP_DATA_VERSION,updatedAt:new Date().toISOString(),reason:'V558 durable attendance record sync',durableKeyedRecords:true});
+  await db.ref(ATTENDANCE_CLOUD_ROOT+'/meta').update({master:true,separated:true,version:APP_DATA_VERSION,updatedAt:new Date().toISOString(),reason:'V560 durable attendance + live mirror sync',durableKeyedRecords:true});
   rec.pendingCloudSync=false;rec.cloudSyncedAt=upload.cloudSyncedAt;
   localStorage.setItem(ATTENDANCE_KEY,JSON.stringify(attendance));
   localStorage.setItem(CLOUD_DIRTY_KEY,'0');
@@ -636,7 +640,10 @@ async function rescueTodayAttendanceFromThisDevice(){
    const keyedRef=cloudDb.ref(ATTENDANCE_CLOUD_ROOT+'/recordsByKey/'+attendanceRecordStorageKey(localRec.employeeId,localRec.date));
    const snap=await keyedRef.once('value');
    const remote=firebaseDecodeData(snap.val());
-   if(remote?.checkIn)continue;
+   if(remote?.checkIn){
+    try{await cloudDb.ref(ATTENDANCE_LIVE_ROOT+'/'+firebaseSafeKey(today)+'/'+firebaseSafeKey(attendanceEmployeeKey(employeeId))).set(firebaseEncodeData(remote))}catch(e){console.warn('V560 live mirror repair failed',e)}
+    continue;
+   }
    const rec=attendance.find(r=>r&&sameAttendanceEmployeeId(r.employeeId,localRec.employeeId)&&String(r.date||'')===today)||{...localRec};
    if(!attendance.includes(rec))attendance.unshift(rec);
    rec.pendingCloudSync=true;
@@ -650,10 +657,40 @@ async function rescueTodayAttendanceFromThisDevice(){
  if(rescued){setCloudStatus('กู้เวลาเช็คชื่อวันนี้จากเครื่องพนักงานและยืนยัน Firebase แล้ว '+rescued+' รายการ');queueRemoteRender()}
  return rescued;
 }
+async function mergeTodayAttendanceLiveMirror(){
+ if(!cloudDb||!cloudReady)return 0;
+ const today=thaiDateKey();
+ try{
+  const snap=await cloudDb.ref(ATTENDANCE_LIVE_ROOT+'/'+firebaseSafeKey(today)).once('value');
+  const raw=firebaseDecodeData(snap.val())||{};
+  const rows=Object.values(raw).filter(r=>r&&r.checkIn&&String(r.date||'')===today);
+  if(!rows.length)return 0;
+  const before=new Set(attendance.filter(r=>r?.checkIn).map(r=>attendanceRecordDeleteKey(r.employeeId,r.date)));
+  attendance=mergeAttendanceRecords(attendance,rows);
+  localStorage.setItem(ATTENDANCE_KEY,JSON.stringify(attendance));
+  const added=attendance.filter(r=>r?.checkIn&&!before.has(attendanceRecordDeleteKey(r.employeeId,r.date))).length;
+  if(added)queueRemoteRender();
+  return added;
+ }catch(err){console.warn('V560 live Attendance merge failed',err);return 0}
+}
+function bindAttendanceLiveMirror(){
+ if(!cloudDb||window.__ppmsAttendanceLiveBound)return;
+ window.__ppmsAttendanceLiveBound=true;
+ const today=thaiDateKey();
+ cloudDb.ref(ATTENDANCE_LIVE_ROOT+'/'+firebaseSafeKey(today)).on('value',snap=>{
+  const raw=firebaseDecodeData(snap.val())||{};
+  const rows=Object.values(raw).filter(r=>r&&r.checkIn&&String(r.date||'')===today);
+  if(!rows.length)return;
+  attendance=mergeAttendanceRecords(attendance,rows);
+  localStorage.setItem(ATTENDANCE_KEY,JSON.stringify(attendance));
+  if(current==='attendanceAdmin'||current==='attendance')queueRemoteRender();
+ });
+}
 async function recoverTodayAttendanceAdmin(){
  if(!isAdmin)throw Error('กรุณา Login เป็น Admin');
  if(!cloudDb||!cloudReady)throw Error('Firebase ยังไม่เชื่อมต่อ');
  const today=thaiDateKey();
+ await mergeTodayAttendanceLiveMirror();
  const [masterSnap,archiveSnap]=await Promise.all([
   cloudDb.ref(ATTENDANCE_CLOUD_ROOT).once('value'),
   cloudDb.ref('ppmsArchive/attendance/'+firebaseSafeKey(today)).once('value')
@@ -762,7 +799,7 @@ async function syncPendingCloudData(){
  const ready=await ensureCloudReady(15000);if(!ready)return false;
  try{const local=cloudPayload();await cloudDb.ref('ppms').transaction(server=>firebaseEncodeData(mergeCloudPayloadPreserve(firebaseDecodeData(server),local)));localStorage.setItem(CLOUD_DIRTY_KEY,'0');localStorage.setItem(SHIFT_CLOUD_DIRTY_KEY,'0');setCloudStatus('เชื่อมต่อกลับมาแล้ว • ซิงก์ข้อมูลที่ค้างรวมแผนกะเรียบร้อย');return true}catch(err){localStorage.setItem(CLOUD_DIRTY_KEY,'1');setCloudStatus('ยังมีข้อมูลรอซิงก์: '+err.message);return false}
 }
-async function initCloud(){if(!hasFirebaseConfig()){employees=recoverLegacyPhotos(employees);persistCloudToLocal();setCloudStatus('ยังไม่ได้ตั้งค่า Firebase • ใช้งานเฉพาะข้อมูลในเครื่องนี้');return}if(!window.firebase){setCloudStatus('โหลด Firebase ไม่สำเร็จ กรุณาตรวจสอบอินเทอร์เน็ต');return}try{setCloudStatus('กำลังโหลดข้อมูลกลางจาก Firebase...');if(!firebase.apps.length)firebase.initializeApp(window.PPMS_FIREBASE_CONFIG);cloudDb=firebase.database();const root=cloudDb.ref('ppms');const first=await root.once('value');cloudApplying=true;const firstValue=firebaseDecodeData(first.val());const localCache=localCachePayload();if(firstValue&&typeof firstValue==='object'&&!validFactorySettings(firstValue.attendanceSettings)&&validFactorySettings(localCache.attendanceSettings)){await root.child('attendanceSettings').set(firebaseEncodeData(localCache.attendanceSettings));firstValue.attendanceSettings=localCache.attendanceSettings}if(firstValue&&typeof firstValue==='object'){try{await ensureVersionBackupCloud(firstValue)}catch(err){console.warn('Version backup failed',err)}const serverShifts=cloudShiftSchedules(firstValue),localShifts=localCache.shiftSchedules&&typeof localCache.shiftSchedules==='object'?localCache.shiftSchedules:{},migrationNeeded=shiftScheduleCount(serverShifts)===0||localShiftCloudDirty()||firstValue.meta?.shiftCloudAuthoritative!==true;const shiftSeed=migrationNeeded?mergeShiftScheduleMaps(serverShifts,localShifts):serverShifts;const localForMerge={...localCache,employees:(cloudEmployeeList(firstValue)),deletedEmployeeIds:Array.isArray(firstValue.deletedEmployeeIds)?firstValue.deletedEmployeeIds:[],shiftSchedules:shiftSeed};const merged=mergeCloudPayloadPreserve(firstValue,localForMerge);merged.employees=cloudEmployeeList(firstValue);merged.deletedEmployeeIds=Array.isArray(firstValue.deletedEmployeeIds)?firstValue.deletedEmployeeIds:[];merged.shiftSchedules=shiftSeed;merged.meta={...(merged.meta||{}),employeeMaster:'firebase',employeeMasterVersion:'V489',shiftCloudAuthoritative:true,shiftCloudVersion:'V479',shiftCloudMigratedAt:firstValue.meta?.shiftCloudMigratedAt||new Date().toISOString()};await root.transaction(server=>{const currentRaw=firebaseDecodeData(server);const current=currentRaw&&typeof currentRaw==='object'?currentRaw:{};const next=mergeCloudPayloadPreserve(current,{...merged,employees:cloudEmployeeList(current),deletedEmployeeIds:Array.isArray(current.deletedEmployeeIds)?current.deletedEmployeeIds:[]});next.employees=cloudEmployeeList(current);next.deletedEmployeeIds=Array.isArray(current.deletedEmployeeIds)?current.deletedEmployeeIds:[];next.shiftSchedules=mergeShiftScheduleMaps(cloudShiftSchedules(current),shiftSeed);next.meta={...(next.meta||{}),employeeMaster:'firebase',employeeMasterVersion:'V489',shiftCloudAuthoritative:true,shiftCloudVersion:'V479',shiftCloudMigratedAt:current?.meta?.shiftCloudMigratedAt||merged.meta.shiftCloudMigratedAt};return firebaseEncodeData(next)});const latest=await root.once('value');const latestValue=firebaseDecodeData(latest.val());applyCloudPayload(latestValue);await initAttendanceCloudMaster(latestValue);localStorage.setItem(CLOUD_DIRTY_KEY,'0');localStorage.setItem(SHIFT_CLOUD_DIRTY_KEY,'0')}else{employees=localCache.employees;deletedEmployeeIds=new Set(localCache.deletedEmployeeIds||[]);evaluations=localCache.evaluations;training=localCache.training;examResults=localCache.examResults;examDeletedKeys=new Set((localCache.examDeletedKeys||[]).map(String));examQuestionBank=localCache.examQuestionBank;shiftSchedules=localCache.shiftSchedules||{};holidays=localCache.holidays||{};await root.set(firebaseEncodeData(cloudPayload()));await initAttendanceCloudMaster(null);localStorage.setItem(CLOUD_DIRTY_KEY,'0');localStorage.setItem(SHIFT_CLOUD_DIRTY_KEY,'0')}cloudApplying=false;cloudReady=true;retryPendingAttendanceCloud().catch(err=>console.warn('Attendance pending startup retry failed',err));rescueTodayAttendanceFromThisDevice().catch(err=>console.warn('V559 device Attendance startup rescue failed',err));root.on('value',snap=>{if(!cloudReady)return;if(cloudApplying||cloudWritePending){pendingRemoteSnapshot=snap.val();return}cloudApplying=true;applyCloudPayload(firebaseDecodeData(snap.val()),false);cloudApplying=false;setCloudStatus('เชื่อมต่อแล้ว • Firebase เป็นข้อมูลหลักทุกเครื่อง รวมแผนกะ');queueRemoteRender()});setCloudStatus('เชื่อมต่อแล้ว • Firebase เป็นข้อมูลหลักทุกเครื่อง รวมแผนกะ');queueRemoteRender()}catch(err){console.error(err);cloudApplying=false;employees=loadEmployees();deletedEmployeeIds=loadDeletedIds();evaluations=loadArray(EVAL_KEY);training=loadArray(TRAIN_KEY);examResults=loadArray(EXAM_RESULT_KEY);examDeletedKeys=new Set(loadArray(EXAM_DELETED_KEY).map(String));examQuestionBank=loadObject(EXAM_BANK_KEY);attendance=loadArray(ATTENDANCE_KEY);attendanceSettings=loadObject(ATTENDANCE_SETTINGS_KEY);attendanceDevices=loadObject(ATTENDANCE_DEVICES_KEY);shiftSchedules=loadObject(SHIFT_SCHEDULE_KEY);holidays=loadObject(HOLIDAY_KEY);setCloudStatus('เชื่อม Firebase ไม่สำเร็จ • แสดงข้อมูลสำรองในเครื่อง: '+err.message);render()}}
+async function initCloud(){if(!hasFirebaseConfig()){employees=recoverLegacyPhotos(employees);persistCloudToLocal();setCloudStatus('ยังไม่ได้ตั้งค่า Firebase • ใช้งานเฉพาะข้อมูลในเครื่องนี้');return}if(!window.firebase){setCloudStatus('โหลด Firebase ไม่สำเร็จ กรุณาตรวจสอบอินเทอร์เน็ต');return}try{setCloudStatus('กำลังโหลดข้อมูลกลางจาก Firebase...');if(!firebase.apps.length)firebase.initializeApp(window.PPMS_FIREBASE_CONFIG);cloudDb=firebase.database();const root=cloudDb.ref('ppms');const first=await root.once('value');cloudApplying=true;const firstValue=firebaseDecodeData(first.val());const localCache=localCachePayload();if(firstValue&&typeof firstValue==='object'&&!validFactorySettings(firstValue.attendanceSettings)&&validFactorySettings(localCache.attendanceSettings)){await root.child('attendanceSettings').set(firebaseEncodeData(localCache.attendanceSettings));firstValue.attendanceSettings=localCache.attendanceSettings}if(firstValue&&typeof firstValue==='object'){try{await ensureVersionBackupCloud(firstValue)}catch(err){console.warn('Version backup failed',err)}const serverShifts=cloudShiftSchedules(firstValue),localShifts=localCache.shiftSchedules&&typeof localCache.shiftSchedules==='object'?localCache.shiftSchedules:{},migrationNeeded=shiftScheduleCount(serverShifts)===0||localShiftCloudDirty()||firstValue.meta?.shiftCloudAuthoritative!==true;const shiftSeed=migrationNeeded?mergeShiftScheduleMaps(serverShifts,localShifts):serverShifts;const localForMerge={...localCache,employees:(cloudEmployeeList(firstValue)),deletedEmployeeIds:Array.isArray(firstValue.deletedEmployeeIds)?firstValue.deletedEmployeeIds:[],shiftSchedules:shiftSeed};const merged=mergeCloudPayloadPreserve(firstValue,localForMerge);merged.employees=cloudEmployeeList(firstValue);merged.deletedEmployeeIds=Array.isArray(firstValue.deletedEmployeeIds)?firstValue.deletedEmployeeIds:[];merged.shiftSchedules=shiftSeed;merged.meta={...(merged.meta||{}),employeeMaster:'firebase',employeeMasterVersion:'V489',shiftCloudAuthoritative:true,shiftCloudVersion:'V479',shiftCloudMigratedAt:firstValue.meta?.shiftCloudMigratedAt||new Date().toISOString()};await root.transaction(server=>{const currentRaw=firebaseDecodeData(server);const current=currentRaw&&typeof currentRaw==='object'?currentRaw:{};const next=mergeCloudPayloadPreserve(current,{...merged,employees:cloudEmployeeList(current),deletedEmployeeIds:Array.isArray(current.deletedEmployeeIds)?current.deletedEmployeeIds:[]});next.employees=cloudEmployeeList(current);next.deletedEmployeeIds=Array.isArray(current.deletedEmployeeIds)?current.deletedEmployeeIds:[];next.shiftSchedules=mergeShiftScheduleMaps(cloudShiftSchedules(current),shiftSeed);next.meta={...(next.meta||{}),employeeMaster:'firebase',employeeMasterVersion:'V489',shiftCloudAuthoritative:true,shiftCloudVersion:'V479',shiftCloudMigratedAt:current?.meta?.shiftCloudMigratedAt||merged.meta.shiftCloudMigratedAt};return firebaseEncodeData(next)});const latest=await root.once('value');const latestValue=firebaseDecodeData(latest.val());applyCloudPayload(latestValue);await initAttendanceCloudMaster(latestValue);localStorage.setItem(CLOUD_DIRTY_KEY,'0');localStorage.setItem(SHIFT_CLOUD_DIRTY_KEY,'0')}else{employees=localCache.employees;deletedEmployeeIds=new Set(localCache.deletedEmployeeIds||[]);evaluations=localCache.evaluations;training=localCache.training;examResults=localCache.examResults;examDeletedKeys=new Set((localCache.examDeletedKeys||[]).map(String));examQuestionBank=localCache.examQuestionBank;shiftSchedules=localCache.shiftSchedules||{};holidays=localCache.holidays||{};await root.set(firebaseEncodeData(cloudPayload()));await initAttendanceCloudMaster(null);localStorage.setItem(CLOUD_DIRTY_KEY,'0');localStorage.setItem(SHIFT_CLOUD_DIRTY_KEY,'0')}cloudApplying=false;cloudReady=true;bindAttendanceLiveMirror();mergeTodayAttendanceLiveMirror().catch(err=>console.warn('V560 initial live Attendance merge failed',err));retryPendingAttendanceCloud().catch(err=>console.warn('Attendance pending startup retry failed',err));rescueTodayAttendanceFromThisDevice().catch(err=>console.warn('V559 device Attendance startup rescue failed',err));root.on('value',snap=>{if(!cloudReady)return;if(cloudApplying||cloudWritePending){pendingRemoteSnapshot=snap.val();return}cloudApplying=true;applyCloudPayload(firebaseDecodeData(snap.val()),false);cloudApplying=false;setCloudStatus('เชื่อมต่อแล้ว • Firebase เป็นข้อมูลหลักทุกเครื่อง รวมแผนกะ');queueRemoteRender()});setCloudStatus('เชื่อมต่อแล้ว • Firebase เป็นข้อมูลหลักทุกเครื่อง รวมแผนกะ');queueRemoteRender()}catch(err){console.error(err);cloudApplying=false;employees=loadEmployees();deletedEmployeeIds=loadDeletedIds();evaluations=loadArray(EVAL_KEY);training=loadArray(TRAIN_KEY);examResults=loadArray(EXAM_RESULT_KEY);examDeletedKeys=new Set(loadArray(EXAM_DELETED_KEY).map(String));examQuestionBank=loadObject(EXAM_BANK_KEY);attendance=loadArray(ATTENDANCE_KEY);attendanceSettings=loadObject(ATTENDANCE_SETTINGS_KEY);attendanceDevices=loadObject(ATTENDANCE_DEVICES_KEY);shiftSchedules=loadObject(SHIFT_SCHEDULE_KEY);holidays=loadObject(HOLIDAY_KEY);setCloudStatus('เชื่อม Firebase ไม่สำเร็จ • แสดงข้อมูลสำรองในเครื่อง: '+err.message);render()}}
 
 function pageAllowsLiveRemoteRender(){return ['dashboard','attendanceAdmin','attendance'].includes(current)}
 // V482: protect ALL user interactions from Firebase/background re-rendering.
@@ -1233,6 +1270,7 @@ async function stampAttendance(type){
    // Keep the earliest valid check-in if local/remote timestamps differ and refresh local cache from cloud.
    const repaired=mergeAttendanceRecords([remote],[existing])[0]||existing;
    Object.assign(existing,repaired,{pendingCloudSync:false});localStorage.setItem(ATTENDANCE_KEY,JSON.stringify(attendance));
+   try{await cloudDb.ref(ATTENDANCE_LIVE_ROOT+'/'+firebaseSafeKey(date)+'/'+firebaseSafeKey(attendanceEmployeeKey(emp.id))).set(firebaseEncodeData(repaired))}catch(e){console.warn('V560 existing check-in mirror repair failed',e)}
    return alert('เช็คชื่อวันนี้แล้ว เวลา '+thaiTime(new Date(existing.checkIn))+' • ตรวจสอบข้อมูลกลางแล้ว');
    }
   }catch(err){
