@@ -1,0 +1,9 @@
+PPMS V554 - Updated Sorting Q-Point exam bank
+- Imported 360 updated Sorting questions from Jinrong_TL_Exam_Bank_SORTING_QPOINT_UPDATED(1).xlsx:
+  * Sub -> Permanent: 3 sets x 40 = 120 questions
+  * Quarterly Q1-Q4: 12 sets x 20 = 240 questions
+- Preserved the remaining 5,640 questions and all V553 logic, including Examination History sync.
+- Sections 03-10 remain Thai-first for employee-facing question/choice wording.
+- Safety, Quality, WI, SOP, 5S and NG may remain English.
+- Engineering Support (01) and Support Production (02) retain technical English.
+- Removed internal Sorting question-code suffixes from employee display text.

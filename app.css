@@ -827,3 +827,12 @@ input[id*="exam"][id*="Emp"], input[id*="Exam"][id*="Emp"] {
 
 /* V536 Examination Plan by Section */
 .exam-plan-controls{display:flex;gap:12px;align-items:end;flex-wrap:wrap}.exam-plan-controls label{min-width:220px}.exam-plan-controls input,.exam-plan-controls select{width:100%}.exam-plan-table th,.exam-plan-table td{vertical-align:top}.exam-plan-range{display:block;margin-top:4px;white-space:nowrap;font-weight:400}.exam-plan-done,.exam-plan-pending{display:inline-block;margin-top:7px;padding:3px 8px;border-radius:999px;font-size:12px}.exam-plan-done{background:#dcfce7}.exam-plan-pending{background:#fef3c7}@media(max-width:700px){.exam-plan-controls label{min-width:100%}.exam-plan-table{min-width:1000px}}
+
+/* V555 exam anti-cheat lock */
+.exam-taking #nav{display:none!important}
+.exam-taking .exam-type-picker,.exam-taking [data-action="examLogout"]{display:none!important}
+.exam-security-warning{display:flex;flex-direction:column;gap:6px;margin:0 0 14px;padding:12px 14px;border:2px solid #dc2626;border-radius:12px;background:#fff1f2;color:#991b1b}
+.exam-security-warning b{font-size:1.05rem}.exam-security-warning span{line-height:1.55}
+.exam-exit-violation{display:inline-block;margin-top:5px;color:#b91c1c;font-weight:700}
+
+.exam-taking header .auth{display:none!important}

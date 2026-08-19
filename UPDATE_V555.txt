@@ -1,0 +1,7 @@
+V555
+- Anti-cheat exam mode: while an exam form is active, navigation/type switching is hidden.
+- Switching app/tab, hiding the page, closing/reloading, or leaving the page triggers immediate auto-submit of current answers, even when incomplete.
+- Auto-submitted exam records are saved locally first, queued for Firebase sync, and marked in Examination History with answered count.
+- Permanent-conversion exam is limited to 1 attempt per employee per calendar month (Asia/Bangkok), across legacy sub_regular/sub_permanent types.
+- Duplicate permanent-exam button removed inside exam screen.
+- Existing V554 exam bank/language rules and V553 verified History sync retained.
