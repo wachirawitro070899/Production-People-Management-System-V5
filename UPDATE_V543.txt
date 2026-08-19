@@ -1,0 +1,8 @@
+V543 - Attendance re-check after Admin permanent delete
+
+Fix:
+- Admin permanent delete still creates a tombstone to block stale cached Attendance from returning.
+- A genuinely new check-in created AFTER the Admin deletion is now allowed.
+- When that fresh check-in is synced, only the matching employee/date deletedRecords tombstone is removed, then the new record is uploaded normally.
+- Old cached check-in timestamps from before the deletion remain blocked.
+- Updated app.js cache version in index.html and 404.html to v=543.

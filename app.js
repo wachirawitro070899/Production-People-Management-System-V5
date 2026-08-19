@@ -3,7 +3,7 @@
 const SEED=Array.isArray(window.EMPLOYEE_SEED)?window.EMPLOYEE_SEED:[];
 const KEY='ppms_v3_employees', ATTENDANCE_KEY='ppms_v3_attendance', ATTENDANCE_SETTINGS_KEY='ppms_v3_attendance_settings', ATTENDANCE_DEVICES_KEY='ppms_v3_attendance_devices', ATTENDANCE_DELETED_DATES_KEY='ppms_v3_attendance_deleted_dates', ATTENDANCE_DELETED_RECORDS_KEY='ppms_v3_attendance_deleted_records', SHIFT_SCHEDULE_KEY='ppms_v3_shift_schedules', SHIFT_CLOUD_DIRTY_KEY='ppms_v3_shift_cloud_dirty', HOLIDAY_KEY='ppms_v3_holidays', SKILL_OVERRIDE_KEY='ppms_v3_skill_overrides', EVAL_KEY='ppms_v3_evaluations', TRAIN_KEY='ppms_v3_training', EXAM_RESULT_KEY='ppms_v3_exam_results', EXAM_DELETED_KEY='ppms_v3_exam_deleted_keys', EXAM_BANK_KEY='ppms_v3_exam_bank', SHARED_KEY='ppms_v3_shared_data_version', DELETED_KEY='ppms_v3_deleted_employee_ids', CLOUD_DIRTY_KEY='ppms_v3_cloud_dirty', LOCAL_UPDATED_KEY='ppms_v3_local_updated_at';
 const SHARED_VERSION=String(window.EMPLOYEE_DATA_VERSION||'legacy');
-const APP_DATA_VERSION='V542-Attendance-Shift-Roster-Sync-Fix';
+const APP_DATA_VERSION='V544-Attendance-Device-Cache-Self-Heal';
 const ATTENDANCE_CLOUD_ROOT='ppmsAttendance';
 const EMPLOYEE_PHOTO_DRIVE_FOLDER='https://drive.google.com/drive/folders/1teHJMKOl5wbmayEehnA-fObS4hQJRT9q?usp=drive_link';
 const DRIVE_UPLOAD_CONFIG=window.PPMS_DRIVE_UPLOAD_CONFIG||{};
@@ -503,8 +503,23 @@ async function syncAttendanceRecordCloud(rec){
    rec.pendingCloudSync=true;localStorage.setItem(ATTENDANCE_KEY,JSON.stringify(attendance));
    throw Error('วันที่ '+rec.date+' ยังมีเครื่องหมายล้าง Attendance อยู่ในข้อมูลกลาง จึงยังส่งเช็คชื่อไม่ได้ • ให้ Admin กด “รีเซ็ตและเริ่มใช้งานจริงใหม่” ใน V519 เพื่อปลดล็อกวันนี้');
   }
-  const deletedRecordSnap=await db.ref(ATTENDANCE_CLOUD_ROOT+'/deletedRecords/'+firebaseSafeKey(attendanceRecordDeleteKey(rec.employeeId,rec.date))).once('value');
-  if(deletedRecordSnap.exists()){rec.pendingCloudSync=false;localStorage.setItem(ATTENDANCE_KEY,JSON.stringify(attendance.filter(r=>!(sameAttendanceEmployeeId(r.employeeId,rec.employeeId)&&String(r.date||'')===String(rec.date||'')))));throw Error('รายการ Attendance วันนี้ถูก Admin ลบถาวรแล้ว จึงไม่สามารถกู้รายการเดิมกลับเข้าระบบได้');}
+  const deleteKey=attendanceRecordDeleteKey(rec.employeeId,rec.date),deletedRecordRef=db.ref(ATTENDANCE_CLOUD_ROOT+'/deletedRecords/'+firebaseSafeKey(deleteKey)),deletedRecordSnap=await deletedRecordRef.once('value');
+  if(deletedRecordSnap.exists()){
+   // V543: an Admin delete tombstone must block stale cached rows, but it must not block a genuine NEW check-in made after the delete.
+   // Compare the new check-in timestamp with deletedAt. Old cached timestamps remain blocked; a later fresh stamp clears only this employee/date tombstone.
+   const deletedInfo=firebaseDecodeData(deletedRecordSnap.val()),deletedAtMs=Date.parse(String(deletedInfo?.deletedAt||'')),checkInMs=Date.parse(String(rec.checkIn||''));
+   const isFreshRecheck=!!rec.checkIn&&Number.isFinite(checkInMs)&&Number.isFinite(deletedAtMs)&&checkInMs>deletedAtMs;
+   if(!isFreshRecheck){
+    // V544: delete the stale row from BOTH memory and localStorage. V543 only filtered localStorage,
+    // so Safari kept reusing the old in-memory timestamp and could get stuck forever on one device.
+    attendance=attendance.filter(r=>!(sameAttendanceEmployeeId(r?.employeeId,rec.employeeId)&&String(r?.date||'')===String(rec.date||'')));
+    localStorage.setItem(ATTENDANCE_KEY,JSON.stringify(attendance));
+    rec.pendingCloudSync=false;
+    throw Error('พบข้อมูลเช็คชื่อเก่าค้างในเครื่องและล้างให้อัตโนมัติแล้ว • กรุณากดเช็คชื่ออีกครั้งเพื่อบันทึกเวลาใหม่');
+   }
+   await deletedRecordRef.remove();
+   const localDeleted=localAttendanceDeletedRecords();delete localDeleted[deleteKey];localStorage.setItem(ATTENDANCE_DELETED_RECORDS_KEY,JSON.stringify(localDeleted));
+  }
   // Upload a clean copy. pendingCloudSync is local retry state and must not become authoritative cloud data.
   const upload={...rec,pendingCloudSync:false,cloudSyncedAt:new Date().toISOString()};
   await db.ref(ATTENDANCE_CLOUD_ROOT+'/records').transaction(server=>firebaseEncodeData(mergeAttendanceRecords(firebaseDecodeData(server)||[],[upload])));
@@ -1043,7 +1058,7 @@ async function stampAttendance(type){
  const date=attendanceDateFor(emp,'in'),sh=shiftConfig(emp,date),nowMin=currentShiftMinutes(emp,date),openMin=timeMinutes(sh.checkInOpen),lateMin=timeMinutes(sh.lateReasonAfter);
  if(nowMin<openMin)return alert(`${sh.name} เปิดเช็คชื่อตั้งแต่ ${sh.checkInOpen} น. กรุณาเช็คชื่อเมื่อถึงเวลา`);
  if(!hasFactoryPin()){const loaded=await refreshAttendanceSettingsFromCloud();if(!loaded)return alert('ยังไม่ได้รับพิกัดโรงงานจากข้อมูลกลาง กรุณาตรวจอินเทอร์เน็ตแล้วลองใหม่ หรือให้ Admin เปิดหน้าตั้งค่า Attendance และกดยืนยันตำแหน่งอีกครั้ง');}
- const existing=attendanceFor(emp.id,date);
+ let existing=attendanceFor(emp.id,date);
  if(existing?.checkIn){
   // V503: always verify an existing local check-in against the Attendance cloud master.
   // Some phones had a valid local timestamp while the central record was missing, causing a false automatic absence.
@@ -1051,6 +1066,16 @@ async function stampAttendance(type){
    if(!cloudReady||!cloudDb){const ready=await ensureCloudReady(12000);if(!ready)throw Error('Firebase ยังไม่เชื่อมต่อ')}
    const deletedSnap=await cloudDb.ref(ATTENDANCE_CLOUD_ROOT+'/deletedDates/'+firebaseSafeKey(date)).once('value');
    if(deletedSnap.exists())return alert('วันที่นี้ถูก Admin ล้างข้อมูล Attendance แล้ว กรุณาติดต่อ Admin หากต้องการกู้เวลาเช็คชื่อ');
+   // V544: if Admin deleted only this employee/date, an old check-in can remain in Safari/localStorage on one phone.
+   // Remove that stale in-memory row before the normal stamp flow so the SAME tap can create a genuinely new timestamp.
+   const recordDeleteKey=attendanceRecordDeleteKey(emp.id,date),recordDeletedSnap=await cloudDb.ref(ATTENDANCE_CLOUD_ROOT+'/deletedRecords/'+firebaseSafeKey(recordDeleteKey)).once('value');
+   if(recordDeletedSnap.exists()){
+    attendance=attendance.filter(r=>!(sameAttendanceEmployeeId(r?.employeeId,emp.id)&&String(r?.date||'')===String(date)));
+    localStorage.setItem(ATTENDANCE_KEY,JSON.stringify(attendance));
+    existing=null;
+   }
+   if(!existing?.checkIn){/* stale phone cache healed; continue below and make a fresh check-in */}
+   else {
    const remoteSnap=await cloudDb.ref(ATTENDANCE_CLOUD_ROOT+'/records').once('value');
    const remoteRows=Array.isArray(firebaseDecodeData(remoteSnap.val()))?firebaseDecodeData(remoteSnap.val()):Object.values(firebaseDecodeData(remoteSnap.val())||{});
    const remote=remoteRows.find(r=>r&&sameAttendanceEmployeeId(r.employeeId,emp.id)&&String(r.date||'')===String(date));
@@ -1063,6 +1088,7 @@ async function stampAttendance(type){
    const repaired=mergeAttendanceRecords([remote],[existing])[0]||existing;
    Object.assign(existing,repaired,{pendingCloudSync:false});localStorage.setItem(ATTENDANCE_KEY,JSON.stringify(attendance));
    return alert('เช็คชื่อวันนี้แล้ว เวลา '+thaiTime(new Date(existing.checkIn))+' • ตรวจสอบข้อมูลกลางแล้ว');
+   }
   }catch(err){
    existing.pendingCloudSync=true;localStorage.setItem(ATTENDANCE_KEY,JSON.stringify(attendance));
    return alert('มีเวลาเช็คชื่ออยู่ในเครื่อง '+thaiTime(new Date(existing.checkIn))+' แต่ตรวจสอบข้อมูลกลางไม่สำเร็จ: '+(err.message||String(err))+' • กรุณากดเช็คชื่อซ้ำเมื่ออินเทอร์เน็ตพร้อม');

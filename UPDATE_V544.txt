@@ -1,0 +1,10 @@
+V544 - Attendance Device Cache Self-Heal
+
+Fixes an issue where only one phone (especially Safari/iPhone) could be stuck after Admin permanently deleted that employee's Attendance record.
+
+Changes:
+- Detect Firebase deletedRecords tombstone before reusing a local check-in.
+- Remove the stale Attendance row from both in-memory state and localStorage.
+- Continue the same check-in action so a new timestamp can be created immediately.
+- If an old record reaches cloud sync, remove it from memory and localStorage so the next attempt cannot reuse it.
+- Bump app.js cache version to v=544 in index.html and 404.html.
