@@ -3,7 +3,7 @@
 const SEED=Array.isArray(window.EMPLOYEE_SEED)?window.EMPLOYEE_SEED:[];
 const KEY='ppms_v3_employees', ATTENDANCE_KEY='ppms_v3_attendance', ATTENDANCE_SETTINGS_KEY='ppms_v3_attendance_settings', ATTENDANCE_DEVICES_KEY='ppms_v3_attendance_devices', ATTENDANCE_DELETED_DATES_KEY='ppms_v3_attendance_deleted_dates', ATTENDANCE_DELETED_RECORDS_KEY='ppms_v3_attendance_deleted_records', SHIFT_SCHEDULE_KEY='ppms_v3_shift_schedules', SHIFT_CLOUD_DIRTY_KEY='ppms_v3_shift_cloud_dirty', HOLIDAY_KEY='ppms_v3_holidays', SKILL_OVERRIDE_KEY='ppms_v3_skill_overrides', EVAL_KEY='ppms_v3_evaluations', TRAIN_KEY='ppms_v3_training', EXAM_RESULT_KEY='ppms_v3_exam_results', EXAM_DELETED_KEY='ppms_v3_exam_deleted_keys', EXAM_BANK_KEY='ppms_v3_exam_bank', SHARED_KEY='ppms_v3_shared_data_version', DELETED_KEY='ppms_v3_deleted_employee_ids', CLOUD_DIRTY_KEY='ppms_v3_cloud_dirty', LOCAL_UPDATED_KEY='ppms_v3_local_updated_at';
 const SHARED_VERSION=String(window.EMPLOYEE_DATA_VERSION||'legacy');
-const APP_DATA_VERSION='V544-Attendance-Device-Cache-Self-Heal';
+const APP_DATA_VERSION='V545-Attendance-Cloud-Receipt-Verification';
 const ATTENDANCE_CLOUD_ROOT='ppmsAttendance';
 const EMPLOYEE_PHOTO_DRIVE_FOLDER='https://drive.google.com/drive/folders/1teHJMKOl5wbmayEehnA-fObS4hQJRT9q?usp=drive_link';
 const DRIVE_UPLOAD_CONFIG=window.PPMS_DRIVE_UPLOAD_CONFIG||{};
@@ -523,6 +523,20 @@ async function syncAttendanceRecordCloud(rec){
   // Upload a clean copy. pendingCloudSync is local retry state and must not become authoritative cloud data.
   const upload={...rec,pendingCloudSync:false,cloudSyncedAt:new Date().toISOString()};
   await db.ref(ATTENDANCE_CLOUD_ROOT+'/records').transaction(server=>firebaseEncodeData(mergeAttendanceRecords(firebaseDecodeData(server)||[],[upload])));
+  // V545: never tell the employee that Attendance is complete until Firebase can read the same check-in back.
+  // This prevents a phone-only local timestamp from looking successful while Admin still sees Absent.
+  const verifySnap=await db.ref(ATTENDANCE_CLOUD_ROOT+'/records').once('value');
+  const verifyDecoded=firebaseDecodeData(verifySnap.val());
+  const verifyRows=Array.isArray(verifyDecoded)?verifyDecoded:Object.values(verifyDecoded||{});
+  const verified=verifyRows.find(r=>r&&sameAttendanceEmployeeId(r.employeeId,upload.employeeId)&&String(r.date||'')===String(upload.date||'')&&r.checkIn);
+  if(upload.checkIn&&!verified?.checkIn){
+   rec.pendingCloudSync=true;localStorage.setItem(ATTENDANCE_KEY,JSON.stringify(attendance));
+   throw Error('ส่งเวลาไป Firebase แล้วแต่ยังอ่านยืนยันกลับมาไม่ได้ • ระบบจะไม่ถือว่าเช็คชื่อสำเร็จ กรุณากดเช็คชื่อซ้ำ');
+  }
+  if(verified?.checkIn){
+   const canonical=mergeAttendanceRecords([verified],[rec])[0]||verified;
+   Object.assign(rec,canonical,{pendingCloudSync:false,cloudVerifiedAt:new Date().toISOString()});
+  }
   await archiveAttendanceRecordCloud(upload,db);
   await db.ref(ATTENDANCE_CLOUD_ROOT+'/devices').set(firebaseEncodeData(attendanceDevices||{}));
   await db.ref(ATTENDANCE_CLOUD_ROOT+'/meta').update({master:true,separated:true,version:APP_DATA_VERSION,updatedAt:new Date().toISOString(),reason:'attendance record sync'});
@@ -1082,7 +1096,7 @@ async function stampAttendance(type){
    if(!remote?.checkIn){
     existing.pendingCloudSync=true;touchAttendance(existing);localStorage.setItem(ATTENDANCE_KEY,JSON.stringify(attendance));
     await syncAttendanceRecordCloud(existing);sessionStorage.setItem('attendanceEmp',String(emp.id));render();
-    return alert('พบเวลาเช็คชื่อเดิมในเครื่องและซ่อมข้อมูลกลางสำเร็จแล้ว • '+thaiTime(new Date(existing.checkIn)));
+    return alert('พบเวลาเดิมในเครื่องและซ่อมข้อมูลกลางสำเร็จแล้ว • Firebase ยืนยันแล้ว • '+thaiTime(new Date(existing.checkIn)));
    }
    // Keep the earliest valid check-in if local/remote timestamps differ and refresh local cache from cloud.
    const repaired=mergeAttendanceRecords([remote],[existing])[0]||existing;
@@ -1108,8 +1122,11 @@ async function stampAttendance(type){
   rec.shift=sh.key;rec.checkIn=stamp;rec.checkInLocation={lat,lng,accuracy:Math.round(accuracy),distance:Math.round(distance)};rec.autoAbsent=false;rec.pendingCloudSync=true;
   if(rec.exception?.type==='absent'&&rec.exception?.auto)delete rec.exception;
   if(lateReason)rec.lateReason={reason:lateReason,submittedAt:stamp,requiredAfter:sh.lateReasonAfter};
-  touchAttendance(rec);save();if(!cloudReady||!cloudDb)throw Error('บันทึกเวลาไว้ในเครื่องแล้ว แต่ Firebase ยังไม่เชื่อมต่อ • ระบบจะเก็บรายการนี้ไว้รอส่ง และสามารถกดเช็คชื่อซ้ำเพื่อส่งเวลาเดิมขึ้นระบบกลางได้');await syncAttendanceRecordCloud(rec);sessionStorage.setItem('attendanceEmp',String(emp.id));render();
-  alert(`เช็คชื่อสำเร็จและส่งขึ้นเว็บแล้ว • ${emp.name} • ${sh.name} • ${thaiTime(new Date(stamp))}${nowMin>lateMin?' • บันทึกเป็นมาสาย':''}`)
+  touchAttendance(rec);save();if(!cloudReady||!cloudDb)throw Error('บันทึกเวลาไว้ในเครื่องแล้ว แต่ Firebase ยังไม่เชื่อมต่อ • ยังไม่ถือว่าเช็คชื่อสำเร็จ กรุณากดเช็คชื่อซ้ำเมื่ออินเทอร์เน็ตพร้อม');await syncAttendanceRecordCloud(rec);
+  // V545: success message is allowed only after the central record has been read back and verified.
+  if(rec.pendingCloudSync===true||!rec.cloudVerifiedAt)throw Error('ยังไม่ได้รับการยืนยันจากข้อมูลกลาง • กรุณากดเช็คชื่อซ้ำ');
+  sessionStorage.setItem('attendanceEmp',String(emp.id));render();
+  alert(`เช็คชื่อสำเร็จ • ข้อมูลกลางยืนยันแล้ว • ${emp.name} • ${sh.name} • ${thaiTime(new Date(rec.checkIn||stamp))}${nowMin>lateMin?' • บันทึกเป็นมาสาย':''}`)
  }catch(err){alert(err.message||String(err))}finally{if(btn){btn.disabled=false;if(oldHtml!=null)btn.innerHTML=oldHtml}}
 }
 async function submitAdvanceLateNotice(){const emp=await getAttendanceEmployeeReady();if(!emp)return;const today=thaiDateKey(),sh=shiftConfig(emp,today),now=currentThaiMinutes(),cutoff=timeMinutes(sh.advanceLateCutoff);if(now>cutoff)return alert(`เลยเวลาแจ้งเข้าสายล่วงหน้าของ ${sh.name} แล้ว • ต้องแจ้งไม่เกิน ${sh.advanceLateCutoff} น. ของวันนั้น\nหากมาเช็คชื่อหลัง ${sh.lateReasonAfter} น. ระบบจะบังคับให้พิมพ์สาเหตุการเข้าสายตอนเช็คชื่อ`);modal(`<h2>แจ้งเข้าสายล่วงหน้า</h2><p class="modal-note"><b>${esc(emp.id)} · ${esc(emp.name)}</b> • ${esc(sh.name)}<br>แจ้งได้เฉพาะวันนี้และต้องไม่เกิน <b>${esc(sh.advanceLateCutoff)} น.</b> • กรุณาพิมพ์สาเหตุจริง</p><form id="attendanceLateForm"><div class="form-grid"><label>วันที่<input name="date" type="date" value="${today}" readonly></label><label>กะ<input value="${esc(sh.name)}" readonly></label></div><label>สาเหตุการเข้าสาย *<textarea name="reason" rows="5" maxlength="300" placeholder="พิมพ์สาเหตุการเข้าสายให้ชัดเจน เช่น รถเสีย รถติดฉุกเฉิน" required></textarea></label><div class="actions"><button type="submit">บันทึกแจ้งเข้าสายล่วงหน้า</button><button type="button" class="secondary" data-action="close">ยกเลิก</button></div></form>`);setTimeout(()=>{const f=document.querySelector('#attendanceLateForm');if(!f)return;f.onsubmit=async e=>{e.preventDefault();const reason=String(new FormData(f).get('reason')||'').trim();if(!reason)return alert('กรุณาพิมพ์สาเหตุการเข้าสาย');if(currentThaiMinutes()>timeMinutes(sh.advanceLateCutoff))return alert(`เลยเวลา ${sh.advanceLateCutoff} น. แล้ว ไม่สามารถแจ้งเข้าสายล่วงหน้าได้`);const rec=ensureAttendanceRecord(emp,today);rec.shift=sh.key;rec.lateNotice={reason,submittedAt:new Date().toISOString(),submittedBefore:sh.advanceLateCutoff,advance:true};touchAttendance(rec);save();try{await syncAttendanceRecordCloud(rec)}catch(err){return alert('บันทึกในเครื่องแล้ว แต่ส่งขึ้นเว็บไม่สำเร็จ: '+err.message)}closeModal();render();alert('บันทึกแจ้งเข้าสายล่วงหน้าและส่งขึ้นเว็บเรียบร้อย')}} ,0)}
