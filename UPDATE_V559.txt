@@ -1,0 +1,5 @@
+V559 Attendance Today Recovery
+- Admin: เพิ่มปุ่ม กู้ Attendance วันนี้ จาก ppmsArchive/attendance เฉพาะวันที่ปัจจุบัน
+- Employee: เมื่อเปิดเว็บ จะตรวจเวลาเช็คชื่อวันนี้ที่ค้างในเครื่องของพนักงานที่ผูกอุปกรณ์ และส่งกลับ Firebase อัตโนมัติถ้าข้อมูลกลางไม่มี
+- เคารพ deletedDates/deletedRecords ของ Admin ไม่กู้รายการที่ตั้งใจลบ
+- ใช้ recordsByKey + verify logic เดิมของ V558 เพื่อป้องกันข้อมูลหลายเครื่องทับกัน
