@@ -1,0 +1,10 @@
+PPMS V546 - Imported Excel Exam Bank
+
+- Imported Jinrong TL Exam Bank: 180 sets / 4,800 questions.
+- 10 Sections mapped to the existing PPMS section names.
+- Set A/B/C maps to Excel Set No. 1/2/3.
+- Employee new exam uses XX-NEW-01..03 (40 questions).
+- Sup permanent / conversion exam uses XX-UP-01..03 (40 questions).
+- Quarterly exam uses XX-Q1..Q4-01..03 (20 questions).
+- Imported Excel bank is used before the old generated-template fallback.
+- Existing attendance, employee, skill, and Firebase logic is otherwise unchanged.

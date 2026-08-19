@@ -1,0 +1,10 @@
+PPMS V547 - Automatic 3 Lowest Skill Topics + Level 5 Approval
+
+- Exam-based upskill no longer changes only one topic.
+- On PASS (80%+), system selects up to 3 skill topics with the lowest current levels and raises each by 1 automatically.
+- Level 1-4 updates are automatic.
+- If the selected batch includes an upgrade to Level 5, the Level 5 exam is exactly 20 multiple-choice questions plus 10 mandatory written questions.
+- Level 5 does not update skill immediately. Answers are stored in Examination History for Admin review.
+- Admin reviews all 10 written answers and approves before the 3 selected skill topics are updated.
+- The selected targetSkills batch is stored with the exam result so Admin approval updates the same topics the employee originally tested for.
+- Existing imported Excel exam bank, Attendance, Firebase, employee data and other functions are preserved.
