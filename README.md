@@ -19,3 +19,11 @@ Attendance GPS check-in radius can be configured by Admin from 50-500 meters.
 - Removed legacy per-employee Attendance shift selector from employee edit UI.
 - Shift source is the 4-round plan / individual override.
 - Engineering Support Section and Support Production Section remain fixed Day shift.
+
+
+## V558 Attendance durable sync
+- Store each employee/date check-in in Firebase recordsByKey to prevent stale whole-array writes from losing other employees.
+- Verify the exact keyed record before showing check-in success.
+- Recover previously verified missing check-ins from ppmsArchive on startup, while respecting Admin deletion tombstones.
+- Attendance Admin page refreshes automatically when new central records arrive.
+- Permanent deletion also removes keyed and archive copies.
