@@ -1,0 +1,5 @@
+V553 - Examination History verified sync
+- Exam submit waits for Firebase and verifies the exact result exists in ppms/examResults before showing final success.
+- If cloud sync fails, the result stays in local pending storage and user is clearly told it has not reached central History yet.
+- Uses transaction merge to avoid one employee overwriting another employee exam result.
+- Existing permanent-exam and upskill rules remain unchanged.
