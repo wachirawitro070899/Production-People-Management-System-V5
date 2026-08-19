@@ -1,0 +1,7 @@
+V556 - Examination History hard lock
+
+- When an exam is auto-submitted because the employee leaves/switches tabs, the exam page immediately re-renders to the submitted receipt.
+- Any existing exam history record locks the matching exam so the form is no longer displayed.
+- Receipt clearly states that the exam has been submitted and cannot be taken again.
+- Forced-exit receipts show answered/total count.
+- Permanent-placement exam keeps the 1 attempt per calendar month rule.
