@@ -1,0 +1,5 @@
+PPMS V551 - Thai wording for general employee exams
+- Sections 03-10: exam questions/options converted to Thai-first wording.
+- Allowed English terms retained: Safety, Quality, WI, SOP, 5S, NG.
+- Engineering Support Section (01) and Support Production Section (02) retain technical English as requested.
+- Existing answers, scores, 210-set structure, skill-up rules, and Level 5 approval workflow are unchanged.
