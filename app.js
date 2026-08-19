@@ -1,9 +1,9 @@
-// V561 EXAM BANK DURABLE FIREBASE SAVE + V560 ATTENDANCE LIVE MIRROR
+// V562 EXAM EDIT OVERRIDE PRIORITY + V561 DURABLE FIREBASE SAVE + V560 ATTENDANCE LIVE MIRROR
 (()=>{'use strict';
 const SEED=Array.isArray(window.EMPLOYEE_SEED)?window.EMPLOYEE_SEED:[];
 const KEY='ppms_v3_employees', ATTENDANCE_KEY='ppms_v3_attendance', ATTENDANCE_SETTINGS_KEY='ppms_v3_attendance_settings', ATTENDANCE_DEVICES_KEY='ppms_v3_attendance_devices', ATTENDANCE_DELETED_DATES_KEY='ppms_v3_attendance_deleted_dates', ATTENDANCE_DELETED_RECORDS_KEY='ppms_v3_attendance_deleted_records', SHIFT_SCHEDULE_KEY='ppms_v3_shift_schedules', SHIFT_CLOUD_DIRTY_KEY='ppms_v3_shift_cloud_dirty', HOLIDAY_KEY='ppms_v3_holidays', SKILL_OVERRIDE_KEY='ppms_v3_skill_overrides', EVAL_KEY='ppms_v3_evaluations', TRAIN_KEY='ppms_v3_training', EXAM_RESULT_KEY='ppms_v3_exam_results', EXAM_DELETED_KEY='ppms_v3_exam_deleted_keys', EXAM_BANK_KEY='ppms_v3_exam_bank', EXAM_BANK_PENDING_KEY='ppms_v3_exam_bank_pending', SHARED_KEY='ppms_v3_shared_data_version', DELETED_KEY='ppms_v3_deleted_employee_ids', CLOUD_DIRTY_KEY='ppms_v3_cloud_dirty', LOCAL_UPDATED_KEY='ppms_v3_local_updated_at';
 const SHARED_VERSION=String(window.EMPLOYEE_DATA_VERSION||'legacy');
-const APP_DATA_VERSION='V561-Exam-Bank-Durable-Save';
+const APP_DATA_VERSION='V562-Exam-Edit-Override-Priority';
 const ATTENDANCE_CLOUD_ROOT='ppmsAttendance';
 const ATTENDANCE_LIVE_ROOT='ppmsAttendanceLive'; // V560 append-only live mirror by date/employee
 const EMPLOYEE_PHOTO_DRIVE_FOLDER='https://drive.google.com/drive/folders/1teHJMKOl5wbmayEehnA-fObS4hQJRT9q?usp=drive_link';
@@ -198,9 +198,12 @@ function importedExamQuestions(section,quarter,setName,examType='quarterly',leve
 }
 function defaultExamQuestions(section,quarter,level,setName,focusSkill,examType='quarterly'){return advancedExamQuestions(section,quarter,Math.max(1,Math.min(5,Number(level)||1)),setName,focusSkill,examQuestionCount(examType,level))}
 function examQuestions(section,quarter,level,setName,focusSkill='',examType='quarterly'){
- const imported=importedExamQuestions(section,quarter,setName,examType,level);if(imported)return imported;
  const key=examKey(section,quarter,level,setName,focusSkill,examType),legacyKey=examKey(section,quarter,level,setName,focusSkill).replace('quarterly::',''),saved=examQuestionBank[key]||examQuestionBank[legacyKey],count=examQuestionCount(examType,level);
- return Array.isArray(saved)&&saved.length===count?saved:defaultExamQuestions(section,quarter,level,setName,focusSkill,examType)
+ // V562: Admin-edited questions must override the imported Excel bank. Previously the
+ // imported bank was returned first, so refresh made every saved edit look reverted.
+ if(Array.isArray(saved)&&saved.length===count)return saved;
+ const imported=importedExamQuestions(section,quarter,setName,examType,level);if(imported)return imported;
+ return defaultExamQuestions(section,quarter,level,setName,focusSkill,examType)
 }
 function mergeSeed(local){const m=new Map(SEED.map(x=>[String(x.id),{...x}]));for(const x of local||[])m.set(String(x.id||crypto.randomUUID()),{...(m.get(String(x.id))||{}),...x});return [...m.values()]}
 function driveImageUrl(value){const raw=String(value||'').trim();if(!raw)return'';const m=raw.match(/(?:\/d\/|[?&]id=)([-\w]{20,})/);if(!m)return raw;return `https://drive.google.com/thumbnail?id=${m[1]}&sz=w1000`}
@@ -307,6 +310,8 @@ async function persistExamBankKeyCloud(key,questions){
   await ref.set(firebaseEncodeData(questions));
   const verify=firebaseDecodeData((await ref.once('value')).val());
   if(!Array.isArray(verify)||verify.length!==questions.length)throw Error('Firebase ยังยืนยันชุดข้อสอบไม่ครบ');
+  const normalizeExamRows=rows=>(rows||[]).map(q=>({text:String(q?.text||''),options:Array.isArray(q?.options)?q.options.map(String):[],correct:Number(q?.correct)}));
+  if(JSON.stringify(normalizeExamRows(verify))!==JSON.stringify(normalizeExamRows(questions)))throw Error('Firebase อ่านกลับมาแล้วแต่เนื้อหายังไม่ตรงกับที่แก้ไข');
   const left=loadExamBankPending();delete left[k];saveExamBankPending(left);
   localStorage.setItem(CLOUD_DIRTY_KEY,'0');
   setCloudStatus('บันทึกข้อสอบลง Firebase และตรวจยืนยันแล้ว');
