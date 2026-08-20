@@ -3,7 +3,7 @@
 const SEED=Array.isArray(window.EMPLOYEE_SEED)?window.EMPLOYEE_SEED:[];
 const KEY='ppms_v3_employees', ATTENDANCE_KEY='ppms_v3_attendance', ATTENDANCE_SETTINGS_KEY='ppms_v3_attendance_settings', ATTENDANCE_DEVICES_KEY='ppms_v3_attendance_devices', ATTENDANCE_DELETED_DATES_KEY='ppms_v3_attendance_deleted_dates', ATTENDANCE_DELETED_RECORDS_KEY='ppms_v3_attendance_deleted_records', SHIFT_SCHEDULE_KEY='ppms_v3_shift_schedules', SHIFT_CLOUD_DIRTY_KEY='ppms_v3_shift_cloud_dirty', HOLIDAY_KEY='ppms_v3_holidays', SKILL_OVERRIDE_KEY='ppms_v3_skill_overrides', EVAL_KEY='ppms_v3_evaluations', TRAIN_KEY='ppms_v3_training', EXAM_RESULT_KEY='ppms_v3_exam_results', EXAM_DELETED_KEY='ppms_v3_exam_deleted_keys', EXAM_BANK_KEY='ppms_v3_exam_bank', EXAM_BANK_PENDING_KEY='ppms_v3_exam_bank_pending', SHARED_KEY='ppms_v3_shared_data_version', DELETED_KEY='ppms_v3_deleted_employee_ids', CLOUD_DIRTY_KEY='ppms_v3_cloud_dirty', LOCAL_UPDATED_KEY='ppms_v3_local_updated_at';
 const SHARED_VERSION=String(window.EMPLOYEE_DATA_VERSION||'legacy');
-const APP_DATA_VERSION='V569-Attendance-Cutoff-Fix';
+const APP_DATA_VERSION='V570-Attendance-Auto-Delivery';
 const ATTENDANCE_CLOUD_ROOT='ppmsAttendance';
 const ATTENDANCE_LIVE_ROOT='ppmsAttendanceLive'; // legacy live mirror
 const ATTENDANCE_INBOX_ROOT='ppms/attendanceInbox'; // compatibility path
@@ -607,8 +607,6 @@ async function restoreAttendanceArchiveCloud(){
 async function syncAttendanceRecordCloud(rec){
  if(!rec)return false;
  const recEmp=findAttendanceEmployeeById(rec.employeeId),recSection=String(rec.section||recEmp?.section||'');
- // V569: a trial/reset marker is a cutoff, not a permanent lock for the whole calendar day.
- // Fresh check-ins created after the reset must be allowed to reach Firebase.
  if(attendanceRecordBlockedByCleanup({...rec,section:recSection})){rec.pendingCloudSync=true;localStorage.setItem(ATTENDANCE_KEY,JSON.stringify(attendance));throw Error('รายการนี้เกิดก่อนเวลาล้างข้อมูลทดลอง จึงไม่กู้กลับอัตโนมัติ • ให้เช็คชื่อใหม่เพื่อสร้างรายการหลังเวลาเริ่มใช้งาน');}
  if(!hasFirebaseConfig()||!window.firebase)throw Error('ยังไม่สามารถเชื่อมต่อ Firebase ได้');
  if(!firebase.apps.length)firebase.initializeApp(window.PPMS_FIREBASE_CONFIG);
@@ -616,7 +614,6 @@ async function syncAttendanceRecordCloud(rec){
  clearTimeout(cloudTimer);cloudWritePending=true;
  try{
   const deleteKey=attendanceRecordDeleteKey(rec.employeeId,rec.date),flatKey=attendanceRecordStorageKey(rec.employeeId,rec.date);
-  // Keep Admin delete markers authoritative when reachable.
   try{
    const [dayDel,rowDel]=await Promise.all([
     db.ref(ATTENDANCE_CLOUD_ROOT+'/deletedDates/'+firebaseSafeKey(rec.date)).once('value'),
@@ -627,46 +624,96 @@ async function syncAttendanceRecordCloud(rec){
     if(!fresh)throw Error('รายการเดิมเกิดก่อนเวลาที่ Admin ล้าง Attendance แล้ว • กรุณาเช็คชื่อใหม่');
    }
    if(rowDel.exists()){
-    const info=firebaseDecodeData(rowDel.val()),deletedAtMs=attendanceMarkerTimeMs(info),checkInMs=attendanceRecordTimeMs(rec);
-    const fresh=Number.isFinite(checkInMs)&&Number.isFinite(deletedAtMs)&&checkInMs>deletedAtMs;
+    const info=firebaseDecodeData(rowDel.val()),deletedAtMs=attendanceMarkerTimeMs(info),checkInMs=attendanceRecordTimeMs(rec),fresh=Number.isFinite(checkInMs)&&Number.isFinite(deletedAtMs)&&checkInMs>deletedAtMs;
     if(!fresh)throw Error('รายการเดิมถูก Admin ลบแล้ว กรุณาเช็คชื่อใหม่เพื่อสร้างเวลาใหม่');
     try{await db.ref(ATTENDANCE_CLOUD_ROOT+'/deletedRecords/'+firebaseSafeKey(deleteKey)).remove()}catch(_){ }
    }
-  }catch(err){if(/ถูก Admin|รายการเดิม/.test(String(err?.message||'')))throw err;console.warn('V567 deletion marker check unavailable',err)}
+  }catch(err){if(/ถูก Admin|รายการเดิม/.test(String(err?.message||'')))throw err;console.warn('V570 deletion marker check unavailable',err)}
 
-  const upload={...rec,pendingCloudSync:false,cloudSyncedAt:new Date().toISOString(),writeVersion:'V568',canonicalVerified:true,cloudSource:'ppms-attendance-child'};
-  // V568: write ONLY this employee/date node. V567 transacted the whole `ppms` tree, which is very large
-  // (employees + exam bank + history) and causes heavy contention when many phones check in together.
-  // A child transaction is atomic for this employee/date, inherits the same ppms permissions, and the
-  // existing `ppms` root listener on Admin still receives the update in realtime.
-  const recordRef=db.ref('ppms/attendanceRecords/'+flatKey);
-  await recordRef.transaction(currentRaw=>{
-   const current=firebaseDecodeData(currentRaw);
-   const mergedRow=mergeAttendanceRecords(current&&current.employeeId?[current]:[],[upload])[0]||upload;
-   return firebaseEncodeData(mergedRow);
-  });
-  const verifySnap=await recordRef.once('value');
-  const verified=firebaseDecodeData(verifySnap.val());
-  if(!(verified?.checkIn&&sameAttendanceEmployeeId(verified.employeeId,upload.employeeId)&&String(verified.date||'')===String(upload.date||''))){
-   rec.pendingCloudSync=true;localStorage.setItem(ATTENDANCE_KEY,JSON.stringify(attendance));throw Error('Firebase ยังไม่ยืนยันเวลาเช็คชื่อในฐานข้อมูลหลัก');
-  }
-  const canonical=mergeAttendanceRecords([verified],[rec])[0]||verified;
-  Object.assign(rec,canonical,{pendingCloudSync:false,cloudVerifiedAt:new Date().toISOString(),cloudSyncedAt:upload.cloudSyncedAt,canonicalVerified:true,cloudSource:'ppms-attendance-child',cloudVerifiedPaths:['ppms/attendanceRecords']});
-  localStorage.setItem(ATTENDANCE_KEY,JSON.stringify(attendance));localStorage.setItem(CLOUD_DIRTY_KEY,'0');
-
-  // Compatibility mirrors are best-effort only. They can fail without invalidating a verified check-in.
+  const upload={...rec,pendingCloudSync:false,cloudSyncedAt:new Date().toISOString(),writeVersion:'V570',canonicalVerified:true,cloudSource:'attendance-multi-path'};
   const dayKey=firebaseSafeKey(upload.date),empKey=firebaseSafeKey(attendanceEmployeeKey(upload.employeeId));
-  Promise.allSettled([
-   db.ref(ATTENDANCE_CLOUD_ROOT+'/recordsByKey/'+flatKey).set(firebaseEncodeData(canonical)),
-   db.ref(ATTENDANCE_INBOX_ROOT+'/'+dayKey+'/'+empKey).set(firebaseEncodeData(canonical)),
-   db.ref(ATTENDANCE_LIVE_ROOT+'/'+dayKey+'/'+empKey).set(firebaseEncodeData(canonical)),
-   archiveAttendanceRecordCloud(canonical,db)
-  ]).catch(()=>{});
-  setCloudStatus('Attendance ยืนยันแล้ว • รายการรายบุคคล Firebase');
+  const paths=[
+   ['ppms/attendanceRecords/'+flatKey,db.ref('ppms/attendanceRecords/'+flatKey)],
+   [ATTENDANCE_CLOUD_ROOT+'/recordsByKey/'+flatKey,db.ref(ATTENDANCE_CLOUD_ROOT+'/recordsByKey/'+flatKey)],
+   [ATTENDANCE_INBOX_ROOT+'/'+dayKey+'/'+empKey,db.ref(ATTENDANCE_INBOX_ROOT+'/'+dayKey+'/'+empKey)],
+   [ATTENDANCE_LIVE_ROOT+'/'+dayKey+'/'+empKey,db.ref(ATTENDANCE_LIVE_ROOT+'/'+dayKey+'/'+empKey)]
+  ];
+  // V570: no transaction is required for normal check-in. One phone is bound to one employee and
+  // one employee has one record per day. Direct child writes avoid transaction retries and contention.
+  const writes=await Promise.allSettled(paths.map(async ([name,ref])=>{
+   let current=null;
+   try{current=firebaseDecodeData((await ref.once('value')).val())}catch(_){ }
+   const merged=mergeAttendanceRecords(current&&current.employeeId?[current]:[],[upload])[0]||upload;
+   await ref.set(firebaseEncodeData(merged));
+   return {name,ref,merged};
+  }));
+  const successful=writes.filter(x=>x.status==='fulfilled').map(x=>x.value);
+  if(!successful.length){
+   const msg=writes.map(x=>x.status==='rejected'?String(x.reason?.message||x.reason):'').filter(Boolean)[0]||'Firebase ไม่รับข้อมูล';
+   throw Error(msg);
+  }
+  const verifiedPaths=[];let verified=null;
+  for(const item of successful){
+   try{
+    const row=firebaseDecodeData((await item.ref.once('value')).val());
+    if(row?.checkIn&&sameAttendanceEmployeeId(row.employeeId,upload.employeeId)&&String(row.date||'')===String(upload.date||'')){
+     verifiedPaths.push(item.name);verified=mergeAttendanceRecords(verified?[verified]:[],[row])[0]||row;
+    }
+   }catch(_){ }
+  }
+  if(!verified){rec.pendingCloudSync=true;localStorage.setItem(ATTENDANCE_KEY,JSON.stringify(attendance));throw Error('Firebase ยังไม่ยืนยันเวลาเช็คชื่อจากช่องทางใดเลย');}
+  const canonical=mergeAttendanceRecords([verified],[rec])[0]||verified;
+  Object.assign(rec,canonical,{pendingCloudSync:false,cloudVerifiedAt:new Date().toISOString(),cloudSyncedAt:upload.cloudSyncedAt,canonicalVerified:true,cloudSource:'attendance-multi-path',cloudVerifiedPaths:verifiedPaths});
+  localStorage.setItem(ATTENDANCE_KEY,JSON.stringify(attendance));
+  // Attendance has its own durable queue. Do not let the general ppms dirty flag decide whether a check-in is delivered.
+  try{await archiveAttendanceRecordCloud(canonical,db)}catch(e){console.warn('V570 attendance archive mirror failed',e)}
+  setCloudStatus('Attendance ยืนยันแล้ว • Firebase '+verifiedPaths.length+' ช่องทาง');
   return true;
  }catch(err){if(rec.checkIn){rec.pendingCloudSync=true;localStorage.setItem(ATTENDANCE_KEY,JSON.stringify(attendance))}throw err}
  finally{cloudWritePending=false;flushPendingRemoteSnapshot()}
 }
+async function syncAttendanceRecordCloudWithRetry(rec,{attempts=6,delayMs=1200,onAttempt=null}={}){
+ let lastErr=null;
+ for(let i=1;i<=attempts;i++){
+  try{
+   if(typeof onAttempt==='function')onAttempt(i,attempts);
+   await syncAttendanceRecordCloud(rec);
+   return true;
+  }catch(err){
+   lastErr=err;
+   console.warn('V570 Attendance retry',i,rec?.employeeId,rec?.date,err);
+   if(i<attempts)await new Promise(r=>setTimeout(r,Math.min(5000,delayMs*i)));
+  }
+ }
+ throw lastErr||Error('ส่ง Attendance ไม่สำเร็จ');
+}
+let attendanceAutoRecoveryBusy=false;
+async function autoRecoverTodayAttendanceFromDevice(){
+ if(attendanceAutoRecoveryBusy||isAdmin||document.visibilityState==='hidden'||navigator.onLine===false)return 0;
+ const binding=employeeForThisDevice(),employeeId=binding?String(binding[0]||''):String(sessionStorage.getItem('attendanceEmp')||'');
+ if(!employeeId)return 0;
+ const today=thaiDateKey(),localRows=loadArray(ATTENDANCE_KEY).filter(r=>r&&r.checkIn&&sameAttendanceEmployeeId(r.employeeId,employeeId)&&String(r.date||'')===today);
+ if(!localRows.length)return 0;
+ attendanceAutoRecoveryBusy=true;let repaired=0;
+ try{
+  for(const localRec of localRows){
+   let rec=attendance.find(r=>r&&sameAttendanceEmployeeId(r.employeeId,localRec.employeeId)&&String(r.date||'')===today);
+   if(!rec){rec={...localRec};attendance.unshift(rec)}
+   let remoteOk=false;
+   try{
+    if(!firebase.apps.length)firebase.initializeApp(window.PPMS_FIREBASE_CONFIG);
+    const db=cloudDb||firebase.database(),snap=await db.ref('ppms/attendanceRecords/'+attendanceRecordStorageKey(employeeId,today)).once('value'),remote=firebaseDecodeData(snap.val());
+    remoteOk=!!(remote?.checkIn&&sameAttendanceEmployeeId(remote.employeeId,employeeId)&&String(remote.date||'')===today);
+    if(remoteOk){Object.assign(rec,mergeAttendanceRecords([remote],[rec])[0]||remote,{pendingCloudSync:false,cloudVerifiedAt:rec.cloudVerifiedAt||new Date().toISOString()});localStorage.setItem(ATTENDANCE_KEY,JSON.stringify(attendance));continue}
+   }catch(_){ }
+   rec.pendingCloudSync=true;localStorage.setItem(ATTENDANCE_KEY,JSON.stringify(attendance));
+   try{await syncAttendanceRecordCloudWithRetry(rec,{attempts:3,delayMs:1000});repaired++}catch(err){console.warn('V570 automatic Attendance recovery still pending',employeeId,today,err)}
+  }
+  if(repaired){setCloudStatus('กู้เวลาเช็คชื่อจากเครื่องและส่ง Firebase อัตโนมัติแล้ว '+repaired+' รายการ');queueRemoteRender()}
+  return repaired;
+ }finally{attendanceAutoRecoveryBusy=false}
+}
+
 async function retryPendingAttendanceCloud(){
  if(!cloudDb||!cloudReady)return 0;
  const pending=mergeAttendanceRecords([],attendance).filter(r=>r&&r.checkIn&&r.pendingCloudSync===true);
@@ -1432,7 +1479,7 @@ async function stampAttendance(type){
    }
    if(!remote?.checkIn){
     existing.pendingCloudSync=true;touchAttendance(existing);localStorage.setItem(ATTENDANCE_KEY,JSON.stringify(attendance));
-    await syncAttendanceRecordCloud(existing);sessionStorage.setItem('attendanceEmp',String(emp.id));render();
+    await syncAttendanceRecordCloudWithRetry(existing,{attempts:6,delayMs:1000,onAttempt:(i,n)=>{if(btn)btn.textContent=`กำลังส่งเวลาเดิม (${i}/${n})...`}});sessionStorage.setItem('attendanceEmp',String(emp.id));render();
     return alert('พบเวลาเดิมในเครื่องและซ่อมข้อมูลกลางสำเร็จแล้ว • Firebase ยืนยันแล้ว • '+thaiTime(new Date(existing.checkIn)));
    }
    // Keep the earliest valid check-in if local/remote timestamps differ and refresh local cache from cloud.
@@ -1458,7 +1505,7 @@ async function stampAttendance(type){
   // Never treat that local timestamp as a completed check-in. Push it to the durable employee/date node and verify it first.
   if(rec.checkIn){
    rec.pendingCloudSync=true;touchAttendance(rec);localStorage.setItem(ATTENDANCE_KEY,JSON.stringify(attendance));
-   await syncAttendanceRecordCloud(rec);
+   await syncAttendanceRecordCloudWithRetry(rec,{attempts:6,delayMs:1000,onAttempt:(i,n)=>{if(btn)btn.textContent=`กำลังยืนยันข้อมูล (${i}/${n})...`}});
    if(rec.pendingCloudSync===true||!rec.cloudVerifiedAt)throw Error('พบเวลาเช็คชื่อในเครื่อง แต่ยังไม่ได้รับการยืนยันจากข้อมูลกลาง • กรุณาลองอีกครั้ง');
    sessionStorage.setItem('attendanceEmp',String(emp.id));render();
    return alert(`เช็คชื่อสำเร็จ • ข้อมูลกลางยืนยันแล้ว • ${emp.name} • ${sh.name} • ${thaiTime(new Date(rec.checkIn))}`);
@@ -1466,12 +1513,12 @@ async function stampAttendance(type){
   rec.shift=sh.key;rec.checkIn=stamp;rec.checkInLocation={lat,lng,accuracy:Math.round(accuracy),distance:Math.round(distance)};rec.autoAbsent=false;rec.pendingCloudSync=true;
   if(rec.exception?.type==='absent'&&rec.exception?.auto)delete rec.exception;
   if(lateReason)rec.lateReason={reason:lateReason,submittedAt:stamp,requiredAfter:sh.lateReasonAfter};
-  touchAttendance(rec);persistAttendanceLocalOnly('attendance-checkin-pending');if(!cloudReady||!cloudDb)throw Error('บันทึกเวลาไว้ในเครื่องแล้ว แต่ Firebase ยังไม่เชื่อมต่อ • ยังไม่ถือว่าเช็คชื่อสำเร็จ กรุณากดเช็คชื่อซ้ำเมื่ออินเทอร์เน็ตพร้อม');await syncAttendanceRecordCloud(rec);
-  // V545: success message is allowed only after the central record has been read back and verified.
+  touchAttendance(rec);persistAttendanceLocalOnly('attendance-checkin-pending');if(!cloudReady||!cloudDb)throw Error('บันทึกเวลาไว้ในเครื่องแล้ว แต่ Firebase ยังไม่เชื่อมต่อ • ยังไม่ถือว่าเช็คชื่อสำเร็จ กรุณากดเช็คชื่อซ้ำเมื่ออินเทอร์เน็ตพร้อม');await syncAttendanceRecordCloudWithRetry(rec,{attempts:6,delayMs:1000,onAttempt:(i,n)=>{if(btn)btn.textContent=`กำลังส่ง Firebase (${i}/${n})...`}});
+  // V570: success message is allowed only after the central record has been read back and verified.
   if(rec.pendingCloudSync===true||!rec.cloudVerifiedAt)throw Error('ยังไม่ได้รับการยืนยันจากข้อมูลกลาง • กรุณากดเช็คชื่อซ้ำ');
   sessionStorage.setItem('attendanceEmp',String(emp.id));render();
   alert(`เช็คชื่อสำเร็จ • ข้อมูลกลางยืนยันแล้ว • ${emp.name} • ${sh.name} • ${thaiTime(new Date(rec.checkIn||stamp))}${nowMin>lateMin?' • บันทึกเป็นมาสาย':''}`)
- }catch(err){alert(err.message||String(err))}finally{if(btn){btn.disabled=false;if(oldHtml!=null)btn.innerHTML=oldHtml}}
+ }catch(err){const msg=err.message||String(err);const localEmp=String(sessionStorage.getItem('attendanceEmp')||attendanceEmployeeInput().id||''),today=thaiDateKey(),pending=attendance.find(r=>r&&r.checkIn&&sameAttendanceEmployeeId(r.employeeId,localEmp)&&String(r.date||'')===today&&r.pendingCloudSync===true);if(pending){alert('บันทึกเวลาไว้ในเครื่องแล้ว แต่ Firebase ยังไม่ยืนยัน • ระบบจะส่งซ้ำอัตโนมัติ ไม่ต้องกดเช็คชื่อซ้ำ • '+msg);setTimeout(()=>autoRecoverTodayAttendanceFromDevice(),1500)}else alert(msg)}finally{if(btn){btn.disabled=false;if(oldHtml!=null)btn.innerHTML=oldHtml}}
 }
 async function submitAdvanceLateNotice(){const emp=await getAttendanceEmployeeReady();if(!emp)return;const today=thaiDateKey(),sh=shiftConfig(emp,today),now=currentThaiMinutes(),cutoff=timeMinutes(sh.advanceLateCutoff);if(now>cutoff)return alert(`เลยเวลาแจ้งเข้าสายล่วงหน้าของ ${sh.name} แล้ว • ต้องแจ้งไม่เกิน ${sh.advanceLateCutoff} น. ของวันนั้น\nหากมาเช็คชื่อหลัง ${sh.lateReasonAfter} น. ระบบจะบังคับให้พิมพ์สาเหตุการเข้าสายตอนเช็คชื่อ`);modal(`<h2>แจ้งเข้าสายล่วงหน้า</h2><p class="modal-note"><b>${esc(emp.id)} · ${esc(emp.name)}</b> • ${esc(sh.name)}<br>แจ้งได้เฉพาะวันนี้และต้องไม่เกิน <b>${esc(sh.advanceLateCutoff)} น.</b> • กรุณาพิมพ์สาเหตุจริง</p><form id="attendanceLateForm"><div class="form-grid"><label>วันที่<input name="date" type="date" value="${today}" readonly></label><label>กะ<input value="${esc(sh.name)}" readonly></label></div><label>สาเหตุการเข้าสาย *<textarea name="reason" rows="5" maxlength="300" placeholder="พิมพ์สาเหตุการเข้าสายให้ชัดเจน เช่น รถเสีย รถติดฉุกเฉิน" required></textarea></label><div class="actions"><button type="submit">บันทึกแจ้งเข้าสายล่วงหน้า</button><button type="button" class="secondary" data-action="close">ยกเลิก</button></div></form>`);setTimeout(()=>{const f=document.querySelector('#attendanceLateForm');if(!f)return;f.onsubmit=async e=>{e.preventDefault();const reason=String(new FormData(f).get('reason')||'').trim();if(!reason)return alert('กรุณาพิมพ์สาเหตุการเข้าสาย');if(currentThaiMinutes()>timeMinutes(sh.advanceLateCutoff))return alert(`เลยเวลา ${sh.advanceLateCutoff} น. แล้ว ไม่สามารถแจ้งเข้าสายล่วงหน้าได้`);const rec=ensureAttendanceRecord(emp,today);rec.shift=sh.key;rec.lateNotice={reason,submittedAt:new Date().toISOString(),submittedBefore:sh.advanceLateCutoff,advance:true};touchAttendance(rec);save();try{await syncAttendanceRecordCloud(rec)}catch(err){return alert('บันทึกในเครื่องแล้ว แต่ส่งขึ้นเว็บไม่สำเร็จ: '+err.message)}closeModal();render();alert('บันทึกแจ้งเข้าสายล่วงหน้าและส่งขึ้นเว็บเรียบร้อย')}} ,0)}
 function sickCertificateEligibleRecords(emp){return attendance.filter(r=>sameAttendanceEmployeeId(r.employeeId,emp.id)&&r.exception?.type==='leave'&&r.exception?.leaveType==='sick'&&r.exception?.medicalCertificate!==true&&medicalCertificateWithinWindow(r)).slice().sort((a,b)=>String(b.date||'').localeCompare(String(a.date||'')))}
@@ -1984,10 +2031,13 @@ render();
 initCloud().then(async()=>{
  try{await backfillAttendanceArchiveCloud()}catch(err){console.warn('Attendance archive backfill failed',err)}
  try{await syncPendingCloudData()}catch(err){console.warn('Pending cloud sync failed',err)}
+ try{await autoRecoverTodayAttendanceFromDevice()}catch(err){console.warn('V570 initial automatic Attendance recovery failed',err)}
  // V485: do not trigger a second cloud read after the UI is already interactive.
  autoSyncDrivePhotos();
 });
-window.addEventListener('online',()=>{setCloudStatus('อินเทอร์เน็ตกลับมาแล้ว • กำลังซิงก์ข้อมูลที่ค้าง...');syncPendingCloudData()});
+window.addEventListener('online',()=>{setCloudStatus('อินเทอร์เน็ตกลับมาแล้ว • กำลังซิงก์ข้อมูลที่ค้าง...');syncPendingCloudData();autoRecoverTodayAttendanceFromDevice()});
+window.addEventListener('pageshow',()=>{setTimeout(()=>autoRecoverTodayAttendanceFromDevice(),500)});
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')setTimeout(()=>autoRecoverTodayAttendanceFromDevice(),500)});
 // V485: no refresh on focus/visibility and no periodic cloud reads. Mobile browsers
 // can emit focus/visibility events while a native select or keyboard is open.
 // Keep only retry of unsent local writes; Firebase realtime listener handles remote updates.
@@ -2000,5 +2050,7 @@ setInterval(()=>{
  render();
 },60000);
 setInterval(()=>{if(localStorage.getItem(CLOUD_DIRTY_KEY)==='1')syncPendingCloudData()},CLOUD_REFRESH_INTERVAL_MS);
+// V570: while the employee page remains open, resend any locally recorded check-in every 15s until Firebase confirms it.
+setInterval(()=>{autoRecoverTodayAttendanceFromDevice()},15000);
 setInterval(autoSyncDrivePhotos,10*60*1000);
 })();
