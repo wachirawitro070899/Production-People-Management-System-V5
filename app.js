@@ -1,11 +1,12 @@
-// V562 EXAM EDIT OVERRIDE PRIORITY + V561 DURABLE FIREBASE SAVE + V560 ATTENDANCE LIVE MIRROR
+// V565 ATTENDANCE BUTTON/DEVICE RECOVERY + V564 ATTENDANCE INBOX PRIMARY + V563 VERIFIED WRITE + V562 EXAM EDIT OVERRIDE PRIORITY
 (()=>{'use strict';
 const SEED=Array.isArray(window.EMPLOYEE_SEED)?window.EMPLOYEE_SEED:[];
 const KEY='ppms_v3_employees', ATTENDANCE_KEY='ppms_v3_attendance', ATTENDANCE_SETTINGS_KEY='ppms_v3_attendance_settings', ATTENDANCE_DEVICES_KEY='ppms_v3_attendance_devices', ATTENDANCE_DELETED_DATES_KEY='ppms_v3_attendance_deleted_dates', ATTENDANCE_DELETED_RECORDS_KEY='ppms_v3_attendance_deleted_records', SHIFT_SCHEDULE_KEY='ppms_v3_shift_schedules', SHIFT_CLOUD_DIRTY_KEY='ppms_v3_shift_cloud_dirty', HOLIDAY_KEY='ppms_v3_holidays', SKILL_OVERRIDE_KEY='ppms_v3_skill_overrides', EVAL_KEY='ppms_v3_evaluations', TRAIN_KEY='ppms_v3_training', EXAM_RESULT_KEY='ppms_v3_exam_results', EXAM_DELETED_KEY='ppms_v3_exam_deleted_keys', EXAM_BANK_KEY='ppms_v3_exam_bank', EXAM_BANK_PENDING_KEY='ppms_v3_exam_bank_pending', SHARED_KEY='ppms_v3_shared_data_version', DELETED_KEY='ppms_v3_deleted_employee_ids', CLOUD_DIRTY_KEY='ppms_v3_cloud_dirty', LOCAL_UPDATED_KEY='ppms_v3_local_updated_at';
 const SHARED_VERSION=String(window.EMPLOYEE_DATA_VERSION||'legacy');
-const APP_DATA_VERSION='V562-Exam-Edit-Override-Priority';
+const APP_DATA_VERSION='V565-Attendance-Button-Device-Recovery';
 const ATTENDANCE_CLOUD_ROOT='ppmsAttendance';
-const ATTENDANCE_LIVE_ROOT='ppmsAttendanceLive'; // V560 append-only live mirror by date/employee
+const ATTENDANCE_LIVE_ROOT='ppmsAttendanceLive'; // legacy live mirror
+const ATTENDANCE_INBOX_ROOT='ppms/attendanceInbox'; // V564 primary per-day/per-employee ledger under the known PPMS root
 const EMPLOYEE_PHOTO_DRIVE_FOLDER='https://drive.google.com/drive/folders/1teHJMKOl5wbmayEehnA-fObS4hQJRT9q?usp=drive_link';
 const DRIVE_UPLOAD_CONFIG=window.PPMS_DRIVE_UPLOAD_CONFIG||{};
 const MEDICAL_CERT_MAX_BYTES=5*1024*1024;
@@ -600,67 +601,58 @@ async function restoreAttendanceArchiveCloud(){
 async function syncAttendanceRecordCloud(rec){
  if(!rec)return false;
  const recEmp=findAttendanceEmployeeById(rec.employeeId),recSection=String(rec.section||recEmp?.section||'');
- if(attendanceIsFullCleanupDate(String(rec.date||''),recSection)){rec.pendingCloudSync=true;localStorage.setItem(ATTENDANCE_KEY,JSON.stringify(attendance));throw Error('วันที่นี้ยังถูกตั้งเป็นช่วงล้างข้อมูลทดลอง จึงยังส่ง Attendance เข้าข้อมูลกลางไม่ได้ • ให้ Admin กด เริ่มใช้งานจริง/รีเซ็ต Go-Live ด้วย V519');}
+ if(attendanceIsFullCleanupDate(String(rec.date||''),recSection)){rec.pendingCloudSync=true;localStorage.setItem(ATTENDANCE_KEY,JSON.stringify(attendance));throw Error('วันที่นี้ยังถูกตั้งเป็นช่วงล้างข้อมูลทดลอง จึงยังส่ง Attendance เข้าข้อมูลกลางไม่ได้');}
  if(!hasFirebaseConfig()||!window.firebase)throw Error('ยังไม่สามารถเชื่อมต่อ Firebase ได้');
  if(!firebase.apps.length)firebase.initializeApp(window.PPMS_FIREBASE_CONFIG);
  const db=cloudDb||firebase.database();
  clearTimeout(cloudTimer);cloudWritePending=true;
  try{
-  const deletedSnap=await db.ref(ATTENDANCE_CLOUD_ROOT+'/deletedDates/'+firebaseSafeKey(rec.date)).once('value');
-  if(deletedSnap.exists()){
-   rec.pendingCloudSync=true;localStorage.setItem(ATTENDANCE_KEY,JSON.stringify(attendance));
-   throw Error('วันที่ '+rec.date+' ยังมีเครื่องหมายล้าง Attendance อยู่ในข้อมูลกลาง จึงยังส่งเช็คชื่อไม่ได้ • ให้ Admin กด “รีเซ็ตและเริ่มใช้งานจริงใหม่” ใน V519 เพื่อปลดล็อกวันนี้');
-  }
-  const deleteKey=attendanceRecordDeleteKey(rec.employeeId,rec.date),deletedRecordRef=db.ref(ATTENDANCE_CLOUD_ROOT+'/deletedRecords/'+firebaseSafeKey(deleteKey)),deletedRecordSnap=await deletedRecordRef.once('value');
-  if(deletedRecordSnap.exists()){
-   // V543: an Admin delete tombstone must block stale cached rows, but it must not block a genuine NEW check-in made after the delete.
-   // Compare the new check-in timestamp with deletedAt. Old cached timestamps remain blocked; a later fresh stamp clears only this employee/date tombstone.
-   const deletedInfo=firebaseDecodeData(deletedRecordSnap.val()),deletedAtMs=Date.parse(String(deletedInfo?.deletedAt||'')),checkInMs=Date.parse(String(rec.checkIn||''));
-   const isFreshRecheck=!!rec.checkIn&&Number.isFinite(checkInMs)&&Number.isFinite(deletedAtMs)&&checkInMs>deletedAtMs;
-   if(!isFreshRecheck){
-    // V544: delete the stale row from BOTH memory and localStorage. V543 only filtered localStorage,
-    // so Safari kept reusing the old in-memory timestamp and could get stuck forever on one device.
-    attendance=attendance.filter(r=>!(sameAttendanceEmployeeId(r?.employeeId,rec.employeeId)&&String(r?.date||'')===String(rec.date||'')));
-    localStorage.setItem(ATTENDANCE_KEY,JSON.stringify(attendance));
-    rec.pendingCloudSync=false;
-    throw Error('พบข้อมูลเช็คชื่อเก่าค้างในเครื่องและล้างให้อัตโนมัติแล้ว • กรุณากดเช็คชื่ออีกครั้งเพื่อบันทึกเวลาใหม่');
+  // V564: deletion checks on the old attendance root are best-effort. A permission/rules problem on that
+  // legacy root must never prevent a genuine check-in from reaching the primary PPMS ledger.
+  try{
+   const deletedSnap=await db.ref(ATTENDANCE_CLOUD_ROOT+'/deletedDates/'+firebaseSafeKey(rec.date)).once('value');
+   if(deletedSnap.exists())throw Error('วันที่ '+rec.date+' ถูก Admin ล้างข้อมูล Attendance แล้ว');
+   const deleteKey=attendanceRecordDeleteKey(rec.employeeId,rec.date),deletedRecordRef=db.ref(ATTENDANCE_CLOUD_ROOT+'/deletedRecords/'+firebaseSafeKey(deleteKey)),deletedRecordSnap=await deletedRecordRef.once('value');
+   if(deletedRecordSnap.exists()){
+    const deletedInfo=firebaseDecodeData(deletedRecordSnap.val()),deletedAtMs=Date.parse(String(deletedInfo?.deletedAt||'')),checkInMs=Date.parse(String(rec.checkIn||''));
+    const isFreshRecheck=!!rec.checkIn&&Number.isFinite(checkInMs)&&Number.isFinite(deletedAtMs)&&checkInMs>deletedAtMs;
+    if(!isFreshRecheck){attendance=attendance.filter(r=>!(sameAttendanceEmployeeId(r?.employeeId,rec.employeeId)&&String(r?.date||'')===String(rec.date||'')));localStorage.setItem(ATTENDANCE_KEY,JSON.stringify(attendance));rec.pendingCloudSync=false;throw Error('รายการเดิมถูก Admin ลบแล้ว กรุณาเช็คชื่อใหม่เพื่อสร้างเวลาใหม่');}
+    try{await deletedRecordRef.remove()}catch(_){ }
    }
-   await deletedRecordRef.remove();
-   const localDeleted=localAttendanceDeletedRecords();delete localDeleted[deleteKey];localStorage.setItem(ATTENDANCE_DELETED_RECORDS_KEY,JSON.stringify(localDeleted));
+  }catch(err){
+   if(/ถูก Admin|รายการเดิม/.test(String(err?.message||'')))throw err;
+   console.warn('V564 legacy deletion check unavailable; primary inbox will continue',err);
   }
-  // V558: each employee/date has its own Firebase node. One phone can no longer overwrite another employee's check-in by saving a stale whole array.
+
   const upload={...rec,pendingCloudSync:false,cloudSyncedAt:new Date().toISOString()};
-  const keyedRef=db.ref(ATTENDANCE_CLOUD_ROOT+'/recordsByKey/'+attendanceRecordStorageKey(upload.employeeId,upload.date));
-  await keyedRef.transaction(server=>{const old=firebaseDecodeData(server);return firebaseEncodeData(mergeAttendanceRecords(old?[old]:[],[upload])[0]||upload)});
-  // V560: write an independent live mirror. Admin listens to this path directly, so a stale legacy array can never hide a verified check-in.
-  const liveRef=db.ref(ATTENDANCE_LIVE_ROOT+'/'+firebaseSafeKey(upload.date)+'/'+firebaseSafeKey(attendanceEmployeeKey(upload.employeeId)));
-  await liveRef.transaction(server=>{const old=firebaseDecodeData(server);return firebaseEncodeData(mergeAttendanceRecords(old?[old]:[],[upload])[0]||upload)});
-  // Keep the legacy array synchronized for backward compatibility, but recordsByKey is now the durable source.
-  await db.ref(ATTENDANCE_CLOUD_ROOT+'/records').transaction(server=>firebaseEncodeData(mergeAttendanceRecords(firebaseDecodeData(server)||[],[upload])));
-  // Never show success until the exact employee/date node is read back from Firebase.
-  const [verifyKeyedSnap,verifyLiveSnap]=await Promise.all([keyedRef.once('value'),liveRef.once('value')]);
-  let verified=firebaseDecodeData(verifyKeyedSnap.val())||firebaseDecodeData(verifyLiveSnap.val());
-  if(!verified?.checkIn){const verifySnap=await db.ref(ATTENDANCE_CLOUD_ROOT+'/records').once('value'),verifyDecoded=firebaseDecodeData(verifySnap.val()),verifyRows=Array.isArray(verifyDecoded)?verifyDecoded:Object.values(verifyDecoded||{});verified=verifyRows.find(r=>r&&sameAttendanceEmployeeId(r.employeeId,upload.employeeId)&&String(r.date||'')===String(upload.date||'')&&r.checkIn)}
-  if(upload.checkIn&&!verified?.checkIn){
+  const dayKey=firebaseSafeKey(upload.date),empKey=firebaseSafeKey(attendanceEmployeeKey(upload.employeeId));
+  const inboxRef=db.ref(ATTENDANCE_INBOX_ROOT+'/'+dayKey+'/'+empKey);
+  // Primary write: one Firebase node per employee/day under /ppms, the same root already used by the app.
+  await inboxRef.transaction(server=>{const old=firebaseDecodeData(server);return firebaseEncodeData(mergeAttendanceRecords(old?[old]:[],[upload])[0]||upload)});
+  const inboxVerify=firebaseDecodeData((await inboxRef.once('value')).val());
+  if(upload.checkIn&&(!inboxVerify?.checkIn||!sameAttendanceEmployeeId(inboxVerify.employeeId,upload.employeeId)||String(inboxVerify.date||'')!==String(upload.date||''))){
    rec.pendingCloudSync=true;localStorage.setItem(ATTENDANCE_KEY,JSON.stringify(attendance));
-   throw Error('ส่งเวลาไป Firebase แล้วแต่ยังอ่านยืนยันกลับมาไม่ได้ • ระบบจะไม่ถือว่าเช็คชื่อสำเร็จ กรุณากดเช็คชื่อซ้ำ');
+   throw Error('Firebase ยังไม่ยืนยันเวลาเช็คชื่อของพนักงานคนนี้ กรุณาลองอีกครั้ง');
   }
-  if(verified?.checkIn){
-   const canonical=mergeAttendanceRecords([verified],[rec])[0]||verified;
-   Object.assign(rec,canonical,{pendingCloudSync:false,cloudVerifiedAt:new Date().toISOString()});
-  }
-  await archiveAttendanceRecordCloud(upload,db);
-  await db.ref(ATTENDANCE_CLOUD_ROOT+'/devices').set(firebaseEncodeData(attendanceDevices||{}));
-  await db.ref(ATTENDANCE_CLOUD_ROOT+'/meta').update({master:true,separated:true,version:APP_DATA_VERSION,updatedAt:new Date().toISOString(),reason:'V560 durable attendance + live mirror sync',durableKeyedRecords:true});
-  rec.pendingCloudSync=false;rec.cloudSyncedAt=upload.cloudSyncedAt;
+  const canonical=mergeAttendanceRecords(inboxVerify?[inboxVerify]:[],[rec])[0]||inboxVerify||upload;
+  Object.assign(rec,canonical,{pendingCloudSync:false,cloudVerifiedAt:new Date().toISOString(),cloudSource:'attendanceInbox'});
   localStorage.setItem(ATTENDANCE_KEY,JSON.stringify(attendance));
-  localStorage.setItem(CLOUD_DIRTY_KEY,'0');
-  setCloudStatus('Attendance บันทึกขึ้น Firebase + คลังสำรองแล้ว • Admin เห็นข้อมูลทุกเครื่อง');
+
+  // Legacy mirrors are secondary only. Failure here must not turn a verified primary check-in into a false failure.
+  const secondary=[];
+  secondary.push((async()=>{try{const keyedRef=db.ref(ATTENDANCE_CLOUD_ROOT+'/recordsByKey/'+attendanceRecordStorageKey(upload.employeeId,upload.date));await keyedRef.transaction(server=>{const old=firebaseDecodeData(server);return firebaseEncodeData(mergeAttendanceRecords(old?[old]:[],[upload])[0]||upload)})}catch(e){console.warn('V564 legacy recordsByKey mirror failed',e)}})());
+  secondary.push((async()=>{try{const liveRef=db.ref(ATTENDANCE_LIVE_ROOT+'/'+dayKey+'/'+empKey);await liveRef.transaction(server=>{const old=firebaseDecodeData(server);return firebaseEncodeData(mergeAttendanceRecords(old?[old]:[],[upload])[0]||upload)})}catch(e){console.warn('V564 legacy live mirror failed',e)}})());
+  secondary.push((async()=>{try{await db.ref(ATTENDANCE_CLOUD_ROOT+'/records').transaction(server=>firebaseEncodeData(mergeAttendanceRecords(firebaseDecodeData(server)||[],[upload])))}catch(e){console.warn('V564 legacy records mirror failed',e)}})());
+  secondary.push((async()=>{try{await archiveAttendanceRecordCloud(upload,db)}catch(e){console.warn('V564 attendance archive mirror failed',e)}})());
+  await Promise.all(secondary);
+  try{await db.ref(ATTENDANCE_CLOUD_ROOT+'/devices').set(firebaseEncodeData(attendanceDevices||{}))}catch(e){console.warn('V564 device mirror failed',e)}
+  try{await db.ref(ATTENDANCE_CLOUD_ROOT+'/meta').update({master:true,separated:true,version:APP_DATA_VERSION,updatedAt:new Date().toISOString(),reason:'V565 attendance verified device-safe write',durableKeyedRecords:true,primaryLedger:ATTENDANCE_INBOX_ROOT})}catch(_){ }
+  rec.pendingCloudSync=false;rec.cloudSyncedAt=upload.cloudSyncedAt;
+  localStorage.setItem(ATTENDANCE_KEY,JSON.stringify(attendance));localStorage.setItem(CLOUD_DIRTY_KEY,'0');
+  setCloudStatus('Attendance ยืนยันจากข้อมูลกลางแล้ว • Admin รับเวลาแบบรายคนทันที');
   return true;
- }catch(err){
-  if(rec.checkIn){rec.pendingCloudSync=true;localStorage.setItem(ATTENDANCE_KEY,JSON.stringify(attendance))}
-  throw err;
- }finally{cloudWritePending=false;flushPendingRemoteSnapshot();refreshCloudFromServer(false)}
+ }catch(err){if(rec.checkIn){rec.pendingCloudSync=true;localStorage.setItem(ATTENDANCE_KEY,JSON.stringify(attendance))}throw err}
+ finally{cloudWritePending=false;flushPendingRemoteSnapshot();refreshCloudFromServer(false)}
 }
 async function retryPendingAttendanceCloud(){
  if(!cloudDb||!cloudReady)return 0;
@@ -701,6 +693,29 @@ async function rescueTodayAttendanceFromThisDevice(){
  if(rescued){setCloudStatus('กู้เวลาเช็คชื่อวันนี้จากเครื่องพนักงานและยืนยัน Firebase แล้ว '+rescued+' รายการ');queueRemoteRender()}
  return rescued;
 }
+async function mergeTodayAttendanceInbox(){
+ if(!cloudDb||!cloudReady)return 0;
+ const today=thaiDateKey();
+ try{
+  const snap=await cloudDb.ref(ATTENDANCE_INBOX_ROOT+'/'+firebaseSafeKey(today)).once('value');
+  const raw=firebaseDecodeData(snap.val())||{};
+  const rows=Object.values(raw).filter(r=>r&&r.checkIn&&String(r.date||'')===today);
+  if(!rows.length)return 0;
+  const before=new Set(attendance.filter(r=>r?.checkIn).map(r=>attendanceRecordDeleteKey(r.employeeId,r.date)));
+  attendance=mergeAttendanceRecords(attendance,rows);localStorage.setItem(ATTENDANCE_KEY,JSON.stringify(attendance));
+  const added=attendance.filter(r=>r?.checkIn&&!before.has(attendanceRecordDeleteKey(r.employeeId,r.date))).length;
+  if(added)queueRemoteRender();return added;
+ }catch(err){console.warn('V564 attendance inbox merge failed',err);return 0}
+}
+function bindAttendanceInboxToday(){
+ if(!cloudDb||window.__ppmsAttendanceInboxBound)return;
+ window.__ppmsAttendanceInboxBound=true;const today=thaiDateKey();
+ try{cloudDb.ref(ATTENDANCE_INBOX_ROOT+'/'+firebaseSafeKey(today)).on('value',snap=>{
+  const raw=firebaseDecodeData(snap.val())||{},rows=Object.values(raw).filter(r=>r&&r.checkIn&&String(r.date||'')===today);
+  if(!rows.length)return;attendance=mergeAttendanceRecords(attendance,rows);localStorage.setItem(ATTENDANCE_KEY,JSON.stringify(attendance));
+  if(current==='attendanceAdmin'||current==='attendance'||current==='dashboard')queueRemoteRender();
+ },err=>console.warn('V564 attendance inbox listener failed',err))}catch(err){console.warn('V564 attendance inbox bind failed',err)}
+}
 async function mergeTodayAttendanceLiveMirror(){
  if(!cloudDb||!cloudReady)return 0;
  const today=thaiDateKey();
@@ -716,6 +731,37 @@ async function mergeTodayAttendanceLiveMirror(){
   if(added)queueRemoteRender();
   return added;
  }catch(err){console.warn('V560 live Attendance merge failed',err);return 0}
+}
+async function mergeTodayAttendanceDurableKeyed(){
+ if(!cloudDb||!cloudReady)return 0;
+ const today=thaiDateKey();
+ try{
+  const snap=await cloudDb.ref(ATTENDANCE_CLOUD_ROOT+'/recordsByKey').orderByChild('date').equalTo(today).once('value');
+  const raw=firebaseDecodeData(snap.val())||{};
+  const rows=Object.values(raw).filter(r=>r&&r.checkIn&&String(r.date||'')===today);
+  if(!rows.length)return 0;
+  const before=new Set(attendance.filter(r=>r?.checkIn).map(r=>attendanceRecordDeleteKey(r.employeeId,r.date)));
+  attendance=mergeAttendanceRecords(attendance,rows);
+  localStorage.setItem(ATTENDANCE_KEY,JSON.stringify(attendance));
+  const added=attendance.filter(r=>r?.checkIn&&!before.has(attendanceRecordDeleteKey(r.employeeId,r.date))).length;
+  if(added)queueRemoteRender();
+  return added;
+ }catch(err){console.warn('V563 durable keyed Attendance merge failed',err);return 0}
+}
+function bindAttendanceDurableKeyedToday(){
+ if(!cloudDb||window.__ppmsAttendanceKeyedTodayBound)return;
+ window.__ppmsAttendanceKeyedTodayBound=true;
+ const today=thaiDateKey();
+ try{
+  cloudDb.ref(ATTENDANCE_CLOUD_ROOT+'/recordsByKey').orderByChild('date').equalTo(today).on('value',snap=>{
+   const raw=firebaseDecodeData(snap.val())||{};
+   const rows=Object.values(raw).filter(r=>r&&r.checkIn&&String(r.date||'')===today);
+   if(!rows.length)return;
+   attendance=mergeAttendanceRecords(attendance,rows);
+   localStorage.setItem(ATTENDANCE_KEY,JSON.stringify(attendance));
+   if(current==='attendanceAdmin'||current==='attendance')queueRemoteRender();
+  },err=>console.warn('V563 durable keyed Attendance listener failed',err));
+ }catch(err){console.warn('V563 durable keyed Attendance bind failed',err)}
 }
 function bindAttendanceLiveMirror(){
  if(!cloudDb||window.__ppmsAttendanceLiveBound)return;
@@ -734,6 +780,7 @@ async function recoverTodayAttendanceAdmin(){
  if(!isAdmin)throw Error('กรุณา Login เป็น Admin');
  if(!cloudDb||!cloudReady)throw Error('Firebase ยังไม่เชื่อมต่อ');
  const today=thaiDateKey();
+ await mergeTodayAttendanceInbox();
  await mergeTodayAttendanceLiveMirror();
  const [masterSnap,archiveSnap]=await Promise.all([
   cloudDb.ref(ATTENDANCE_CLOUD_ROOT).once('value'),
@@ -843,7 +890,7 @@ async function syncPendingCloudData(){
  const ready=await ensureCloudReady(15000);if(!ready)return false;
  try{const local=cloudPayload();await cloudDb.ref('ppms').transaction(server=>firebaseEncodeData(mergeCloudPayloadPreserve(firebaseDecodeData(server),local)));localStorage.setItem(CLOUD_DIRTY_KEY,'0');localStorage.setItem(SHIFT_CLOUD_DIRTY_KEY,'0');setCloudStatus('เชื่อมต่อกลับมาแล้ว • ซิงก์ข้อมูลที่ค้างรวมแผนกะเรียบร้อย');return true}catch(err){localStorage.setItem(CLOUD_DIRTY_KEY,'1');setCloudStatus('ยังมีข้อมูลรอซิงก์: '+err.message);return false}
 }
-async function initCloud(){if(!hasFirebaseConfig()){employees=recoverLegacyPhotos(employees);persistCloudToLocal();setCloudStatus('ยังไม่ได้ตั้งค่า Firebase • ใช้งานเฉพาะข้อมูลในเครื่องนี้');return}if(!window.firebase){setCloudStatus('โหลด Firebase ไม่สำเร็จ กรุณาตรวจสอบอินเทอร์เน็ต');return}try{setCloudStatus('กำลังโหลดข้อมูลกลางจาก Firebase...');if(!firebase.apps.length)firebase.initializeApp(window.PPMS_FIREBASE_CONFIG);cloudDb=firebase.database();const root=cloudDb.ref('ppms');const first=await root.once('value');cloudApplying=true;const firstValue=firebaseDecodeData(first.val());const localCache=localCachePayload();if(firstValue&&typeof firstValue==='object'&&!validFactorySettings(firstValue.attendanceSettings)&&validFactorySettings(localCache.attendanceSettings)){await root.child('attendanceSettings').set(firebaseEncodeData(localCache.attendanceSettings));firstValue.attendanceSettings=localCache.attendanceSettings}if(firstValue&&typeof firstValue==='object'){try{await ensureVersionBackupCloud(firstValue)}catch(err){console.warn('Version backup failed',err)}const serverShifts=cloudShiftSchedules(firstValue),localShifts=localCache.shiftSchedules&&typeof localCache.shiftSchedules==='object'?localCache.shiftSchedules:{},migrationNeeded=shiftScheduleCount(serverShifts)===0||localShiftCloudDirty()||firstValue.meta?.shiftCloudAuthoritative!==true;const shiftSeed=migrationNeeded?mergeShiftScheduleMaps(serverShifts,localShifts):serverShifts;const localForMerge={...localCache,employees:(cloudEmployeeList(firstValue)),deletedEmployeeIds:Array.isArray(firstValue.deletedEmployeeIds)?firstValue.deletedEmployeeIds:[],shiftSchedules:shiftSeed};const merged=mergeCloudPayloadPreserve(firstValue,localForMerge);merged.employees=cloudEmployeeList(firstValue);merged.deletedEmployeeIds=Array.isArray(firstValue.deletedEmployeeIds)?firstValue.deletedEmployeeIds:[];merged.shiftSchedules=shiftSeed;merged.meta={...(merged.meta||{}),employeeMaster:'firebase',employeeMasterVersion:'V489',shiftCloudAuthoritative:true,shiftCloudVersion:'V479',shiftCloudMigratedAt:firstValue.meta?.shiftCloudMigratedAt||new Date().toISOString()};await root.transaction(server=>{const currentRaw=firebaseDecodeData(server);const current=currentRaw&&typeof currentRaw==='object'?currentRaw:{};const next=mergeCloudPayloadPreserve(current,{...merged,employees:cloudEmployeeList(current),deletedEmployeeIds:Array.isArray(current.deletedEmployeeIds)?current.deletedEmployeeIds:[]});next.employees=cloudEmployeeList(current);next.deletedEmployeeIds=Array.isArray(current.deletedEmployeeIds)?current.deletedEmployeeIds:[];next.shiftSchedules=mergeShiftScheduleMaps(cloudShiftSchedules(current),shiftSeed);next.meta={...(next.meta||{}),employeeMaster:'firebase',employeeMasterVersion:'V489',shiftCloudAuthoritative:true,shiftCloudVersion:'V479',shiftCloudMigratedAt:current?.meta?.shiftCloudMigratedAt||merged.meta.shiftCloudMigratedAt};return firebaseEncodeData(next)});const latest=await root.once('value');const latestValue=firebaseDecodeData(latest.val());applyCloudPayload(latestValue);await initAttendanceCloudMaster(latestValue);localStorage.setItem(CLOUD_DIRTY_KEY,'0');localStorage.setItem(SHIFT_CLOUD_DIRTY_KEY,'0')}else{employees=localCache.employees;deletedEmployeeIds=new Set(localCache.deletedEmployeeIds||[]);evaluations=localCache.evaluations;training=localCache.training;examResults=localCache.examResults;examDeletedKeys=new Set((localCache.examDeletedKeys||[]).map(String));examQuestionBank=localCache.examQuestionBank;shiftSchedules=localCache.shiftSchedules||{};holidays=localCache.holidays||{};await root.set(firebaseEncodeData(cloudPayload()));await initAttendanceCloudMaster(null);localStorage.setItem(CLOUD_DIRTY_KEY,'0');localStorage.setItem(SHIFT_CLOUD_DIRTY_KEY,'0')}cloudApplying=false;cloudReady=true;retryPendingExamBankCloud().catch(err=>console.warn('V561 pending exam bank retry failed',err));bindAttendanceLiveMirror();mergeTodayAttendanceLiveMirror().catch(err=>console.warn('V560 initial live Attendance merge failed',err));retryPendingAttendanceCloud().catch(err=>console.warn('Attendance pending startup retry failed',err));rescueTodayAttendanceFromThisDevice().catch(err=>console.warn('V559 device Attendance startup rescue failed',err));root.on('value',snap=>{if(!cloudReady)return;if(cloudApplying||cloudWritePending){pendingRemoteSnapshot=snap.val();return}cloudApplying=true;applyCloudPayload(firebaseDecodeData(snap.val()),false);cloudApplying=false;setCloudStatus('เชื่อมต่อแล้ว • Firebase เป็นข้อมูลหลักทุกเครื่อง รวมแผนกะ');queueRemoteRender()});setCloudStatus('เชื่อมต่อแล้ว • Firebase เป็นข้อมูลหลักทุกเครื่อง รวมแผนกะ');queueRemoteRender()}catch(err){console.error(err);cloudApplying=false;employees=loadEmployees();deletedEmployeeIds=loadDeletedIds();evaluations=loadArray(EVAL_KEY);training=loadArray(TRAIN_KEY);examResults=loadArray(EXAM_RESULT_KEY);examDeletedKeys=new Set(loadArray(EXAM_DELETED_KEY).map(String));examQuestionBank=loadObject(EXAM_BANK_KEY);attendance=loadArray(ATTENDANCE_KEY);attendanceSettings=loadObject(ATTENDANCE_SETTINGS_KEY);attendanceDevices=loadObject(ATTENDANCE_DEVICES_KEY);shiftSchedules=loadObject(SHIFT_SCHEDULE_KEY);holidays=loadObject(HOLIDAY_KEY);setCloudStatus('เชื่อม Firebase ไม่สำเร็จ • แสดงข้อมูลสำรองในเครื่อง: '+err.message);render()}}
+async function initCloud(){if(!hasFirebaseConfig()){employees=recoverLegacyPhotos(employees);persistCloudToLocal();setCloudStatus('ยังไม่ได้ตั้งค่า Firebase • ใช้งานเฉพาะข้อมูลในเครื่องนี้');return}if(!window.firebase){setCloudStatus('โหลด Firebase ไม่สำเร็จ กรุณาตรวจสอบอินเทอร์เน็ต');return}try{setCloudStatus('กำลังโหลดข้อมูลกลางจาก Firebase...');if(!firebase.apps.length)firebase.initializeApp(window.PPMS_FIREBASE_CONFIG);cloudDb=firebase.database();const root=cloudDb.ref('ppms');const first=await root.once('value');cloudApplying=true;const firstValue=firebaseDecodeData(first.val());const localCache=localCachePayload();if(firstValue&&typeof firstValue==='object'&&!validFactorySettings(firstValue.attendanceSettings)&&validFactorySettings(localCache.attendanceSettings)){await root.child('attendanceSettings').set(firebaseEncodeData(localCache.attendanceSettings));firstValue.attendanceSettings=localCache.attendanceSettings}if(firstValue&&typeof firstValue==='object'){try{await ensureVersionBackupCloud(firstValue)}catch(err){console.warn('Version backup failed',err)}const serverShifts=cloudShiftSchedules(firstValue),localShifts=localCache.shiftSchedules&&typeof localCache.shiftSchedules==='object'?localCache.shiftSchedules:{},migrationNeeded=shiftScheduleCount(serverShifts)===0||localShiftCloudDirty()||firstValue.meta?.shiftCloudAuthoritative!==true;const shiftSeed=migrationNeeded?mergeShiftScheduleMaps(serverShifts,localShifts):serverShifts;const localForMerge={...localCache,employees:(cloudEmployeeList(firstValue)),deletedEmployeeIds:Array.isArray(firstValue.deletedEmployeeIds)?firstValue.deletedEmployeeIds:[],shiftSchedules:shiftSeed};const merged=mergeCloudPayloadPreserve(firstValue,localForMerge);merged.employees=cloudEmployeeList(firstValue);merged.deletedEmployeeIds=Array.isArray(firstValue.deletedEmployeeIds)?firstValue.deletedEmployeeIds:[];merged.shiftSchedules=shiftSeed;merged.meta={...(merged.meta||{}),employeeMaster:'firebase',employeeMasterVersion:'V489',shiftCloudAuthoritative:true,shiftCloudVersion:'V479',shiftCloudMigratedAt:firstValue.meta?.shiftCloudMigratedAt||new Date().toISOString()};await root.transaction(server=>{const currentRaw=firebaseDecodeData(server);const current=currentRaw&&typeof currentRaw==='object'?currentRaw:{};const next=mergeCloudPayloadPreserve(current,{...merged,employees:cloudEmployeeList(current),deletedEmployeeIds:Array.isArray(current.deletedEmployeeIds)?current.deletedEmployeeIds:[]});next.employees=cloudEmployeeList(current);next.deletedEmployeeIds=Array.isArray(current.deletedEmployeeIds)?current.deletedEmployeeIds:[];next.shiftSchedules=mergeShiftScheduleMaps(cloudShiftSchedules(current),shiftSeed);next.meta={...(next.meta||{}),employeeMaster:'firebase',employeeMasterVersion:'V489',shiftCloudAuthoritative:true,shiftCloudVersion:'V479',shiftCloudMigratedAt:current?.meta?.shiftCloudMigratedAt||merged.meta.shiftCloudMigratedAt};return firebaseEncodeData(next)});const latest=await root.once('value');const latestValue=firebaseDecodeData(latest.val());applyCloudPayload(latestValue);await initAttendanceCloudMaster(latestValue);localStorage.setItem(CLOUD_DIRTY_KEY,'0');localStorage.setItem(SHIFT_CLOUD_DIRTY_KEY,'0')}else{employees=localCache.employees;deletedEmployeeIds=new Set(localCache.deletedEmployeeIds||[]);evaluations=localCache.evaluations;training=localCache.training;examResults=localCache.examResults;examDeletedKeys=new Set((localCache.examDeletedKeys||[]).map(String));examQuestionBank=localCache.examQuestionBank;shiftSchedules=localCache.shiftSchedules||{};holidays=localCache.holidays||{};await root.set(firebaseEncodeData(cloudPayload()));await initAttendanceCloudMaster(null);localStorage.setItem(CLOUD_DIRTY_KEY,'0');localStorage.setItem(SHIFT_CLOUD_DIRTY_KEY,'0')}cloudApplying=false;cloudReady=true;retryPendingExamBankCloud().catch(err=>console.warn('V561 pending exam bank retry failed',err));bindAttendanceInboxToday();mergeTodayAttendanceInbox().catch(err=>console.warn('V564 initial Attendance inbox merge failed',err));bindAttendanceLiveMirror();bindAttendanceDurableKeyedToday();mergeTodayAttendanceLiveMirror().catch(err=>console.warn('V560 initial live Attendance merge failed',err));mergeTodayAttendanceDurableKeyed().catch(err=>console.warn('V563 initial durable Attendance merge failed',err));retryPendingAttendanceCloud().catch(err=>console.warn('Attendance pending startup retry failed',err));rescueTodayAttendanceFromThisDevice().catch(err=>console.warn('V559 device Attendance startup rescue failed',err));root.on('value',snap=>{if(!cloudReady)return;if(cloudApplying||cloudWritePending){pendingRemoteSnapshot=snap.val();return}cloudApplying=true;applyCloudPayload(firebaseDecodeData(snap.val()),false);cloudApplying=false;setCloudStatus('เชื่อมต่อแล้ว • Firebase เป็นข้อมูลหลักทุกเครื่อง รวมแผนกะ');queueRemoteRender()});setCloudStatus('เชื่อมต่อแล้ว • Firebase เป็นข้อมูลหลักทุกเครื่อง รวมแผนกะ');queueRemoteRender()}catch(err){console.error(err);cloudApplying=false;employees=loadEmployees();deletedEmployeeIds=loadDeletedIds();evaluations=loadArray(EVAL_KEY);training=loadArray(TRAIN_KEY);examResults=loadArray(EXAM_RESULT_KEY);examDeletedKeys=new Set(loadArray(EXAM_DELETED_KEY).map(String));examQuestionBank=loadObject(EXAM_BANK_KEY);attendance=loadArray(ATTENDANCE_KEY);attendanceSettings=loadObject(ATTENDANCE_SETTINGS_KEY);attendanceDevices=loadObject(ATTENDANCE_DEVICES_KEY);shiftSchedules=loadObject(SHIFT_SCHEDULE_KEY);holidays=loadObject(HOLIDAY_KEY);setCloudStatus('เชื่อม Firebase ไม่สำเร็จ • แสดงข้อมูลสำรองในเครื่อง: '+err.message);render()}}
 
 function pageAllowsLiveRemoteRender(){return ['dashboard','attendanceAdmin','attendance'].includes(current)}
 // V482: protect ALL user interactions from Firebase/background re-rendering.
@@ -1168,25 +1215,37 @@ function attendanceDateFor(emp,type='in'){const now=currentThaiMinutes(),today=t
 function deviceToken(){let t=localStorage.getItem('ppms_attendance_device_token');if(!t){t=(crypto?.randomUUID?crypto.randomUUID():'dev-'+Date.now()+'-'+Math.random().toString(36).slice(2));localStorage.setItem('ppms_attendance_device_token',t)}return t}
 function deviceLabel(){return [navigator.platform||'',navigator.userAgentData?.platform||'',screen.width+'x'+screen.height].filter(Boolean).join(' · ').slice(0,180)}
 function deviceBindingForEmployee(id){return attendanceDevices[String(id)]||null}
-function employeeForThisDevice(){const token=deviceToken();return Object.entries(attendanceDevices||{}).find(([,v])=>v&&v.token===token)||null}
-function assertAndBindAttendanceDevice(emp){const token=deviceToken(),empId=String(emp.id),own=deviceBindingForEmployee(empId),other=employeeForThisDevice();if(other&&String(other[0])!==empId)throw Error(`เครื่องนี้ลงทะเบียนสำหรับพนักงาน ${other[0]} แล้ว ไม่สามารถเช็คชื่อแทนพนักงานอื่นได้ กรุณาติดต่อ Admin เพื่อ Reset Device`);if(own&&own.token!==token)throw Error(`รหัสพนักงาน ${empId} ลงทะเบียนกับเครื่องอื่นแล้ว กรุณาใช้เครื่องเดิมหรือติดต่อ Admin เพื่อ Reset Device`);if(!own){attendanceDevices[empId]={token,label:deviceLabel(),registeredAt:new Date().toISOString(),lastSeenAt:new Date().toISOString()};}else{own.lastSeenAt=new Date().toISOString()}return true}
+function employeeForThisDevice(){const token=deviceToken();return Object.entries(attendanceDevices||{}).find(([,v])=>v&&String(v.token||'')===token)||null}
+function assertAndBindAttendanceDevice(emp){const token=deviceToken(),empId=String(emp.id),own=deviceBindingForEmployee(empId),other=employeeForThisDevice();if(other&&String(other[0])!==empId)throw Error(`เครื่องนี้ลงทะเบียนสำหรับพนักงาน ${other[0]} แล้ว ไม่สามารถเช็คชื่อแทนพนักงานอื่นได้ กรุณาติดต่อ Admin เพื่อ Reset Device`);if(own&&String(own.token||'')!==token)throw Error(`รหัสพนักงาน ${empId} ลงทะเบียนกับเครื่องอื่นแล้ว กรุณาใช้เครื่องเดิมหรือติดต่อ Admin เพื่อ Reset Device`);if(!own){attendanceDevices[empId]={token,label:deviceLabel(),registeredAt:new Date().toISOString(),lastSeenAt:new Date().toISOString(),lockVersion:'V565'};}else{own.lastSeenAt=new Date().toISOString();own.lockVersion='V565'}return true}
+async function refreshAttendanceDeviceBindingsFromCloud(){
+ if(!hasFirebaseConfig()||!window.firebase)return false;
+ try{
+  if(!firebase.apps.length)firebase.initializeApp(window.PPMS_FIREBASE_CONFIG);
+  const db=cloudDb||firebase.database(),snap=await db.ref(ATTENDANCE_CLOUD_ROOT+'/devices').once('value');
+  attendanceDevices=firebaseDecodeData(snap.val())||{};
+  localStorage.setItem(ATTENDANCE_DEVICES_KEY,JSON.stringify(attendanceDevices));
+  return true;
+ }catch(err){console.warn('V565 device binding refresh failed',err);return false}
+}
 async function assertAndBindAttendanceDeviceCloud(emp){
  const empId=String(emp.id),token=deviceToken();
- if(!cloudReady||!cloudDb){const ready=await ensureCloudReady(12000);if(!ready)throw Error('ไม่สามารถตรวจสอบการผูกเครื่องกับ Firebase ได้ กรุณาตรวจอินเทอร์เน็ตแล้วลองใหม่')}
+ if(!cloudReady||!cloudDb){const ready=await ensureCloudReady(12000);if(!ready)throw Error('ยังเชื่อมต่อ Firebase ไม่ได้ จึงยังตรวจสอบเครื่องไม่ได้ • กรุณาตรวจอินเทอร์เน็ตแล้วกดเช็คชื่อใหม่')}
+ // V565: read the current map first, but lock only this employee node.
+ // The old whole-map transaction caused heavy contention when many employees checked in together.
+ let devices={};
+ try{devices=firebaseDecodeData((await cloudDb.ref(ATTENDANCE_CLOUD_ROOT+'/devices').once('value')).val())||{}}catch(err){throw Error('อ่านข้อมูลการผูกเครื่องจาก Firebase ไม่สำเร็จ • กรุณาลองใหม่')}
+ const other=Object.entries(devices).find(([id,v])=>String(id)!==empId&&v&&String(v.token||'')===token);
+ if(other)throw Error(`เครื่องนี้ผูกกับรหัสพนักงาน ${other[0]} แล้ว • หากเป็นข้อมูลเก่าให้ Admin กด Reset Device`);
  let block='';
- const ref=cloudDb.ref(ATTENDANCE_CLOUD_ROOT+'/devices');
- const result=await ref.transaction(raw=>{
-  const devices=firebaseDecodeData(raw)||{};
-  const own=devices[empId],other=Object.entries(devices).find(([id,v])=>String(id)!==empId&&v&&String(v.token||'')===token);
-  if(other){block=`เครื่องนี้ผูกกับรหัสพนักงาน ${other[0]} แล้ว`;return;}
+ const empRef=cloudDb.ref(ATTENDANCE_CLOUD_ROOT+'/devices/'+firebaseEncodeKey(empId));
+ const result=await empRef.transaction(raw=>{
+  const own=firebaseDecodeData(raw);
   if(own&&String(own.token||'')!==token){block=`รหัสพนักงาน ${empId} ผูกกับเครื่องอื่นแล้ว`;return;}
   const now=new Date().toISOString();
-  devices[empId]={...(own||{}),token,label:deviceLabel(),registeredAt:own?.registeredAt||now,lastSeenAt:now,lockVersion:'V520'};
-  return firebaseEncodeData(devices);
+  return firebaseEncodeData({...(own||{}),token,label:deviceLabel(),registeredAt:own?.registeredAt||now,lastSeenAt:now,lockVersion:'V565'});
  },undefined,false);
- if(!result.committed){throw Error((block||'ไม่สามารถลงทะเบียนเครื่องได้')+' • กรุณาติดต่อ Admin เพื่อ Reset Device')}
- attendanceDevices=firebaseDecodeData(result.snapshot.val())||{};
- localStorage.setItem(ATTENDANCE_DEVICES_KEY,JSON.stringify(attendanceDevices));
+ if(!result.committed)throw Error((block||'ไม่สามารถยืนยันเครื่องได้')+' • กรุณาติดต่อ Admin เพื่อ Reset Device');
+ await refreshAttendanceDeviceBindingsFromCloud();
  assertAndBindAttendanceDevice(emp);
  return true;
 }
@@ -1263,7 +1322,24 @@ function cloudEmployeeList(value){const src=value&&typeof value==='object'&&Obje
 async function fetchAttendanceEmployeeDirect(value){if(!hasFirebaseConfig()||!window.firebase)return null;try{if(!firebase.apps.length)firebase.initializeApp(window.PPMS_FIREBASE_CONFIG);const db=cloudDb||firebase.database();let list=[];try{const empSnap=await db.ref('ppms/employees').once('value');list=cloudEmployeeList(firebaseDecodeData(empSnap.val()))}catch(err){console.warn('Direct ppms/employees lookup failed, retrying ppms root',err)}let deleted=[];try{const delSnap=await db.ref('ppms/deletedEmployeeIds').once('value');deleted=firebaseDecodeData(delSnap.val())||[]}catch(_){deleted=[]}if(!list.length){const snap=await db.ref('ppms').once('value'),root=firebaseDecodeData(snap.val())||{};list=cloudEmployeeList(root);if(!deleted.length)deleted=Array.isArray(root.deletedEmployeeIds)?root.deletedEmployeeIds:[]}const deletedKeys=new Set((Array.isArray(deleted)?deleted:[]).map(attendanceEmployeeKey));list=list.filter(e=>e&&e.id!=null&&!deletedKeys.has(attendanceEmployeeKey(e.id)));const emp=findAttendanceEmployeeInList(list,value);if(!emp)return null;const idx=employees.findIndex(e=>sameAttendanceEmployeeId(e.id,emp.id));if(idx>=0)employees[idx]={...employees[idx],...emp};else employees.push(emp);localStorage.setItem(KEY,JSON.stringify(employees));return employees[idx>=0?idx:employees.length-1]}catch(err){console.warn('Direct employee lookup failed',err);return null}}
 function attendanceEmployeeInput(){const input=document.querySelector('#attendanceEmployeeId'),id=String(input?.value||'').trim();return{input,id}}
 function getAttendanceEmployee(){const {input,id}=attendanceEmployeeInput();if(!id){alert('กรุณากรอกรหัสพนักงานก่อน');if(input)input.focus();return null}const emp=findAttendanceEmployeeById(id);if(!emp){alert('กำลังตรวจสอบรหัสพนักงานกับข้อมูลกลาง กรุณากดเช็คชื่ออีกครั้ง');if(input){input.focus();input.select()}return null}return emp}
-async function getAttendanceEmployeeReady(){const {input,id}=attendanceEmployeeInput();if(!id){alert('กรุณากรอกรหัสพนักงานก่อน');if(input)input.focus();return null}const bound=employeeForThisDevice();if(bound&&!sameAttendanceEmployeeId(id,bound[0])){alert(`เครื่องนี้ลงทะเบียนสำหรับรหัสพนักงาน ${bound[0]} แล้ว ไม่สามารถใช้รหัสอื่นเช็คชื่อ/แจ้งลา/แจ้งสายได้ กรุณาติดต่อ Admin เพื่อ Reset Device`);if(input){input.value=String(bound[0]);input.blur()}sessionStorage.setItem('attendanceEmp',String(bound[0]));return null}let emp=findAttendanceEmployeeById(id);if(emp){if(input)input.value=String(emp.id);sessionStorage.setItem('attendanceEmp',String(emp.id));return emp}let firebaseReached=false;if(!cloudReady){const ready=await ensureCloudReady(15000);firebaseReached=!!ready;if(ready)emp=findAttendanceEmployeeById(id)}else firebaseReached=true;if(!emp&&cloudReady){try{await refreshCloudFromServer(false);firebaseReached=true;emp=findAttendanceEmployeeById(id)}catch(err){console.warn('Attendance employee refresh failed',err)}}if(!emp){try{emp=await fetchAttendanceEmployeeDirect(id);if(emp)firebaseReached=true}catch(err){console.warn('Attendance direct employee lookup failed',err)}}if(!emp){alert(firebaseReached?'ไม่พบรหัสพนักงานในข้อมูลกลาง กรุณาตรวจสอบรหัสอีกครั้ง หากเป็นพนักงาน Subcontractor สามารถใส่เฉพาะตัวเลขท้ายรหัสได้':'ยังตรวจสอบรหัสกับ Firebase ไม่สำเร็จ กรุณาตรวจอินเทอร์เน็ตแล้วกดเช็คชื่ออีกครั้ง');if(input){input.focus();input.select()}return null}if(input)input.value=String(emp.id);sessionStorage.setItem('attendanceEmp',String(emp.id));return emp}
+async function getAttendanceEmployeeReady(){
+ const {input,id}=attendanceEmployeeInput();
+ if(!id){alert('กรุณากรอกรหัสพนักงานก่อน');if(input)input.focus();return null}
+ let firebaseReached=!!(cloudReady&&cloudDb);
+ if(!firebaseReached){const ready=await ensureCloudReady(15000);firebaseReached=!!ready}
+ // V565: never trust a stale local device lock. Refresh the lock map before deciding that a phone is blocked.
+ if(firebaseReached)await refreshAttendanceDeviceBindingsFromCloud();
+ const bound=employeeForThisDevice();
+ if(bound&&!sameAttendanceEmployeeId(id,bound[0])){
+  alert(`Firebase ยืนยันว่าเครื่องนี้ลงทะเบียนสำหรับรหัสพนักงาน ${bound[0]} แล้ว • หากพนักงานเปลี่ยนเครื่องหรือข้อมูลนี้ไม่ถูกต้อง ให้ Admin กด Reset Device`);
+  return null;
+ }
+ let emp=findAttendanceEmployeeById(id);
+ if(!emp&&firebaseReached){try{await refreshCloudFromServer(false);emp=findAttendanceEmployeeById(id)}catch(err){console.warn('Attendance employee refresh failed',err)}}
+ if(!emp){try{emp=await fetchAttendanceEmployeeDirect(id);if(emp)firebaseReached=true}catch(err){console.warn('Attendance direct employee lookup failed',err)}}
+ if(!emp){alert(firebaseReached?'ไม่พบรหัสพนักงานในข้อมูลกลาง กรุณาตรวจสอบรหัสอีกครั้ง หากเป็นพนักงาน Subcontractor สามารถใส่เฉพาะตัวเลขท้ายรหัสได้':'ยังเชื่อมต่อ Firebase ไม่สำเร็จ จึงยังไม่อนุญาตให้เช็คชื่อ • กรุณาตรวจอินเทอร์เน็ตแล้วลองใหม่');if(input){input.focus();input.select()}return null}
+ if(input)input.value=String(emp.id);sessionStorage.setItem('attendanceEmp',String(emp.id));return emp
+}
 function askRequiredReason(title,initial=''){const reason=String(prompt(title,initial)||'').trim();if(!reason){alert('ต้องระบุสาเหตุ จึงจะบันทึกได้');return''}return reason}
 function gpsErrorMessage(e){return e?.code===1?'กรุณาอนุญาตการเข้าถึงตำแหน่ง (Location)':e?.code===2?'ไม่สามารถหาตำแหน่ง GPS ได้':'GPS ใช้เวลานานเกินไป กรุณาลองใหม่'}
 function getBestPosition({duration=12000,minSamples=3,targetAccuracy=25}={}){return new Promise((resolve,reject)=>{
@@ -1280,8 +1356,13 @@ function getBestPosition({duration=12000,minSamples=3,targetAccuracy=25}={}){ret
 function validateAttendanceNoticeDate(dateStr,retroDays,leaveType=''){const today=thaiDateKey(),chosen=new Date(String(dateStr)+'T00:00:00+07:00'),todayDate=new Date(today+'T00:00:00+07:00'),diff=Math.floor((todayDate-chosen)/86400000);if(leaveType==='personal'&&diff>retroDays)throw Error(`ลากิจย้อนหลังเกิน ${retroDays} วัน ระบบคงเป็นขาดงาน -10`);if(diff<0){if(leaveType!=='personal')throw Error('ลาป่วยไม่สามารถเลือกวันที่ในอนาคตได้');if(diff < -7)throw Error('ลากิจล่วงหน้าได้ไม่เกิน 7 วัน')}return diff}
 function thaiDateOffset(days){const d=new Date(thaiDateKey()+'T12:00:00+07:00');d.setDate(d.getDate()+Number(days||0));return thaiDateKey(d)}
 async function stampAttendance(type){
- const emp=await getAttendanceEmployeeReady();if(!emp)return;
- if(type!=='in')return alert('หน้านี้รองรับการเช็คชื่อเข้าเท่านั้น');
+ const btn=document.querySelector(`[data-attendance-stamp="${type}"]`),oldHtml=btn?.innerHTML;
+ if(btn?.disabled)return;
+ if(btn){btn.disabled=true;btn.textContent='กำลังตรวจระบบ...'}
+ try{
+  if(type!=='in')return alert('หน้านี้รองรับการเช็คชื่อเข้าเท่านั้น');
+  if(btn)btn.textContent='กำลังตรวจรหัสพนักงาน...';
+  const emp=await getAttendanceEmployeeReady();if(!emp)return;
  const date=attendanceDateFor(emp,'in'),sh=shiftConfig(emp,date),nowMin=currentShiftMinutes(emp,date),openMin=timeMinutes(sh.checkInOpen),lateMin=timeMinutes(sh.lateReasonAfter);
  if(nowMin<openMin)return alert(`${sh.name} เปิดเช็คชื่อตั้งแต่ ${sh.checkInOpen} น. กรุณาเช็คชื่อเมื่อถึงเวลา`);
  if(!hasFactoryPin()){const loaded=await refreshAttendanceSettingsFromCloud();if(!loaded)return alert('ยังไม่ได้รับพิกัดโรงงานจากข้อมูลกลาง กรุณาตรวจอินเทอร์เน็ตแล้วลองใหม่ หรือให้ Admin เปิดหน้าตั้งค่า Attendance และกดยืนยันตำแหน่งอีกครั้ง');}
@@ -1303,9 +1384,11 @@ async function stampAttendance(type){
    }
    if(!existing?.checkIn){/* stale phone cache healed; continue below and make a fresh check-in */}
    else {
-   const [remoteSnap,keyedSnap]=await Promise.all([cloudDb.ref(ATTENDANCE_CLOUD_ROOT+'/records').once('value'),cloudDb.ref(ATTENDANCE_CLOUD_ROOT+'/recordsByKey/'+attendanceRecordStorageKey(emp.id,date)).once('value')]);
-   const remoteDecoded=firebaseDecodeData(remoteSnap.val()),remoteRows=Array.isArray(remoteDecoded)?remoteDecoded:Object.values(remoteDecoded||{}),keyedRemote=firebaseDecodeData(keyedSnap.val());
-   const remote=(keyedRemote&&sameAttendanceEmployeeId(keyedRemote.employeeId,emp.id)&&String(keyedRemote.date||'')===String(date)?keyedRemote:null)||remoteRows.find(r=>r&&sameAttendanceEmployeeId(r.employeeId,emp.id)&&String(r.date||'')===String(date));
+   const inboxSnap=await cloudDb.ref(ATTENDANCE_INBOX_ROOT+'/'+firebaseSafeKey(date)+'/'+firebaseSafeKey(attendanceEmployeeKey(emp.id))).once('value');
+   let remote=firebaseDecodeData(inboxSnap.val());
+   if(!(remote?.checkIn&&sameAttendanceEmployeeId(remote.employeeId,emp.id)&&String(remote.date||'')===String(date))){
+    try{const [remoteSnap,keyedSnap]=await Promise.all([cloudDb.ref(ATTENDANCE_CLOUD_ROOT+'/records').once('value'),cloudDb.ref(ATTENDANCE_CLOUD_ROOT+'/recordsByKey/'+attendanceRecordStorageKey(emp.id,date)).once('value')]);const remoteDecoded=firebaseDecodeData(remoteSnap.val()),remoteRows=Array.isArray(remoteDecoded)?remoteDecoded:Object.values(remoteDecoded||{}),keyedRemote=firebaseDecodeData(keyedSnap.val());remote=(keyedRemote&&sameAttendanceEmployeeId(keyedRemote.employeeId,emp.id)&&String(keyedRemote.date||'')===String(date)?keyedRemote:null)||remoteRows.find(r=>r&&sameAttendanceEmployeeId(r.employeeId,emp.id)&&String(r.date||'')===String(date))}catch(e){console.warn('V564 legacy existing check lookup failed',e)}
+   }
    if(!remote?.checkIn){
     existing.pendingCloudSync=true;touchAttendance(existing);localStorage.setItem(ATTENDANCE_KEY,JSON.stringify(attendance));
     await syncAttendanceRecordCloud(existing);sessionStorage.setItem('attendanceEmp',String(emp.id));render();
@@ -1324,15 +1407,21 @@ async function stampAttendance(type){
  }
  let lateReason='';
  if(nowMin>lateMin){lateReason=askRequiredReason(`เลยเวลาเช็คชื่อปกติ ${sh.lateReasonAfter} น. กรุณาระบุสาเหตุการเข้าสาย`,existing?.lateNotice?.reason||'');if(!lateReason)return}
- const btn=document.querySelector(`[data-attendance-stamp="${type}"]`),oldHtml=btn?.innerHTML;
- if(btn){btn.disabled=true;btn.textContent='กำลังตรวจ GPS...'}
- try{
+ if(btn)btn.textContent='กำลังตรวจ GPS...';
   const c=attendanceConfig(),pos=await getBestPosition({duration:12000,minSamples:3,targetAccuracy:25}),lat=pos.coords.latitude,lng=pos.coords.longitude,accuracy=Number(pos.coords.accuracy||9999),distance=distanceMeters(lat,lng,c.lat,c.lng);
   if(accuracy>c.maxAccuracy)throw Error(`GPS ยังไม่นิ่ง (ความแม่นยำ ±${Math.round(accuracy)} ม.) กรุณาเปิด Precise Location/ตำแหน่งที่แม่นยำ ออกไปบริเวณที่รับสัญญาณได้ดี แล้วลองเช็คชื่อใหม่`);
   if(distance>c.radius)throw Error(`อยู่นอกพื้นที่โรงงาน ${Math.round(distance)} ม. (อนุญาตไม่เกิน ${c.radius} ม. • GPS ±${Math.round(accuracy)} ม.)`);
   await assertAndBindAttendanceDeviceCloud(emp);
   const rec=ensureAttendanceRecord(emp,date),stamp=new Date().toISOString();
-  if(rec.checkIn)throw Error('เช็คชื่อวันนี้แล้ว เวลา '+thaiTime(new Date(rec.checkIn)));
+  // V563: the Firebase listener can restore a pending local timestamp while GPS/device checks are awaiting.
+  // Never treat that local timestamp as a completed check-in. Push it to the durable employee/date node and verify it first.
+  if(rec.checkIn){
+   rec.pendingCloudSync=true;touchAttendance(rec);localStorage.setItem(ATTENDANCE_KEY,JSON.stringify(attendance));
+   await syncAttendanceRecordCloud(rec);
+   if(rec.pendingCloudSync===true||!rec.cloudVerifiedAt)throw Error('พบเวลาเช็คชื่อในเครื่อง แต่ยังไม่ได้รับการยืนยันจากข้อมูลกลาง • กรุณาลองอีกครั้ง');
+   sessionStorage.setItem('attendanceEmp',String(emp.id));render();
+   return alert(`เช็คชื่อสำเร็จ • ข้อมูลกลางยืนยันแล้ว • ${emp.name} • ${sh.name} • ${thaiTime(new Date(rec.checkIn))}`);
+  }
   rec.shift=sh.key;rec.checkIn=stamp;rec.checkInLocation={lat,lng,accuracy:Math.round(accuracy),distance:Math.round(distance)};rec.autoAbsent=false;rec.pendingCloudSync=true;
   if(rec.exception?.type==='absent'&&rec.exception?.auto)delete rec.exception;
   if(lateReason)rec.lateReason={reason:lateReason,submittedAt:stamp,requiredAfter:sh.lateReasonAfter};
@@ -1352,7 +1441,7 @@ function attendancePage(){
  const saved=String(sessionStorage.getItem('attendanceEmp')||bound?.[0]||'');
  const emp=employees.find(x=>String(x.id)===saved),activeDate=emp?attendanceDateFor(emp):thaiDateKey(),sh=emp?shiftConfig(emp,activeDate):null;
  const schedule=sh?`<div class="attendance-shift-board attendance-shift-single"><div class="attendance-shift-title">เวลาเช็คชื่อของคุณ • เวลาประเทศไทย 24 ชั่วโมง</div><div class="attendance-shift-grid single"><div class="attendance-shift-card ${sh.key==='night'?'night':'day'}"><b>${sh.key==='night'?'🌙':'☀️'} ${esc(sh.name)}</b><span>เช็คชื่อปกติ <strong>${esc(sh.checkInOpen)}–${esc(sh.lateReasonAfter)}</strong></span><small>แจ้งเข้าสาย/ลาต่าง ๆ ล่วงหน้าต้องไม่เกิน ${esc(sh.advanceLateCutoff)} • หลัง ${esc(sh.lateReasonAfter)} ต้องพิมพ์สาเหตุการเข้าสาย</small></div></div></div>`:`<div class="attendance-shift-board"><div class="attendance-shift-title">เวลาเช็คชื่อ • เวลาประเทศไทย 24 ชั่วโมง</div><div class="attendance-shift-grid"><div class="attendance-shift-card day"><b>☀️ กะเช้า / Day Shift</b><span>เช็คชื่อ <strong>${esc(c.day.checkInOpen)}–${esc(c.day.lateReasonAfter)}</strong></span><small>ลา / แจ้งเข้าสายล่วงหน้า ต้องแจ้งไม่เกิน <strong>${esc(c.day.advanceLateCutoff)}</strong></small></div><div class="attendance-shift-card night"><b>🌙 กะดึก / Night Shift</b><span>เช็คชื่อ <strong>${esc(c.night.checkInOpen)}–${esc(c.night.lateReasonAfter)}</strong></span><small>ลา / แจ้งเข้าสายล่วงหน้า ต้องแจ้งไม่เกิน <strong>${esc(c.night.advanceLateCutoff)}</strong></small></div></div><p class="modal-note">กรอกรหัสพนักงาน ระบบจะเลือกกะและเวลาเช็คชื่อให้ตามที่กำหนดไว้สำหรับพนักงานคนนั้น</p></div>`;
- return head('Employee Attendance','เช็คชื่อเข้า • แจ้งเข้าสาย • ลาป่วย / ลากิจ')+`<div class="attendance-shell attendance-shell-wide">${schedule}<div class="panel attendance-card"><form id="attendanceCodeForm"><label>รหัสพนักงาน<input id="attendanceEmployeeId" name="employeeId" inputmode="text" autocomplete="off" autocapitalize="characters" placeholder="กรอกรหัสพนักงาน" value="${esc(saved)}" ${bound?'readonly':''} required></label>${bound?`<p class="modal-note" style="margin-top:8px"><b>🔒 เครื่องนี้ลงทะเบียนกับรหัส ${esc(bound[0])}</b> • ไม่สามารถใช้เครื่องนี้เช็คชื่อแทนพนักงานอื่นได้ หากเปลี่ยนโทรศัพท์ให้ติดต่อ Admin เพื่อ Reset Device</p>`:''}<div class="attendance-action-grid"><button type="button" class="attendance-action checkin" data-attendance-stamp="in"><span>✓</span><b>เช็คชื่อเข้า</b><small>${sh?`${esc(sh.checkInOpen)}–${esc(sh.lateReasonAfter)} • หลังเวลานี้ต้องแจ้งเหตุผล`:'กรอกรหัสเพื่อดูเวลา'}</small></button><button type="button" class="attendance-action late" data-action="advanceLateNotice"><span>⏱</span><b>แจ้งเข้าสายล่วงหน้า</b><small>${sh?`ไม่เกิน ${esc(sh.advanceLateCutoff)}`:'พิมพ์สาเหตุจริง'}</small></button><button type="button" class="attendance-action leave" data-action="attendanceException"><span>📅</span><b>แจ้งลา</b><small>ลากิจล่วงหน้า 7 วัน • ลาย้อนหลัง 7 วัน</small></button><button type="button" class="attendance-action certificate" data-action="attachMedicalCertificate"><span>📎</span><b>แนบใบรับรองแพทย์</b><small>แนบภายหลังได้ภายใน 3 วัน</small></button></div></form><p class="modal-note attendance-note">${sh?`${esc(sh.name)}: เช็คชื่อได้ตั้งแต่ ${esc(sh.checkInOpen)} ถึง ${esc(sh.lateReasonAfter)} น. • แจ้งเข้าสายหรือลาต่าง ๆ ล่วงหน้าไม่เกิน ${esc(sh.advanceLateCutoff)} น. • หลัง ${esc(sh.lateReasonAfter)} น. เช็คชื่อได้แต่ระบบตัดเป็นสายและบังคับพิมพ์สาเหตุ`:'กรอกรหัสพนักงานก่อน ระบบจะเลือกกะและเวลาให้อัตโนมัติ'} • ลากิจล่วงหน้าได้สูงสุด 7 วัน • ลากิจย้อนหลังได้ไม่เกิน 3 วัน • ลาป่วยย้อนหลัง 1–3 วันต้องมีใบรับรอง (-2) • ลาป่วยย้อนหลังเกิน 3 วันเปลี่ยนเป็นลากิจย้อนหลัง (-4) • ใบรับรองแพทย์ลาป่วยแนบภายหลังได้ภายใน 3 วัน</p></div></div>`
+ return head('Employee Attendance','เช็คชื่อเข้า • แจ้งเข้าสาย • ลาป่วย / ลากิจ')+`<div class="attendance-shell attendance-shell-wide"><div class="panel" style="margin-bottom:10px"><b>V565 Attendance:</b> ปุ่มเช็คชื่อจะตรวจรหัสพนักงาน → Firebase → การผูกเครื่อง → GPS → บันทึกเวลา และจะแจ้งสาเหตุทันทีหากติดขั้นตอนไหน</div>${schedule}<div class="panel attendance-card"><form id="attendanceCodeForm"><label>รหัสพนักงาน<input id="attendanceEmployeeId" name="employeeId" inputmode="text" autocomplete="off" autocapitalize="characters" placeholder="กรอกรหัสพนักงาน" value="${esc(saved)}" required></label>${bound?`<p class="modal-note" style="margin-top:8px"><b>🔒 เครื่องนี้ลงทะเบียนกับรหัส ${esc(bound[0])}</b> • ระบบจะตรวจการผูกเครื่องกับ Firebase ทุกครั้ง หากเปลี่ยนโทรศัพท์ให้ติดต่อ Admin เพื่อ Reset Device</p>`:''}<div class="attendance-action-grid"><button type="button" class="attendance-action checkin" data-attendance-stamp="in"><span>✓</span><b>เช็คชื่อเข้า</b><small>${sh?`${esc(sh.checkInOpen)}–${esc(sh.lateReasonAfter)} • หลังเวลานี้ต้องแจ้งเหตุผล`:'กรอกรหัสเพื่อดูเวลา'}</small></button><button type="button" class="attendance-action late" data-action="advanceLateNotice"><span>⏱</span><b>แจ้งเข้าสายล่วงหน้า</b><small>${sh?`ไม่เกิน ${esc(sh.advanceLateCutoff)}`:'พิมพ์สาเหตุจริง'}</small></button><button type="button" class="attendance-action leave" data-action="attendanceException"><span>📅</span><b>แจ้งลา</b><small>ลากิจล่วงหน้า 7 วัน • ลาย้อนหลัง 7 วัน</small></button><button type="button" class="attendance-action certificate" data-action="attachMedicalCertificate"><span>📎</span><b>แนบใบรับรองแพทย์</b><small>แนบภายหลังได้ภายใน 3 วัน</small></button></div></form><p class="modal-note attendance-note">${sh?`${esc(sh.name)}: เช็คชื่อได้ตั้งแต่ ${esc(sh.checkInOpen)} ถึง ${esc(sh.lateReasonAfter)} น. • แจ้งเข้าสายหรือลาต่าง ๆ ล่วงหน้าไม่เกิน ${esc(sh.advanceLateCutoff)} น. • หลัง ${esc(sh.lateReasonAfter)} น. เช็คชื่อได้แต่ระบบตัดเป็นสายและบังคับพิมพ์สาเหตุ`:'กรอกรหัสพนักงานก่อน ระบบจะเลือกกะและเวลาให้อัตโนมัติ'} • ลากิจล่วงหน้าได้สูงสุด 7 วัน • ลากิจย้อนหลังได้ไม่เกิน 3 วัน • ลาป่วยย้อนหลัง 1–3 วันต้องมีใบรับรอง (-2) • ลาป่วยย้อนหลังเกิน 3 วันเปลี่ยนเป็นลากิจย้อนหลัง (-4) • ใบรับรองแพทย์ลาป่วยแนบภายหลังได้ภายใน 3 วัน</p></div></div>`
 }
 function attendanceYearRows(year){const y=String(year),start=kpiPeriodStart(year);return employees.map(emp=>{const rows=start?mergeAttendanceRecords([],attendance.filter(r=>sameAttendanceEmployeeId(r.employeeId,emp.id)&&String(r.date).startsWith(y+'-')&&String(r.date)>=start)):[],present=rows.filter(r=>r.checkIn).length,late=rows.filter(r=>attendanceStatus(r)==='Late'||r.exception?.type==='late').length,personalLeave=rows.filter(r=>r.exception?.type==='leave'&&r.exception?.leaveType==='personal').length,sickLeave=rows.filter(r=>r.exception?.type==='leave'&&r.exception?.leaveType==='sick').length,leave=personalLeave+sickLeave,absent=rows.filter(r=>!r.checkIn&&r.exception?.type==='absent'&&!isHoliday(r.date)).length,onTime=rows.filter(r=>attendanceStatus(r)==='On time').length,onTimeRate=present?Math.round(onTime/present*1000)/10:0,deductionPoints=rows.reduce((a,r)=>a+attendanceDeduction(r),0),score=Math.max(0,Math.round((100-deductionPoints)*10)/10),grade=attendanceGrade(score);return{emp,rows,present,late,leave,personalLeave,sickLeave,absent,onTime,onTimeRate,deductionPoints,score,grade}})}
 function attendanceBar(label,value,max){const pct=Math.max(0,Math.min(100,Math.round((Number(value)||0)/(Number(max)||1)*100)));return `<div class="attendance-bar-row"><div><span>${esc(label)}</span><b>${value}</b></div><div class="attendance-bar-track"><i style="width:${pct}%"></i></div></div>`}
