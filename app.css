@@ -836,3 +836,6 @@ input[id*="exam"][id*="Emp"], input[id*="Exam"][id*="Emp"] {
 .exam-exit-violation{display:inline-block;margin-top:5px;color:#b91c1c;font-weight:700}
 
 .exam-taking header .auth{display:none!important}
+
+/* Attendance summary: Daily + Cumulative */
+.attendance-metric-section{margin:14px 0 16px}.attendance-metric-title{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;margin:0 2px 8px}.attendance-metric-title b{font-size:16px;color:#153f66}.attendance-metric-title small{color:#66788a}.attendance-metric-section .metric small{display:block;margin-top:4px;color:#66788a;line-height:1.35}.attendance-metric-section .cards{grid-template-columns:repeat(5,minmax(150px,1fr))}@media(max-width:1100px){.attendance-metric-section .cards{grid-template-columns:repeat(3,minmax(150px,1fr))}}@media(max-width:800px){.attendance-metric-title{align-items:flex-start;flex-direction:column;gap:2px}.attendance-metric-section .cards{grid-template-columns:repeat(2,1fr)}}
