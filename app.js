@@ -3,7 +3,7 @@
 const SEED=Array.isArray(window.EMPLOYEE_SEED)?window.EMPLOYEE_SEED:[];
 const KEY='ppms_v3_employees', ATTENDANCE_KEY='ppms_v3_attendance', ATTENDANCE_SETTINGS_KEY='ppms_v3_attendance_settings', ATTENDANCE_DEVICES_KEY='ppms_v3_attendance_devices', ATTENDANCE_DELETED_DATES_KEY='ppms_v3_attendance_deleted_dates', ATTENDANCE_DELETED_RECORDS_KEY='ppms_v3_attendance_deleted_records', SHIFT_SCHEDULE_KEY='ppms_v3_shift_schedules', SHIFT_CLOUD_DIRTY_KEY='ppms_v3_shift_cloud_dirty', HOLIDAY_KEY='ppms_v3_holidays', SKILL_OVERRIDE_KEY='ppms_v3_skill_overrides', EVAL_KEY='ppms_v3_evaluations', TRAIN_KEY='ppms_v3_training', EXAM_RESULT_KEY='ppms_v3_exam_results', EXAM_DELETED_KEY='ppms_v3_exam_deleted_keys', EXAM_BANK_KEY='ppms_v3_exam_bank', EXAM_BANK_PENDING_KEY='ppms_v3_exam_bank_pending', SHARED_KEY='ppms_v3_shared_data_version', DELETED_KEY='ppms_v3_deleted_employee_ids', CLOUD_DIRTY_KEY='ppms_v3_cloud_dirty', LOCAL_UPDATED_KEY='ppms_v3_local_updated_at';
 const SHARED_VERSION=String(window.EMPLOYEE_DATA_VERSION||'legacy');
-const APP_DATA_VERSION='V570-Attendance-Auto-Delivery';
+const APP_DATA_VERSION='V574-Attendance-Direct-Connect-Device-Migration';
 const ATTENDANCE_CLOUD_ROOT='ppmsAttendance';
 const ATTENDANCE_LIVE_ROOT='ppmsAttendanceLive'; // legacy live mirror
 const ATTENDANCE_INBOX_ROOT='ppms/attendanceInbox'; // compatibility path
@@ -972,6 +972,26 @@ async function ensureCloudReady(timeoutMs=12000){
  }
  return !!(cloudReady&&cloudDb);
 }
+// Attendance actions use a lightweight direct connection and do not wait for
+// the large Admin/master payload to finish loading during busy shift starts.
+async function ensureAttendanceCloudReady(timeoutMs=12000){
+ if(cloudDb)return true;
+ if(!hasFirebaseConfig()||!window.firebase)return false;
+ try{
+  if(!firebase.apps.length)firebase.initializeApp(window.PPMS_FIREBASE_CONFIG);
+  cloudDb=firebase.database();
+  await new Promise((resolve,reject)=>{
+   const ref=cloudDb.ref('.info/connected');let done=false;
+   const finish=(err)=>{if(done)return;done=true;clearTimeout(timer);ref.off('value',onValue);err?reject(err):resolve(true)};
+   const onValue=snap=>{if(snap.val()===true)finish()};
+   const timer=setTimeout(()=>finish(Error('Firebase connection timeout')),timeoutMs);
+   ref.on('value',onValue,err=>finish(err));
+  });
+  cloudReady=true;
+  setCloudStatus('เชื่อมต่อ Firebase สำหรับ Attendance แล้ว');
+  return true;
+ }catch(err){console.warn('V574 direct Attendance connection failed',err);return false}
+}
 async function syncPendingCloudData(){
  if(localStorage.getItem(CLOUD_DIRTY_KEY)!=='1')return true;
  const ready=await ensureCloudReady(15000);if(!ready)return false;
@@ -1319,15 +1339,18 @@ async function refreshAttendanceDeviceBindingsFromCloud(){
 }
 async function assertAndBindAttendanceDeviceCloud(emp){
  const empId=String(emp.id),token=deviceToken();
- if(!cloudReady||!cloudDb){const ready=await ensureCloudReady(12000);if(!ready)throw Error('ยังเชื่อมต่อ Firebase ไม่ได้ จึงยังตรวจสอบเครื่องไม่ได้ • กรุณาตรวจอินเทอร์เน็ตแล้วกดเช็คชื่อใหม่')}
+ if(!cloudDb){const ready=await ensureAttendanceCloudReady(12000);if(!ready)throw Error('ยังเชื่อมต่อ Firebase ไม่ได้ จึงยังตรวจสอบเครื่องไม่ได้ • กรุณาตรวจอินเทอร์เน็ตแล้วกดเช็คชื่อใหม่')}
  let devices={};
  try{devices=firebaseDecodeData((await cloudDb.ref(ATTENDANCE_CLOUD_ROOT+'/devices').once('value')).val())||{}}catch(err){console.warn('V566 device map read unavailable',err)}
  const other=Object.entries(devices).find(([id,v])=>String(id)!==empId&&v&&String(v.token||'')===token);
  if(other)throw Error(`เครื่องนี้ผูกกับรหัสพนักงาน ${other[0]} แล้ว • หากเป็นข้อมูลเก่าให้ Admin กด Reset Device`);
  const empRef=cloudDb.ref(ATTENDANCE_CLOUD_ROOT+'/devices/'+firebaseEncodeKey(empId));
  let own=null;try{own=firebaseDecodeData((await empRef.once('value')).val())}catch(_){own=devices[empId]||null}
- if(own&&String(own.token||'')!==token)throw Error(`รหัสพนักงาน ${empId} ผูกกับเครื่องอื่นแล้ว • กรุณาใช้เครื่องเดิมหรือให้ Admin กด Reset Device`);
- const now=new Date().toISOString(),next={...(own||{}),token,label:deviceLabel(),registeredAt:own?.registeredAt||now,lastSeenAt:now,lockVersion:'V566'};
+ // Legacy tokens were scoped to each browser. Allow one automatic migration
+ // for existing bindings, then enforce one device per employee from V574 on.
+ if(own&&String(own.token||'')!==token&&String(own.lockVersion||'')==='V574')throw Error(`รหัสพนักงาน ${empId} ผูกกับเครื่องอื่นแล้ว • กรุณาใช้เครื่องเดิมหรือให้ Admin กด Reset Device`);
+ const now=new Date().toISOString(),migrating=!!(own&&String(own.token||'')!==token),next={...(own||{}),token,label:deviceLabel(),registeredAt:own?.registeredAt||now,lastSeenAt:now,lockVersion:'V574'};
+ if(migrating){next.previousToken=String(own.token||'');next.tokenMigratedAt=now;next.tokenMigrationReason='legacy-browser-token'}
  // Direct SET avoids transaction contention when many employees arrive at the same time.
  await empRef.set(firebaseEncodeData(next));
  const verify=firebaseDecodeData((await empRef.once('value')).val());
@@ -1420,8 +1443,8 @@ function getAttendanceEmployee(){const {input,id}=attendanceEmployeeInput();if(!
 async function getAttendanceEmployeeReady(){
  const {input,id}=attendanceEmployeeInput();
  if(!id){alert('กรุณากรอกรหัสพนักงานก่อน');if(input)input.focus();return null}
- let firebaseReached=!!(cloudReady&&cloudDb);
- if(!firebaseReached){const ready=await ensureCloudReady(15000);firebaseReached=!!ready}
+ let firebaseReached=!!cloudDb;
+ if(!firebaseReached){const ready=await ensureAttendanceCloudReady(15000);firebaseReached=!!ready}
  // V565: never trust a stale local device lock. Refresh the lock map before deciding that a phone is blocked.
  if(firebaseReached)await refreshAttendanceDeviceBindingsFromCloud();
  const bound=employeeForThisDevice();
@@ -1466,7 +1489,7 @@ async function stampAttendance(type){
   // V503: always verify an existing local check-in against the Attendance cloud master.
   // Some phones had a valid local timestamp while the central record was missing, causing a false automatic absence.
   try{
-   if(!cloudReady||!cloudDb){const ready=await ensureCloudReady(12000);if(!ready)throw Error('Firebase ยังไม่เชื่อมต่อ')}
+   if(!cloudDb){const ready=await ensureAttendanceCloudReady(12000);if(!ready)throw Error('Firebase ยังไม่เชื่อมต่อ')}
    const deletedSnap=await cloudDb.ref(ATTENDANCE_CLOUD_ROOT+'/deletedDates/'+firebaseSafeKey(date)).once('value');
    if(deletedSnap.exists())return alert('วันที่นี้ถูก Admin ล้างข้อมูล Attendance แล้ว กรุณาติดต่อ Admin หากต้องการกู้เวลาเช็คชื่อ');
    // V544: if Admin deleted only this employee/date, an old check-in can remain in Safari/localStorage on one phone.
@@ -1521,7 +1544,7 @@ async function stampAttendance(type){
   rec.shift=sh.key;rec.checkIn=stamp;rec.checkInLocation={lat,lng,accuracy:Math.round(accuracy),distance:Math.round(distance)};rec.autoAbsent=false;rec.pendingCloudSync=true;
   if(rec.exception?.type==='absent'&&rec.exception?.auto)delete rec.exception;
   if(lateReason)rec.lateReason={reason:lateReason,submittedAt:stamp,requiredAfter:sh.lateReasonAfter};
-  touchAttendance(rec);persistAttendanceLocalOnly('attendance-checkin-pending');if(!cloudReady||!cloudDb)throw Error('บันทึกเวลาไว้ในเครื่องแล้ว แต่ Firebase ยังไม่เชื่อมต่อ • ยังไม่ถือว่าเช็คชื่อสำเร็จ กรุณากดเช็คชื่อซ้ำเมื่ออินเทอร์เน็ตพร้อม');await syncAttendanceRecordCloudWithRetry(rec,{attempts:6,delayMs:1000,onAttempt:(i,n)=>{if(btn)btn.textContent=`กำลังส่ง Firebase (${i}/${n})...`}});
+  touchAttendance(rec);persistAttendanceLocalOnly('attendance-checkin-pending');if(!cloudDb){const ready=await ensureAttendanceCloudReady(12000);if(!ready)throw Error('บันทึกเวลาไว้ในเครื่องแล้ว แต่ Firebase ยังไม่เชื่อมต่อ • ระบบจะส่งซ้ำอัตโนมัติเมื่อเชื่อมต่อได้')}await syncAttendanceRecordCloudWithRetry(rec,{attempts:6,delayMs:1000,onAttempt:(i,n)=>{if(btn)btn.textContent=`กำลังส่ง Firebase (${i}/${n})...`}});
   // V570: success message is allowed only after the central record has been read back and verified.
   if(rec.pendingCloudSync===true||!rec.cloudVerifiedAt)throw Error('ยังไม่ได้รับการยืนยันจากข้อมูลกลาง • กรุณากดเช็คชื่อซ้ำ');
   sessionStorage.setItem('attendanceEmp',String(emp.id));render();
