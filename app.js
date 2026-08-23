@@ -3,7 +3,7 @@
 const SEED=Array.isArray(window.EMPLOYEE_SEED)?window.EMPLOYEE_SEED:[];
 const KEY='ppms_v3_employees', ATTENDANCE_KEY='ppms_v3_attendance', ATTENDANCE_SETTINGS_KEY='ppms_v3_attendance_settings', ATTENDANCE_DEVICES_KEY='ppms_v3_attendance_devices', ATTENDANCE_DELETED_DATES_KEY='ppms_v3_attendance_deleted_dates', ATTENDANCE_DELETED_RECORDS_KEY='ppms_v3_attendance_deleted_records', SHIFT_SCHEDULE_KEY='ppms_v3_shift_schedules', SHIFT_CLOUD_DIRTY_KEY='ppms_v3_shift_cloud_dirty', HOLIDAY_KEY='ppms_v3_holidays', SKILL_OVERRIDE_KEY='ppms_v3_skill_overrides', EVAL_KEY='ppms_v3_evaluations', TRAIN_KEY='ppms_v3_training', EXAM_RESULT_KEY='ppms_v3_exam_results', EXAM_DELETED_KEY='ppms_v3_exam_deleted_keys', EXAM_BANK_KEY='ppms_v3_exam_bank', EXAM_BANK_PENDING_KEY='ppms_v3_exam_bank_pending', SHARED_KEY='ppms_v3_shared_data_version', DELETED_KEY='ppms_v3_deleted_employee_ids', CLOUD_DIRTY_KEY='ppms_v3_cloud_dirty', LOCAL_UPDATED_KEY='ppms_v3_local_updated_at';
 const SHARED_VERSION=String(window.EMPLOYEE_DATA_VERSION||'legacy');
-const APP_DATA_VERSION='V574-Attendance-Direct-Connect-Device-Migration';
+const APP_DATA_VERSION='V575-Line-Device-Token-Refresh';
 const ATTENDANCE_CLOUD_ROOT='ppmsAttendance';
 const ATTENDANCE_LIVE_ROOT='ppmsAttendanceLive'; // legacy live mirror
 const ATTENDANCE_INBOX_ROOT='ppms/attendanceInbox'; // compatibility path
@@ -1346,11 +1346,11 @@ async function assertAndBindAttendanceDeviceCloud(emp){
  if(other)throw Error(`เครื่องนี้ผูกกับรหัสพนักงาน ${other[0]} แล้ว • หากเป็นข้อมูลเก่าให้ Admin กด Reset Device`);
  const empRef=cloudDb.ref(ATTENDANCE_CLOUD_ROOT+'/devices/'+firebaseEncodeKey(empId));
  let own=null;try{own=firebaseDecodeData((await empRef.once('value')).val())}catch(_){own=devices[empId]||null}
- // Legacy tokens were scoped to each browser. Allow one automatic migration
- // for existing bindings, then enforce one device per employee from V574 on.
- if(own&&String(own.token||'')!==token&&String(own.lockVersion||'')==='V574')throw Error(`รหัสพนักงาน ${empId} ผูกกับเครื่องอื่นแล้ว • กรุณาใช้เครื่องเดิมหรือให้ Admin กด Reset Device`);
- const now=new Date().toISOString(),migrating=!!(own&&String(own.token||'')!==token),next={...(own||{}),token,label:deviceLabel(),registeredAt:own?.registeredAt||now,lastSeenAt:now,lockVersion:'V574'};
- if(migrating){next.previousToken=String(own.token||'');next.tokenMigratedAt=now;next.tokenMigrationReason='legacy-browser-token'}
+ // LINE's in-app browser can rotate/clear browser storage on the same phone.
+ // Refresh this employee's token automatically instead of blocking the whole
+ // shift. A token already bound to another employee is still rejected above.
+ const now=new Date().toISOString(),migrating=!!(own&&String(own.token||'')!==token),next={...(own||{}),token,label:deviceLabel(),registeredAt:own?.registeredAt||now,lastSeenAt:now,lockVersion:'V575'};
+ if(migrating){next.previousToken=String(own.token||'');next.tokenMigratedAt=now;next.tokenMigrationReason='line-inapp-token-refresh';next.tokenRefreshCount=Number(own?.tokenRefreshCount||0)+1}
  // Direct SET avoids transaction contention when many employees arrive at the same time.
  await empRef.set(firebaseEncodeData(next));
  const verify=firebaseDecodeData((await empRef.once('value')).val());
