@@ -843,3 +843,6 @@ input[id*="exam"][id*="Emp"], input[id*="Exam"][id*="Emp"] {
 
 /* V587 NG evidence images */
 .ng-evidence-link{display:flex;align-items:center;gap:8px;margin-top:7px;color:#155e9b;font-weight:700;text-decoration:none}.ng-evidence-thumb{width:76px;height:58px;object-fit:cover;border:1px solid #b8cbe0;border-radius:7px;background:#fff}.ng-evidence-link:hover .ng-evidence-thumb{border-color:#155e9b;box-shadow:0 2px 8px #155e9b33}
+
+/* V588 NG dashboard */
+.ng-dashboard-kpis{display:grid;grid-template-columns:repeat(4,minmax(150px,1fr));gap:12px;margin:12px 0}.ng-dashboard-kpis>div{background:#fff;border:1px solid #c8d8e8;border-radius:12px;padding:16px;box-shadow:0 2px 8px #173b5f12}.ng-dashboard-kpis b{display:block;font-size:28px;color:#164d84}.ng-dashboard-kpis span{color:#4b5f74;font-weight:700}.ng-dashboard-kpis .yellow{border-color:#e6b800;background:#fffbea}.ng-dashboard-kpis .yellow b{color:#9a6d00}.ng-dashboard-kpis .red{border-color:#db5b5b;background:#fff2f2}.ng-dashboard-kpis .red b{color:#b42323}@media(max-width:700px){.ng-dashboard-kpis{grid-template-columns:repeat(2,1fr)}}
