@@ -27,28 +27,28 @@
     const focus = sectionFocus(section);
     return {
       Q1: {
-        training: 'ทบทวน Safety และกฎพื้นฐานประจำพื้นที่\nทบทวน WI / SOP และ Q-Point\nฝึกปฏิบัติงานพื้นฐานตามตำแหน่ง\n5S และการแจ้งความผิดปกติ',
-        exam: 'Safety\nWI / SOP\nQ-Point\n5S',
-        method: 'Classroom + OJT + Job Observation',
-        criteria: 'ข้อสอบรายไตรมาส 20 ข้อ • ผ่าน 80%'
+        training: 'Safety และกฎความปลอดภัยประจำพื้นที่\nPPE ที่ต้องใช้ในแต่ละงาน\nWI / SOP และ Q-Point ประจำตำแหน่ง\n5S และการจัดพื้นที่ทำงาน\nวิธีหยุดงานและแจ้งหัวหน้าเมื่อพบความผิดปกติ\nฝึกปฏิบัติงานพื้นฐานตามตำแหน่ง',
+        exam: 'Safety และ PPE\nWI / SOP\nQ-Point\n5S\nการตอบสนองเมื่อพบความผิดปกติ',
+        method: 'Classroom + OJT หน้างาน + Job Observation',
+        criteria: 'ข้อสอบรายไตรมาส 20 ข้อ • ผ่าน 80% • ต้องผ่านการสังเกตการทำงาน'
       },
       Q2: {
-        training: focus,
-        exam: focus,
-        method: 'ทบทวนมาตรฐาน + OJT หน้างาน + Sample OK/NG',
-        criteria: 'ข้อสอบรายไตรมาส 20 ข้อ • ผ่าน 80%'
+        training: focus + '\nวิธีตั้งเครื่องและตรวจสอบก่อนเริ่มงาน\nFirst Piece Inspection\nวิธีแยก กัก และรายงานงาน NG\nจุดควบคุมสำคัญประจำกระบวนการ',
+        exam: focus + '\nขั้นตอนการผลิต\nQuality และ First Piece\nDefect Criteria\nการจัดการงาน NG',
+        method: 'ทบทวนมาตรฐาน + OJT + Sample OK/NG + Job Observation',
+        criteria: 'ข้อสอบรายไตรมาส 20 ข้อ • ผ่าน 80% • ปฏิบัติการแยก NG ได้ถูกต้อง'
       },
       Q3: {
-        training: 'Measurement และการใช้เครื่องมือวัด\nTraceability และการบันทึก Record\nDefect Criteria / Sample NG\nการควบคุมงานผิดปกติและ Escalation',
-        exam: 'Measurement\nTraceability\nDefect Criteria\nการตอบสนองเมื่อพบ NG',
-        method: 'สาธิต + ฝึกปฏิบัติ + Job Observation',
-        criteria: 'ข้อสอบรายไตรมาส 20 ข้อ • ผ่าน 80%'
+        training: 'การใช้เครื่องมือวัดประจำกระบวนการ\nวิธีอ่าน Drawing และ Specification\nการบันทึก Production / Inspection Record\nTraceability และการสอบย้อนกลับ\nการตรวจสอบตาม Q-Point\nการตอบสนองเมื่อค่าตรวจสอบผิดมาตรฐาน',
+        exam: 'Measurement และเครื่องมือวัด\nDrawing / Specification\nTraceability\nProduction และ Inspection Record\nQ-Point\nการตอบสนองเมื่อค่าผิดมาตรฐาน',
+        method: 'สาธิต + ฝึกปฏิบัติจริง + ตรวจชิ้นงานตัวอย่าง + Job Observation',
+        criteria: 'ข้อสอบรายไตรมาส 20 ข้อ • ผ่าน 80% • การวัดและบันทึกต้องถูกต้อง'
       },
       Q4: {
-        training: 'ทบทวนหัวข้อ Q1–Q3\nบทเรียนจาก NG / Customer Complaint\nการป้องกันการเกิดซ้ำ\nประเมิน Skill และแผนพัฒนาปีถัดไป',
-        exam: 'ข้อสอบรวม Safety / Quality / Process\nข้อผิดพลาดและบทเรียนประจำปี\nการป้องกันปัญหาเกิดซ้ำ\nหัวข้อ Skill ของ Section',
-        method: 'Annual Refresh + Case Study + Practical Evaluation',
-        criteria: 'ข้อสอบรายไตรมาส 20 ข้อ • ผ่าน 80%'
+        training: 'ทบทวนเนื้อหา Q1–Q3\nทบทวน NG และ Customer Complaint ที่เกิดขึ้นจริง\nRoot Cause และการป้องกันการเกิดซ้ำ\nEmergency Response\nทบทวน Skill Matrix รายบุคคล\nจัดทำแผนพัฒนาพนักงานสำหรับปีถัดไป',
+        exam: 'ข้อสอบรวม Safety / Quality / Process\nDefect และ Customer Complaint\nRoot Cause / Problem Solving\nEmergency Response\nหัวข้อ Skill ของ Section',
+        method: 'Annual Refresh + Case Study + Practical Evaluation + Skill Review',
+        criteria: 'ข้อสอบรายไตรมาส 20 ข้อ • ผ่าน 80% • ประเมินภาคปฏิบัติและ Skill Matrix'
       }
     };
   }
@@ -120,12 +120,12 @@
     host.id = 'examPlanDetailsV592';
     host.dataset.signature = signature;
     host.className = 'panel exam-plan-details-v592';
-    host.innerHTML = '<h3>รายละเอียด Training & Examination Q1–Q4</h3><p class="modal-note">กำลังโหลดรายละเอียดแผน...</p>';
+    host.innerHTML = '<h3>แผนการอบรมและการสอบ Q1–Q4</h3><p class="modal-note">กำลังโหลดรายละเอียดแผน...</p>';
     const controls = document.querySelector('.exam-plan-controls');
     (controls?.nextElementSibling || controls || select.closest('.panel'))?.before(host);
     const plan = await readPlan(ctx);
     if (!document.body.contains(host)) return;
-    host.innerHTML = '<div class="exam-detail-title"><div><h3>รายละเอียด Training & Examination Q1–Q4</h3><p>' +
+    host.innerHTML = '<div class="exam-detail-title"><div><h3>แผนการอบรมและการสอบ Q1–Q4</h3><p>' +
       esc(ctx.section) + ' • ปี ' + esc(ctx.year) + '</p></div><span>Training ก่อนสอบทุก Quarter</span></div>' +
       '<div class="exam-detail-grid">' + QUARTERS.map(q => cardHtml(q, plan[q] || defaults(ctx.section)[q])).join('') + '</div>';
     host.querySelectorAll('[data-exam-detail-edit]').forEach(button => {
