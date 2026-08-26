@@ -10,3 +10,6 @@ window.PPMS_FIREBASE_CONFIG = {
   messagingSenderId: "860073002133",
   appId: "1:860073002133:web:65ecba09c0c3cd4702879c"
 };
+
+// ใส่ URL หลัง Deploy Cloudflare Worker เช่น https://ppms-background-push.xxxxx.workers.dev
+window.PPMS_PUSH_WORKER_URL = "";
