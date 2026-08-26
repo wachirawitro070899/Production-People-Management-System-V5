@@ -109,7 +109,7 @@
   }
   async function enhance() {
     const select = document.querySelector('#examPlanSection');
-    const title = document.querySelector('#app .page-head h1, #app h1');
+    const title = document.querySelector('#app .page-head h2, #app .page-head h1, #app h2, #app h1');
     if (!select || !title || !/Examination Plan/i.test(title.textContent || '')) return;
     const ctx = context();
     const signature = ctx.key + '__' + (isAdmin() ? 'admin' : 'user');
