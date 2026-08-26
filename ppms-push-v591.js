@@ -1,7 +1,6 @@
 (function () {
   'use strict';
   const VAPID_KEY = 'BIqOn0asCDx-ilQGLGeqJuQ6v3NfuT2AvJ5JAw9Tl3LL_rPsfQbp5Pe3BK_EcjSXqd0RWGEDAzSy8ZWZn28EaHM';
-  const TOKEN_ROOT = 'ppmsPushTokens';
 
   function supported() {
     return 'serviceWorker' in navigator && 'Notification' in window && typeof firebase !== 'undefined' && firebase.messaging;
@@ -9,11 +8,6 @@
   function currentShift() {
     const hour = new Date().getHours();
     return hour >= 7 && hour < 19 ? 'day' : 'night';
-  }
-  async function tokenId(token) {
-    const bytes = new TextEncoder().encode(token);
-    const hash = await crypto.subtle.digest('SHA-256', bytes);
-    return Array.from(new Uint8Array(hash), b => b.toString(16).padStart(2, '0')).join('');
   }
   function employeeCode() {
     const keys = ['ppms_employee_code', 'employeeCode', 'attendanceEmployeeCode'];
@@ -41,15 +35,18 @@
     await navigator.serviceWorker.ready;
     const token = await firebase.messaging().getToken({ vapidKey: VAPID_KEY, serviceWorkerRegistration: registration });
     if (!token) throw new Error('ไม่สามารถสร้างโทเคนแจ้งเตือนได้');
-    const id = await tokenId(token);
-    await firebase.database().ref(TOKEN_ROOT + '/' + id).set({
-      token,
-      employeeCode: employeeCode(),
-      shift: localStorage.getItem('ppms_employee_shift') || currentShift(),
-      enabled: true,
-      userAgent: navigator.userAgent.slice(0, 300),
-      updatedAt: firebase.database.ServerValue.TIMESTAMP
+    const workerUrl = String(window.PPMS_PUSH_WORKER_URL || '').replace(/\/$/, '');
+    if (!workerUrl) throw new Error('ระบบ Push ยังไม่ได้ใส่ Cloudflare Worker URL');
+    const response = await fetch(workerUrl + '/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        token,
+        employeeCode: employeeCode(),
+        shift: localStorage.getItem('ppms_employee_shift') || currentShift()
+      })
     });
+    if (!response.ok) throw new Error('ลงทะเบียนเครื่องกับ Push Server ไม่สำเร็จ (' + response.status + ')');
     localStorage.setItem('ppms_push_enabled', '1');
     return true;
   }
