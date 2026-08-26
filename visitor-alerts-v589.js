@@ -1,6 +1,7 @@
 (function(){
   'use strict';
   const ROOT='ppmsAlerts';
+  const PLANS_ROOT='ppmsAlertPlans';
   const SEEN_KEY='ppms_seen_alerts_v589';
   const enabled=()=>typeof firebase!=='undefined'&&window.PPMS_FIREBASE_CONFIG;
   const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -15,7 +16,7 @@
     .ppms-alert-overlay{position:fixed;inset:0;z-index:10050;background:#7f1d1ddd;display:flex;align-items:center;justify-content:center;padding:18px;animation:ppmsPulse 1s infinite alternate}
     .ppms-alert-card{width:min(560px,100%);background:#fff;border:6px solid #ef4444;border-radius:22px;padding:26px;text-align:center;box-shadow:0 24px 70px #0008}
     .ppms-alert-icon{font-size:64px}.ppms-alert-card h2{margin:5px 0;color:#991b1b;font-size:clamp(25px,6vw,38px)}.ppms-alert-card p{font-size:20px;white-space:pre-wrap}.ppms-alert-card button{font-size:18px;padding:12px 24px}
-    .ppms-alert-form label{display:block;margin:12px 0;text-align:left}.ppms-alert-form select,.ppms-alert-form textarea{width:100%;box-sizing:border-box;padding:10px;font-size:16px}.ppms-alert-form textarea{min-height:100px}
+    .ppms-alert-form label{display:block;margin:12px 0;text-align:left}.ppms-alert-form select,.ppms-alert-form textarea,.ppms-alert-form input{width:100%;box-sizing:border-box;padding:10px;font-size:16px}.ppms-alert-form textarea{min-height:90px}.ppms-plan-list{max-height:180px;overflow:auto;margin:14px 0;text-align:left}.ppms-plan-row{border:1px solid #ddd;border-radius:10px;padding:9px;margin:6px 0;font-size:14px}.ppms-plan-row button{float:right;font-size:13px;padding:4px 8px}
     @keyframes ppmsPulse{from{background:#7f1d1ddd}to{background:#dc2626e8}}
   `;
   function addStyle(){const s=document.createElement('style');s.textContent=css;document.head.appendChild(s)}
@@ -37,9 +38,13 @@
   }
   function openAdminForm(){
     const wrap=document.createElement('div');wrap.className='ppms-alert-overlay';wrap.style.animation='none';wrap.style.background='#0f172acc';
-    wrap.innerHTML=`<div class="ppms-alert-card ppms-alert-form"><h2>ส่งประกาศด่วน</h2><label>ประเภท<select id="paType"><option value="visitor">มีผู้เยี่ยมชม</option><option value="audit">มี Audit</option></select></label><label>ส่งไปยังกะ<select id="paShift"><option value="${currentShift()}">${shiftLabel(currentShift())} (กะปัจจุบัน)</option><option value="day">กะกลางวัน</option><option value="night">กะกลางคืน</option><option value="all">ทุกกะ</option></select></label><label>ข้อความ<textarea id="paMessage">กรุณาจัดเตรียมพื้นที่ รักษาความสะอาด 5S และปฏิบัติตามมาตรฐานความปลอดภัย</textarea></label><div><button id="paSend" type="button">ส่งแจ้งเตือนทันที</button> <button id="paCancel" class="secondary" type="button">ยกเลิก</button></div></div>`;
+    wrap.innerHTML=`<div class="ppms-alert-card ppms-alert-form"><h2>แผนแจ้งเตือน Audit / ผู้เยี่ยมชม</h2><label>ประเภท<select id="paType"><option value="visitor">มีผู้เยี่ยมชม</option><option value="audit">มี Audit</option></select></label><label>ส่งไปยังกะ<select id="paShift"><option value="${currentShift()}">${shiftLabel(currentShift())} (กะปัจจุบัน)</option><option value="day">กะกลางวัน</option><option value="night">กะกลางคืน</option><option value="all">ทุกกะ</option></select></label><label>วันที่และเวลาแจ้งเตือน <small>(ไม่กรอก = ส่งทันที)</small><input id="paWhen" type="datetime-local"></label><label>ข้อความ<textarea id="paMessage">กรุณาจัดเตรียมพื้นที่ รักษาความสะอาด 5S และปฏิบัติตามมาตรฐานความปลอดภัย</textarea></label><div id="paPlanList" class="ppms-plan-list">กำลังโหลดแผน...</div><div><button id="paSend" type="button">บันทึกแผน / ส่งทันที</button> <button id="paCancel" class="secondary" type="button">ยกเลิก</button></div></div>`;
+    const list=wrap.querySelector('#paPlanList');
+    const db=firebase.database(),plansRef=db.ref(PLANS_ROOT);
+    const renderPlans=snap=>{const rows=[];snap.forEach(x=>{const p=x.val()||{};if(Number(p.scheduledAt||0)+8*3600000<Date.now())return;rows.push({id:x.key,...p})});rows.sort((a,b)=>a.scheduledAt-b.scheduledAt);list.innerHTML=rows.length?rows.map(p=>`<div class="ppms-plan-row"><button type="button" data-plan-delete="${esc(p.id)}">ลบ</button><b>${p.type==='audit'?'📋 Audit':'👥 ผู้เยี่ยมชม'}</b> • ${esc(shiftLabel(p.shift))}<br>${new Date(p.scheduledAt).toLocaleString('th-TH')}<br>${esc(p.message)}</div>`).join(''):'ยังไม่มีแผนแจ้งเตือน';list.querySelectorAll('[data-plan-delete]').forEach(b=>b.onclick=async()=>{if(confirm('ลบแผนแจ้งเตือนนี้หรือไม่?'))await plansRef.child(b.dataset.planDelete).remove()})};
+    plansRef.on('value',renderPlans);wrap.addEventListener('remove',()=>plansRef.off('value',renderPlans));
     wrap.querySelector('#paCancel').onclick=()=>wrap.remove();
-    wrap.querySelector('#paSend').onclick=async()=>{const b=wrap.querySelector('#paSend');b.disabled=true;try{if(!enabled())throw Error('Firebase ไม่พร้อม');if(!firebase.apps.length)firebase.initializeApp(window.PPMS_FIREBASE_CONFIG);const now=Date.now(),payload={type:wrap.querySelector('#paType').value,shift:wrap.querySelector('#paShift').value,message:wrap.querySelector('#paMessage').value.trim(),createdAt:now,expiresAt:now+8*3600000,createdBy:'admin'};await firebase.database().ref(ROOT).push(payload);wrap.remove();alert('ส่งแจ้งเตือนไปยัง '+shiftLabel(payload.shift)+' เรียบร้อยแล้ว')}catch(e){b.disabled=false;alert('ส่งไม่สำเร็จ: '+e.message)}};
+    wrap.querySelector('#paSend').onclick=async()=>{const b=wrap.querySelector('#paSend');b.disabled=true;try{if(!enabled())throw Error('Firebase ไม่พร้อม');const now=Date.now(),whenValue=wrap.querySelector('#paWhen').value,scheduledAt=whenValue?new Date(whenValue).getTime():now;if(!Number.isFinite(scheduledAt))throw Error('วันที่หรือเวลาไม่ถูกต้อง');const payload={type:wrap.querySelector('#paType').value,shift:wrap.querySelector('#paShift').value,message:wrap.querySelector('#paMessage').value.trim(),scheduledAt,createdAt:now,expiresAt:scheduledAt+8*3600000,createdBy:'admin'};if(scheduledAt>now+30000){await plansRef.push(payload);alert('บันทึกแผนแจ้งเตือนวันที่ '+new Date(scheduledAt).toLocaleString('th-TH')+' เรียบร้อยแล้ว')}else{payload.createdAt=now;payload.expiresAt=now+8*3600000;await db.ref(ROOT).push(payload);alert('ส่งแจ้งเตือนไปยัง '+shiftLabel(payload.shift)+' เรียบร้อยแล้ว')}wrap.remove()}catch(e){b.disabled=false;alert('บันทึกไม่สำเร็จ: '+e.message)}};
     document.body.appendChild(wrap);
   }
   async function requestPermission(){if(!('Notification'in window))return alert('เบราว์เซอร์นี้ไม่รองรับการแจ้งเตือน');const p=await Notification.requestPermission();alert(p==='granted'?'เปิดการแจ้งเตือนเรียบร้อยแล้ว':'ยังไม่ได้อนุญาตการแจ้งเตือน กรุณาเปิดสิทธิ์ Notification ในการตั้งค่าเบราว์เซอร์');refreshButtons()}
@@ -53,7 +58,7 @@
   }
   function connect(){
     if(!enabled())return setTimeout(connect,1500);
-    try{if(!firebase.apps.length)firebase.initializeApp(window.PPMS_FIREBASE_CONFIG);firebase.database().ref(ROOT).limitToLast(20).on('child_added',s=>showAlert(s.val(),s.key));}catch(e){console.warn('PPMS alert connection failed',e);setTimeout(connect,3000)}
+    try{if(!firebase.apps.length)firebase.initializeApp(window.PPMS_FIREBASE_CONFIG);const db=firebase.database();db.ref(ROOT).limitToLast(20).on('child_added',s=>showAlert(s.val(),s.key));let plans={};db.ref(PLANS_ROOT).on('value',snap=>{plans={};snap.forEach(x=>plans[x.key]=x.val())});setInterval(()=>Object.entries(plans).forEach(([id,p])=>{const at=Number(p?.scheduledAt||0);if(at&&Date.now()>=at&&Date.now()<=Number(p.expiresAt||at+8*3600000))showAlert({...p,createdAt:at},'plan-'+id)}),15000);}catch(e){console.warn('PPMS alert connection failed',e);setTimeout(connect,3000)}
   }
   document.addEventListener('DOMContentLoaded',()=>{addStyle();refreshButtons();connect();setInterval(refreshButtons,2000)});
 })();
