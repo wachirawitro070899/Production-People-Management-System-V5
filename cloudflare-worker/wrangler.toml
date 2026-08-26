@@ -1,0 +1,6 @@
+name = "ppms-background-push"
+main = "src/worker.js"
+compatibility_date = "2026-08-26"
+
+[triggers]
+crons = ["* * * * *"]
