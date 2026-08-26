@@ -1,38 +1,56 @@
 const PROJECT_ID = 'wachirawit-c8582';
 const DATABASE_URL = 'https://wachirawit-c8582-default-rtdb.asia-southeast1.firebasedatabase.app';
 const APP_URL = 'https://wachirawitro070899.github.io/Production-People-Management-System-V5/';
+const ALLOWED_ORIGIN = 'https://wachirawitro070899.github.io';
 
 export default {
   async scheduled(controller, env, ctx) { ctx.waitUntil(processDuePlans(env)); },
   async fetch(request, env) {
     const url = new URL(request.url);
-    if (url.pathname === '/health') return Response.json({ ok: true, service: 'PPMS Push V591' });
+    if (request.method === 'OPTIONS') return cors(new Response(null, { status: 204 }));
+    if (url.pathname === '/health') return cors(Response.json({ ok: true, service: 'PPMS Push V591' }));
+    if (url.pathname === '/register' && request.method === 'POST') return registerDevice(request, env);
     if (url.pathname === '/run' && request.headers.get('Authorization') === `Bearer ${env.CRON_SECRET}`) {
-      return Response.json(await processDuePlans(env));
+      return cors(Response.json(await processDuePlans(env)));
     }
-    return new Response('PPMS Push Worker V591');
+    return cors(new Response('PPMS Push Worker V591'));
   }
 };
 
+async function registerDevice(request, env) {
+  const origin = request.headers.get('Origin');
+  if (origin !== ALLOWED_ORIGIN) return cors(new Response('Origin not allowed', { status: 403 }));
+  const body = await request.json();
+  if (!body.token || typeof body.token !== 'string' || body.token.length > 4096) {
+    return cors(Response.json({ ok: false, error: 'Invalid token' }, { status: 400 }));
+  }
+  const id = await sha256(body.token);
+  await env.PUSH_TOKENS.put(id, JSON.stringify({
+    token: body.token,
+    employeeCode: String(body.employeeCode || '').slice(0, 40),
+    shift: ['day', 'night', 'all'].includes(body.shift) ? body.shift : 'all',
+    enabled: true,
+    updatedAt: Date.now()
+  }));
+  return cors(Response.json({ ok: true }));
+}
+
 async function processDuePlans(env) {
   const now = Date.now();
-  const [plansResponse, tokensResponse] = await Promise.all([
-    fetch(`${DATABASE_URL}/ppmsAlertPlans.json`),
-    fetch(`${DATABASE_URL}/ppmsPushTokens.json`)
-  ]);
-  if (!plansResponse.ok || !tokensResponse.ok) throw new Error('Cannot read Firebase RTDB');
+  const plansResponse = await fetch(`${DATABASE_URL}/ppmsAlertPlans.json`);
+  if (!plansResponse.ok) throw new Error('Cannot read Firebase alert plans');
   const plans = await plansResponse.json() || {};
-  const tokens = await tokensResponse.json() || {};
   const duePlans = Object.entries(plans).filter(([, plan]) => {
     const at = Number(plan?.scheduledAt || 0);
     return at && !plan.pushSentAt && at <= now && now <= at + 3600000;
   });
   if (!duePlans.length) return { ok: true, checkedAt: now, plansSent: 0, devicesSent: 0 };
 
+  const tokenList = await readTokens(env);
   const accessToken = await getGoogleAccessToken(env);
   let plansSent = 0, devicesSent = 0;
   for (const [planId, plan] of duePlans) {
-    const targets = Object.values(tokens).filter(item =>
+    const targets = tokenList.filter(item =>
       item?.enabled !== false && item?.token && (plan.shift === 'all' || !plan.shift || item.shift === plan.shift)
     );
     const results = await Promise.allSettled(targets.map(item => sendMessage(accessToken, item.token, plan, planId)));
@@ -45,6 +63,18 @@ async function processDuePlans(env) {
     plansSent++;
   }
   return { ok: true, checkedAt: now, plansSent, devicesSent };
+}
+
+async function readTokens(env) {
+  const items = [];
+  let cursor;
+  do {
+    const page = await env.PUSH_TOKENS.list({ cursor });
+    const values = await Promise.all(page.keys.map(key => env.PUSH_TOKENS.get(key.name, 'json')));
+    items.push(...values.filter(Boolean));
+    cursor = page.list_complete ? undefined : page.cursor;
+  } while (cursor);
+  return items;
 }
 
 async function sendMessage(accessToken, token, plan, planId) {
@@ -89,6 +119,19 @@ async function getGoogleAccessToken(env) {
   });
   if (!response.ok) throw new Error(`OAuth ${response.status}: ${await response.text()}`);
   return (await response.json()).access_token;
+}
+
+function cors(response) {
+  const out = new Response(response.body, response);
+  out.headers.set('Access-Control-Allow-Origin', ALLOWED_ORIGIN);
+  out.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  out.headers.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  out.headers.set('X-Content-Type-Options', 'nosniff');
+  return out;
+}
+async function sha256(value) {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value));
+  return Array.from(new Uint8Array(digest), b => b.toString(16).padStart(2, '0')).join('');
 }
 function pemToArrayBuffer(pem) {
   const value = pem.replace(/\\n/g, '\n').replace(/-----BEGIN PRIVATE KEY-----|-----END PRIVATE KEY-----|\s/g, '');
