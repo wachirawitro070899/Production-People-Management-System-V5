@@ -98,6 +98,18 @@
     const items = lines(value);
     return items.length ? '<ul>' + items.map(item => '<li>' + esc(item) + '</li>').join('') + '</ul>' : '<p class="exam-detail-empty">ยังไม่กำหนด</p>';
   }
+  function trainingItems(value) {
+    return lines(value).map((line, index) => {
+      const parts = line.split(/\s+[—–-]\s+/);
+      return { index, title: (parts.shift() || ('หัวข้อ ' + (index + 1))).trim(), detail: parts.join(' — ').trim() || line };
+    });
+  }
+  function trainingTopicHtml(value) {
+    const items = trainingItems(value);
+    return items.length ? '<div class="exam-training-topic-list">' + items.map(item =>
+      '<button type="button" class="exam-training-topic" data-training-topic="' + item.index + '"><span><b>' + esc(item.title) + '</b><small>' + esc(item.detail) + '</small></span><strong>ดูรายละเอียด ›</strong></button>'
+    ).join('') + '</div>' : '<p class="exam-detail-empty">ยังไม่กำหนด</p>';
+  }
   function cardHtml(q, data) {
     const trainingCount = lines(data.training).length;
     const examCount = lines(data.exam).length;
@@ -148,7 +160,7 @@
     overlay.className = 'exam-detail-overlay';
     overlay.innerHTML = '<section class="exam-detail-viewer" role="dialog" aria-modal="true" aria-label="รายละเอียด ' + q + '">' +
       '<div class="exam-viewer-head"><div><span class="exam-viewer-quarter">' + q + '</span><h2>รายละเอียด Training & Examination</h2><p>' + esc(ctx.section) + ' • ปี ' + esc(ctx.year) + '</p></div><button type="button" class="secondary" data-close>ปิด</button></div>' +
-      '<div class="exam-viewer-section training"><h3>📘 หัวข้อและรายละเอียดการเทรนนิ่ง</h3>' + listHtml(current.training) + '</div>' +
+      '<div class="exam-viewer-section training"><h3>📘 หัวข้อการเทรนนิ่ง</h3><p class="exam-topic-hint">กดหัวข้อเพื่อดูรายละเอียดว่าอบรมอะไรและฝึกอย่างไร</p>' + trainingTopicHtml(current.training) + '</div>' +
       '<div class="exam-viewer-section exam"><h3>📝 หัวข้อ Examination</h3>' + listHtml(current.exam) + '</div>' +
       '<div class="exam-viewer-meta"><p><b>วิธีดำเนินการ:</b> ' + esc(current.method || '-') + '</p><p><b>เกณฑ์ผ่าน:</b> ' + esc(current.criteria || '-') + '</p></div>' +
       (isAdmin() ? '<div class="actions"><button type="button" data-edit>แก้ไขรายละเอียด ' + q + '</button></div>' : '') + '</section>';
@@ -156,6 +168,25 @@
     overlay.onclick = event => { if (event.target === overlay) overlay.remove(); };
     const edit = overlay.querySelector('[data-edit]');
     if (edit) edit.onclick = () => { overlay.remove(); openEditor(ctx, plan, q); };
+    overlay.querySelectorAll('[data-training-topic]').forEach(button => {
+      button.onclick = () => openTrainingTopic(ctx, q, current, Number(button.dataset.trainingTopic));
+    });
+    document.body.appendChild(overlay);
+  }
+  function openTrainingTopic(ctx, q, quarter, index) {
+    const item = trainingItems(quarter.training)[index];
+    if (!item) return;
+    const overlay = document.createElement('div');
+    overlay.className = 'exam-detail-overlay exam-topic-overlay';
+    overlay.innerHTML = '<section class="exam-training-topic-viewer" role="dialog" aria-modal="true" aria-label="รายละเอียดหัวข้อ ' + esc(item.title) + '">' +
+      '<div class="exam-viewer-head"><div><span class="exam-viewer-quarter">' + q + '</span><h2>' + esc(item.title) + '</h2><p>' + esc(ctx.section) + ' • ปี ' + esc(ctx.year) + '</p></div><button type="button" class="secondary" data-close>ปิด</button></div>' +
+      '<div class="exam-topic-detail-grid"><article><h3>🎯 วัตถุประสงค์</h3><p>ให้ผู้เข้าอบรมเข้าใจมาตรฐานของหัวข้อนี้ สามารถอธิบายขั้นตอน และนำไปปฏิบัติกับงานจริงได้อย่างถูกต้อง</p></article>' +
+      '<article><h3>📚 เนื้อหาที่ต้องอบรม</h3><p>' + esc(item.detail) + '</p></article>' +
+      '<article><h3>🛠️ วิธีอบรมและฝึกปฏิบัติ</h3><p>' + esc(quarter.method || 'ผู้สอนอธิบายมาตรฐาน สาธิต แล้วให้พนักงานฝึกปฏิบัติจริง') + '</p></article>' +
+      '<article><h3>✅ การประเมินผล</h3><p>' + esc(quarter.criteria || 'ประเมินความเข้าใจและตรวจการปฏิบัติงานจริง') + '</p></article></div>' +
+      '<div class="exam-topic-related"><h3>📝 หัวข้อสอบที่เกี่ยวข้อง</h3>' + listHtml(quarter.exam) + '</div></section>';
+    overlay.querySelector('[data-close]').onclick = () => overlay.remove();
+    overlay.onclick = event => { if (event.target === overlay) overlay.remove(); };
     document.body.appendChild(overlay);
   }
   function openEditor(ctx, plan, q) {
@@ -214,11 +245,13 @@
       .exam-detail-viewer{width:min(900px,100%);max-height:92vh;overflow:auto;background:#fff;border-radius:16px;padding:22px;box-shadow:0 24px 70px #0007}
       .exam-viewer-head{display:flex;justify-content:space-between;gap:16px;align-items:flex-start;border-bottom:1px solid #dbe3ef;padding-bottom:14px}.exam-viewer-head h2,.exam-viewer-head p{margin:3px 0}.exam-viewer-quarter{display:inline-block;background:#1d4ed8;color:#fff;border-radius:999px;padding:6px 14px;font-size:18px;font-weight:900}
       .exam-viewer-section{margin:16px 0;padding:16px;border-radius:12px}.exam-viewer-section.training{background:#eff6ff}.exam-viewer-section.exam{background:#fff7ed}.exam-viewer-section h3{margin:0 0 10px}.exam-viewer-section ul{margin:0;padding-left:23px}.exam-viewer-section li{margin:8px 0;line-height:1.5}
+      .exam-topic-hint{margin:-4px 0 12px;color:#475569}.exam-training-topic-list{display:grid;gap:9px}.exam-training-topic{width:100%;display:flex;align-items:center;justify-content:space-between;gap:14px;text-align:left;background:#fff;color:#0f172a;border:1px solid #bfdbfe;border-radius:11px;padding:12px 14px}.exam-training-topic:hover,.exam-training-topic:focus{border-color:#2563eb;box-shadow:0 5px 16px #2563eb20;transform:translateY(-1px)}.exam-training-topic span{display:grid;gap:4px}.exam-training-topic b{font-size:15px;color:#123c73}.exam-training-topic small{font-weight:500;line-height:1.45;color:#475569}.exam-training-topic strong{white-space:nowrap;color:#1d4ed8;font-size:12px}
+      .exam-topic-overlay{z-index:10070}.exam-training-topic-viewer{width:min(820px,100%);max-height:92vh;overflow:auto;background:#fff;border-radius:16px;padding:22px;box-shadow:0 24px 70px #0007}.exam-topic-detail-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:16px 0}.exam-topic-detail-grid article,.exam-topic-related{border:1px solid #dbe3ef;border-radius:12px;padding:15px;background:#f8fafc}.exam-topic-detail-grid h3,.exam-topic-related h3{margin:0 0 8px;color:#123c73}.exam-topic-detail-grid p{margin:0;line-height:1.65}.exam-topic-related ul{margin:0;padding-left:22px}.exam-topic-related li{margin:6px 0}
       .exam-viewer-meta{background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:12px 16px}.exam-viewer-meta p{margin:7px 0}
       .exam-detail-overlay{position:fixed;inset:0;z-index:10060;background:#0f172acc;display:flex;align-items:center;justify-content:center;padding:16px}
       .exam-detail-editor{width:min(720px,100%);max-height:92vh;overflow:auto;background:#fff;border-radius:16px;padding:22px;box-shadow:0 24px 70px #0007}
       .exam-detail-editor label{display:block;font-weight:700;margin:12px 0}.exam-detail-editor textarea,.exam-detail-editor input{display:block;width:100%;box-sizing:border-box;margin-top:6px;padding:10px;font:inherit}
-      @media(max-width:900px){.exam-detail-grid{grid-template-columns:1fr 1fr}}@media(max-width:560px){.exam-detail-grid{grid-template-columns:1fr}.exam-detail-title{align-items:flex-start;flex-direction:column}}
+      @media(max-width:900px){.exam-detail-grid{grid-template-columns:1fr 1fr}}@media(max-width:560px){.exam-detail-grid{grid-template-columns:1fr}.exam-detail-title{align-items:flex-start;flex-direction:column}.exam-topic-detail-grid{grid-template-columns:1fr}.exam-training-topic{align-items:flex-start}.exam-training-topic strong{display:none}}
       @media print{.exam-detail-head button{display:none}.exam-detail-grid{grid-template-columns:1fr 1fr;overflow:visible}}
     `;
     document.head.appendChild(style);
@@ -248,3 +281,4 @@
     enhance();
   });
 })();
+d5e40aa017f2eb0facc6157f5ecd740bcb527c4a
