@@ -99,13 +99,14 @@
     return items.length ? '<ul>' + items.map(item => '<li>' + esc(item) + '</li>').join('') + '</ul>' : '<p class="exam-detail-empty">ยังไม่กำหนด</p>';
   }
   function cardHtml(q, data) {
-    return '<article class="exam-detail-card">' +
-      '<div class="exam-detail-head"><h4>' + q + '</h4>' +
-      (isAdmin() ? '<button type="button" data-exam-detail-edit="' + q + '">แก้ไข</button>' : '') + '</div>' +
-      '<div class="exam-detail-block training"><b>📘 Training / หัวข้อและรายละเอียดการเทรนนิ่ง</b>' + listHtml(data.training) + '</div>' +
-      '<div class="exam-detail-block exam"><b>📝 Examination / หัวข้อสอบ</b>' + listHtml(data.exam) + '</div>' +
-      '<p><b>วิธีดำเนินการ:</b> ' + esc(data.method || '-') + '</p>' +
-      '<p><b>เกณฑ์ผ่าน:</b> ' + esc(data.criteria || '-') + '</p></article>';
+    const trainingCount = lines(data.training).length;
+    const examCount = lines(data.exam).length;
+    return '<article class="exam-detail-card exam-detail-card-clickable" data-exam-detail-view="' + q + '" tabindex="0" role="button" aria-label="ดูรายละเอียด ' + q + '">' +
+      '<div class="exam-detail-head"><h4>' + q + '</h4><span class="exam-quarter-badge">กดดูรายละเอียด</span></div>' +
+      '<div class="exam-detail-summary training"><b>📘 Training</b><strong>' + trainingCount + '</strong><small>หัวข้อพร้อมรายละเอียด</small></div>' +
+      '<div class="exam-detail-summary exam"><b>📝 Examination</b><strong>' + examCount + '</strong><small>หัวข้อสอบประจำ Quarter</small></div>' +
+      '<p class="exam-detail-method"><b>วิธีดำเนินการ:</b> ' + esc(data.method || '-') + '</p>' +
+      '<button type="button" class="exam-detail-view-button" data-exam-detail-view="' + q + '">ดูรายละเอียด ' + q + '</button></article>';
   }
   async function enhance() {
     const select = document.querySelector('#examPlanSection');
@@ -128,9 +129,34 @@
     host.innerHTML = '<div class="exam-detail-title"><div><h3>แผนการอบรมและการสอบ Q1–Q4</h3><p>' +
       esc(ctx.section) + ' • ปี ' + esc(ctx.year) + '</p></div><span>Training ก่อนสอบทุก Quarter</span></div>' +
       '<div class="exam-detail-grid">' + QUARTERS.map(q => cardHtml(q, plan[q] || defaults(ctx.section)[q])).join('') + '</div>';
-    host.querySelectorAll('[data-exam-detail-edit]').forEach(button => {
-      button.onclick = () => openEditor(ctx, plan, button.dataset.examDetailEdit);
+    host.querySelectorAll('[data-exam-detail-view]').forEach(element => {
+      element.onclick = event => {
+        event.stopPropagation();
+        openViewer(ctx, plan, element.dataset.examDetailView);
+      };
+      element.onkeydown = event => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          openViewer(ctx, plan, element.dataset.examDetailView);
+        }
+      };
     });
+  }
+  function openViewer(ctx, plan, q) {
+    const current = plan[q] || defaults(ctx.section)[q];
+    const overlay = document.createElement('div');
+    overlay.className = 'exam-detail-overlay';
+    overlay.innerHTML = '<section class="exam-detail-viewer" role="dialog" aria-modal="true" aria-label="รายละเอียด ' + q + '">' +
+      '<div class="exam-viewer-head"><div><span class="exam-viewer-quarter">' + q + '</span><h2>รายละเอียด Training & Examination</h2><p>' + esc(ctx.section) + ' • ปี ' + esc(ctx.year) + '</p></div><button type="button" class="secondary" data-close>ปิด</button></div>' +
+      '<div class="exam-viewer-section training"><h3>📘 หัวข้อและรายละเอียดการเทรนนิ่ง</h3>' + listHtml(current.training) + '</div>' +
+      '<div class="exam-viewer-section exam"><h3>📝 หัวข้อ Examination</h3>' + listHtml(current.exam) + '</div>' +
+      '<div class="exam-viewer-meta"><p><b>วิธีดำเนินการ:</b> ' + esc(current.method || '-') + '</p><p><b>เกณฑ์ผ่าน:</b> ' + esc(current.criteria || '-') + '</p></div>' +
+      (isAdmin() ? '<div class="actions"><button type="button" data-edit>แก้ไขรายละเอียด ' + q + '</button></div>' : '') + '</section>';
+    overlay.querySelector('[data-close]').onclick = () => overlay.remove();
+    overlay.onclick = event => { if (event.target === overlay) overlay.remove(); };
+    const edit = overlay.querySelector('[data-edit]');
+    if (edit) edit.onclick = () => { overlay.remove(); openEditor(ctx, plan, q); };
+    document.body.appendChild(overlay);
   }
   function openEditor(ctx, plan, q) {
     const current = plan[q] || defaults(ctx.section)[q];
@@ -181,6 +207,14 @@
       .exam-detail-head{display:flex;justify-content:space-between;align-items:center}.exam-detail-head h4{font-size:20px;margin:0;color:#123c73}.exam-detail-head button{padding:6px 10px;font-size:12px}
       .exam-detail-block{margin:10px 0;padding:10px;border-radius:9px}.exam-detail-block.training{background:#eff6ff}.exam-detail-block.exam{background:#fff7ed}
       .exam-detail-block ul{margin:7px 0 0;padding-left:20px}.exam-detail-block li{margin:4px 0}.exam-detail-card p{font-size:13px;margin:7px 0}.exam-detail-empty{color:#64748b}
+      .exam-detail-card-clickable{cursor:pointer;transition:transform .18s ease,box-shadow .18s ease}.exam-detail-card-clickable:hover,.exam-detail-card-clickable:focus{transform:translateY(-3px);box-shadow:0 10px 28px #2563eb26;outline:2px solid #60a5fa}
+      .exam-quarter-badge{font-size:11px;font-weight:800;color:#1d4ed8;background:#dbeafe;border-radius:999px;padding:5px 8px}
+      .exam-detail-summary{display:grid;grid-template-columns:1fr auto;gap:3px 8px;margin:10px 0;padding:12px;border-radius:10px}.exam-detail-summary.training{background:#eff6ff}.exam-detail-summary.exam{background:#fff7ed}.exam-detail-summary strong{font-size:22px;color:#123c73}.exam-detail-summary small{grid-column:1/-1;color:#64748b}
+      .exam-detail-method{min-height:42px}.exam-detail-view-button{width:100%;margin-top:8px;background:#1d4ed8;color:#fff}
+      .exam-detail-viewer{width:min(900px,100%);max-height:92vh;overflow:auto;background:#fff;border-radius:16px;padding:22px;box-shadow:0 24px 70px #0007}
+      .exam-viewer-head{display:flex;justify-content:space-between;gap:16px;align-items:flex-start;border-bottom:1px solid #dbe3ef;padding-bottom:14px}.exam-viewer-head h2,.exam-viewer-head p{margin:3px 0}.exam-viewer-quarter{display:inline-block;background:#1d4ed8;color:#fff;border-radius:999px;padding:6px 14px;font-size:18px;font-weight:900}
+      .exam-viewer-section{margin:16px 0;padding:16px;border-radius:12px}.exam-viewer-section.training{background:#eff6ff}.exam-viewer-section.exam{background:#fff7ed}.exam-viewer-section h3{margin:0 0 10px}.exam-viewer-section ul{margin:0;padding-left:23px}.exam-viewer-section li{margin:8px 0;line-height:1.5}
+      .exam-viewer-meta{background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:12px 16px}.exam-viewer-meta p{margin:7px 0}
       .exam-detail-overlay{position:fixed;inset:0;z-index:10060;background:#0f172acc;display:flex;align-items:center;justify-content:center;padding:16px}
       .exam-detail-editor{width:min(720px,100%);max-height:92vh;overflow:auto;background:#fff;border-radius:16px;padding:22px;box-shadow:0 24px 70px #0007}
       .exam-detail-editor label{display:block;font-weight:700;margin:12px 0}.exam-detail-editor textarea,.exam-detail-editor input{display:block;width:100%;box-sizing:border-box;margin-top:6px;padding:10px;font:inherit}
