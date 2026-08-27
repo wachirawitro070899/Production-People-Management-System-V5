@@ -1,6 +1,7 @@
 (function () {
   'use strict';
   const ROOT = 'ppmsExamPlanDetails';
+  const RECORD_ROOT = 'ppmsTrainingImplementationRecords';
   const LOCAL_KEY = 'ppms_exam_plan_details_v592';
   const QUARTERS = ['Q1', 'Q2', 'Q3', 'Q4'];
   const isAdmin = () => sessionStorage.getItem('ppms_admin') === '1';
@@ -94,6 +95,38 @@
       updatedAt: firebase.database.ServerValue.TIMESTAMP
     });
   }
+  function recordKey(ctx, q, topicIndex) {
+    return ctx.year + '__' + safeKey(ctx.section) + '__' + q + '__' + topicIndex;
+  }
+  async function readTrainingRecord(ctx, q, topicIndex) {
+    const key = recordKey(ctx, q, topicIndex);
+    let local = null;
+    try { local = JSON.parse(localStorage.getItem(RECORD_ROOT + '__' + key) || 'null'); } catch (_) {}
+    if (!dbReady()) return local;
+    try {
+      const snap = await ensureFirebase().ref(RECORD_ROOT + '/' + ctx.year + '/' + safeKey(ctx.section) + '/' + q + '/' + topicIndex).once('value');
+      const cloud = snap.val();
+      if (cloud) localStorage.setItem(RECORD_ROOT + '__' + key, JSON.stringify(cloud));
+      return cloud || local;
+    } catch (error) { console.warn('Training record read failed', error); return local; }
+  }
+  async function saveTrainingRecord(ctx, q, topicIndex, record) {
+    const key = recordKey(ctx, q, topicIndex);
+    localStorage.setItem(RECORD_ROOT + '__' + key, JSON.stringify(record));
+    if (!dbReady()) throw new Error('Firebase ยังไม่พร้อม');
+    await ensureFirebase().ref(RECORD_ROOT + '/' + ctx.year + '/' + safeKey(ctx.section) + '/' + q + '/' + topicIndex).set(record);
+  }
+  function readEvidenceFile(file) {
+    return new Promise((resolve, reject) => {
+      if (!file) return reject(new Error('ไม่พบไฟล์'));
+      if (file.size > 1600000) return reject(new Error('ไฟล์ ' + file.name + ' ต้องมีขนาดไม่เกิน 1.5 MB'));
+      if (!/^image\/(jpeg|png|webp)$|^application\/pdf$/.test(file.type)) return reject(new Error('รองรับเฉพาะ JPG, PNG, WEBP หรือ PDF'));
+      const reader = new FileReader();
+      reader.onerror = () => reject(new Error('อ่านไฟล์ ' + file.name + ' ไม่สำเร็จ'));
+      reader.onload = () => resolve({name:file.name,type:file.type,size:file.size,dataUrl:reader.result,uploadedAt:new Date().toISOString()});
+      reader.readAsDataURL(file);
+    });
+  }
   function listHtml(value) {
     const items = lines(value);
     return items.length ? '<ul>' + items.map(item => '<li>' + esc(item) + '</li>').join('') + '</ul>' : '<p class="exam-detail-empty">ยังไม่กำหนด</p>';
@@ -184,9 +217,104 @@
       '<article><h3>📚 เนื้อหาที่ต้องอบรม</h3><p>' + esc(item.detail) + '</p></article>' +
       '<article><h3>🛠️ วิธีอบรมและฝึกปฏิบัติ</h3><p>' + esc(quarter.method || 'ผู้สอนอธิบายมาตรฐาน สาธิต แล้วให้พนักงานฝึกปฏิบัติจริง') + '</p></article>' +
       '<article><h3>✅ การประเมินผล</h3><p>' + esc(quarter.criteria || 'ประเมินความเข้าใจและตรวจการปฏิบัติงานจริง') + '</p></article></div>' +
-      '<div class="exam-topic-related"><h3>📝 หัวข้อสอบที่เกี่ยวข้อง</h3>' + listHtml(quarter.exam) + '</div></section>';
+      '<div class="exam-topic-related"><h3>📝 หัวข้อสอบที่เกี่ยวข้อง</h3>' + listHtml(quarter.exam) + '</div>' +
+      '<div class="training-record-panel" data-record-panel><h3>📋 แบบฟอร์มและหลักฐานการอบรม</h3><p>กำลังตรวจสอบข้อมูลการอบรม...</p></div>' +
+      '<div class="actions"><button type="button" data-training-form>สร้าง/แก้ไขแบบฟอร์มการอบรม</button><button type="button" class="secondary" data-print-training disabled>พิมพ์แบบฟอร์ม</button></div></section>';
     overlay.querySelector('[data-close]').onclick = () => overlay.remove();
     overlay.onclick = event => { if (event.target === overlay) overlay.remove(); };
+    document.body.appendChild(overlay);
+    let record = null;
+    const recordPanel = overlay.querySelector('[data-record-panel]');
+    const printButton = overlay.querySelector('[data-print-training]');
+    readTrainingRecord(ctx, q, index).then(value => {
+      record = value;
+      if (!document.body.contains(overlay)) return;
+      if (record) {
+        const evidence = Array.isArray(record.evidence) ? record.evidence : [];
+        recordPanel.innerHTML = '<h3>📋 แบบฟอร์มและหลักฐานการอบรม</h3><div class="training-record-status done"><b>บันทึกการอบรมแล้ว</b><span>' + esc(record.trainingDate || '-') + ' • Trainer: ' + esc(record.trainer || '-') + ' • หลักฐาน ' + evidence.length + ' ไฟล์</span></div>' + evidenceHtml(evidence);
+        printButton.disabled = false;
+      } else {
+        recordPanel.innerHTML = '<h3>📋 แบบฟอร์มและหลักฐานการอบรม</h3><div class="training-record-status"><b>ยังไม่ได้บันทึกผลการอบรม</b><span>กรอกรายละเอียดก่อนพิมพ์แบบฟอร์มไปใช้เทรนนิ่ง</span></div>';
+      }
+    });
+    overlay.querySelector('[data-training-form]').onclick = () => openTrainingRecordEditor(ctx, q, quarter, index, item, record, value => {
+      record = value;
+      overlay.remove();
+      openTrainingTopic(ctx, q, quarter, index);
+    });
+    printButton.onclick = () => { if (record) openTrainingPrintForm(ctx, q, quarter, item, record); };
+  }
+  function evidenceHtml(evidence) {
+    if (!evidence.length) return '<p class="exam-detail-empty">ยังไม่ได้แนบหลักฐาน</p>';
+    return '<div class="training-evidence-grid">' + evidence.map((file, index) => file.type.startsWith('image/')
+      ? '<a href="' + file.dataUrl + '" target="_blank" rel="noopener"><img src="' + file.dataUrl + '" alt="หลักฐาน ' + (index + 1) + '"><span>' + esc(file.name) + '</span></a>'
+      : '<a class="training-evidence-file" href="' + file.dataUrl + '" download="' + esc(file.name) + '"><b>PDF</b><span>' + esc(file.name) + '</span></a>').join('') + '</div>';
+  }
+  function openTrainingRecordEditor(ctx, q, quarter, index, item, existing, onSaved) {
+    const current = existing || {};
+    const evidence = Array.isArray(current.evidence) ? current.evidence : [];
+    const overlay = document.createElement('div');
+    overlay.className = 'exam-detail-overlay exam-topic-overlay';
+    overlay.innerHTML = '<form class="training-record-editor"><div class="exam-viewer-head"><div><span class="exam-viewer-quarter">' + q + '</span><h2>Training Implementation Record</h2><p>' + esc(ctx.section) + ' • ' + esc(item.title) + '</p></div><button type="button" class="secondary" data-close>ปิด</button></div>' +
+      '<div class="training-record-fields"><label>วันที่อบรม<input type="date" name="trainingDate" value="' + esc(current.trainingDate || new Date().toISOString().slice(0,10)) + '" required></label>' +
+      '<label>เวลาอบรม<input type="text" name="trainingTime" value="' + esc(current.trainingTime || '') + '" placeholder="เช่น 09:00–11:00" required></label>' +
+      '<label>สถานที่อบรม<input name="trainingPlace" value="' + esc(current.trainingPlace || '') + '" placeholder="Training place" required></label>' +
+      '<label>ผู้ฝึกอบรม<input name="trainer" value="' + esc(current.trainer || '') + '" placeholder="Trainer" required></label>' +
+      '<label class="full">หน่วยงานที่อบรม<input name="trainingUnit" value="' + esc(current.trainingUnit || ctx.section) + '" required></label>' +
+      '<label class="full">รายชื่อผู้เข้าอบรม (1 คนต่อ 1 บรรทัด)<textarea name="attendees" rows="5" placeholder="รหัสพนักงาน - ชื่อพนักงาน">' + esc((current.attendees || []).join('\n')) + '</textarea></label>' +
+      '<label class="full">Training implementation effect / ผลการอบรม<textarea name="effect" rows="4" placeholder="สรุปผล ความเข้าใจ ผล OJT หรือสิ่งที่ต้องติดตาม" required>' + esc(current.effect || '') + '</textarea></label>' +
+      '<fieldset class="full"><legend>Planned training?</legend><label><input type="radio" name="planned" value="yes" ' + (current.planned !== 'no' ? 'checked' : '') + '> Yes</label><label><input type="radio" name="planned" value="no" ' + (current.planned === 'no' ? 'checked' : '') + '> No, but recorded</label></fieldset>' +
+      '<label class="full evidence-upload">แนบหลักฐานการอบรม<input type="file" name="evidence" accept="image/jpeg,image/png,image/webp,application/pdf" multiple><small>รูปขณะอบรม แบบฟอร์มลงชื่อ หรือผลประเมิน • สูงสุด 4 ไฟล์ • ไม่เกิน 1.5 MB/ไฟล์</small></label></div>' +
+      (evidence.length ? '<div class="existing-evidence"><h3>หลักฐานที่บันทึกแล้ว</h3>' + evidence.map((file,i) => '<label><input type="checkbox" name="removeEvidence" value="' + i + '"> ลบ ' + esc(file.name) + '</label>').join('') + evidenceHtml(evidence) + '</div>' : '') +
+      '<div class="actions"><button type="submit">บันทึกและเปิดแบบฟอร์มพิมพ์</button><button type="button" class="secondary" data-close>ยกเลิก</button></div></form>';
+    overlay.querySelectorAll('[data-close]').forEach(button => button.onclick = () => overlay.remove());
+    overlay.onclick = event => { if (event.target === overlay) overlay.remove(); };
+    overlay.querySelector('form').onsubmit = async event => {
+      event.preventDefault();
+      const form = event.currentTarget, submit = form.querySelector('[type="submit"]');
+      submit.disabled = true; submit.textContent = 'กำลังบันทึก...';
+      try {
+        const fd = new FormData(form);
+        const removed = new Set(fd.getAll('removeEvidence').map(Number));
+        const kept = evidence.filter((_, i) => !removed.has(i));
+        const files = [...(form.elements.evidence.files || [])];
+        if (kept.length + files.length > 4) throw new Error('แนบหลักฐานได้สูงสุด 4 ไฟล์');
+        const added = await Promise.all(files.map(readEvidenceFile));
+        const record = {
+          section:ctx.section, year:ctx.year, quarter:q, topicIndex:index, topic:item.title, detail:item.detail,
+          trainingDate:String(fd.get('trainingDate') || ''), trainingTime:String(fd.get('trainingTime') || ''),
+          trainingPlace:String(fd.get('trainingPlace') || ''), trainer:String(fd.get('trainer') || ''),
+          trainingUnit:String(fd.get('trainingUnit') || ''), attendees:lines(fd.get('attendees')),
+          effect:String(fd.get('effect') || ''), planned:String(fd.get('planned') || 'yes'), evidence:[...kept, ...added],
+          method:quarter.method || '', criteria:quarter.criteria || '', updatedAt:new Date().toISOString()
+        };
+        await saveTrainingRecord(ctx, q, index, record);
+        overlay.remove();
+        openTrainingPrintForm(ctx, q, quarter, item, record);
+        if (onSaved) onSaved(record);
+      } catch (error) {
+        submit.disabled = false; submit.textContent = 'บันทึกและเปิดแบบฟอร์มพิมพ์';
+        alert('บันทึกไม่สำเร็จ: ' + error.message);
+      }
+    };
+    document.body.appendChild(overlay);
+  }
+  function openTrainingPrintForm(ctx, q, quarter, item, record) {
+    const overlay = document.createElement('div');
+    overlay.className = 'training-print-overlay';
+    const attendees = record.attendees?.length ? record.attendees : Array.from({length:8}, () => '');
+    const imageEvidence = (record.evidence || []).filter(file => file.type.startsWith('image/'));
+    overlay.innerHTML = '<div class="training-print-toolbar no-print"><button type="button" data-print>พิมพ์แบบฟอร์ม</button><button type="button" class="secondary" data-close>ปิด</button></div>' +
+      '<section class="training-record-sheet"><h1>Training implementation effect record sheet.</h1>' +
+      '<div class="tr-row tr-program"><b>Training program</b><div><h2>' + esc(q + ' — ' + item.title) + '</h2><p>' + esc(item.detail) + '</p><p><b>Training method:</b> ' + esc(quarter.method || '-') + '</p><p><b>Evaluation criteria:</b> ' + esc(quarter.criteria || '-') + '</p></div></div>' +
+      '<div class="tr-row tr-two"><b>Training Date<br>(date, hour)</b><span>' + esc(record.trainingDate) + '<br>' + esc(record.trainingTime) + '</span><b>Training place</b><span>' + esc(record.trainingPlace) + '</span></div>' +
+      '<div class="tr-row tr-two"><b>Training and<br>implementation unit</b><span>' + esc(record.trainingUnit) + '</span><b>Trainer</b><span>' + esc(record.trainer) + '</span></div>' +
+      '<div class="tr-signatures"><b>Signature :</b><table><thead><tr><th>No.</th><th>Employee ID / Name</th><th>Signature</th></tr></thead><tbody>' + attendees.map((name,i) => '<tr><td>' + (i+1) + '</td><td>' + esc(name) + '</td><td></td></tr>').join('') + '</tbody></table></div>' +
+      '<div class="tr-planned"><b>Planned training?</b><span>' + (record.planned === 'no' ? '☐ Yes　　☑ No, But recorded' : '☑ Yes　　☐ No, But recorded') + '</span></div>' +
+      '<div class="tr-effect"><b>Training implementation effect:</b><p>' + esc(record.effect).replace(/\n/g,'<br>') + '</p></div></section>' +
+      (imageEvidence.length ? '<section class="training-evidence-sheet"><h1>Training Evidence / หลักฐานการอบรม</h1><p><b>' + esc(ctx.section) + ' • ' + esc(q) + ' • ' + esc(item.title) + '</b><br>' + esc(record.trainingDate) + ' • Trainer: ' + esc(record.trainer) + '</p><div>' + imageEvidence.map((file,i) => '<figure><img src="' + file.dataUrl + '" alt="Evidence ' + (i+1) + '"><figcaption>' + (i+1) + '. ' + esc(file.name) + '</figcaption></figure>').join('') + '</div></section>' : '');
+    overlay.querySelector('[data-close]').onclick = () => overlay.remove();
+    overlay.querySelector('[data-print]').onclick = () => { document.body.classList.add('training-form-printing'); window.print(); setTimeout(() => document.body.classList.remove('training-form-printing'), 600); };
     document.body.appendChild(overlay);
   }
   function openEditor(ctx, plan, q) {
@@ -247,12 +375,16 @@
       .exam-viewer-section{margin:16px 0;padding:16px;border-radius:12px}.exam-viewer-section.training{background:#eff6ff}.exam-viewer-section.exam{background:#fff7ed}.exam-viewer-section h3{margin:0 0 10px}.exam-viewer-section ul{margin:0;padding-left:23px}.exam-viewer-section li{margin:8px 0;line-height:1.5}
       .exam-topic-hint{margin:-4px 0 12px;color:#475569}.exam-training-topic-list{display:grid;gap:9px}.exam-training-topic{width:100%;display:flex;align-items:center;justify-content:space-between;gap:14px;text-align:left;background:#fff;color:#0f172a;border:1px solid #bfdbfe;border-radius:11px;padding:12px 14px}.exam-training-topic:hover,.exam-training-topic:focus{border-color:#2563eb;box-shadow:0 5px 16px #2563eb20;transform:translateY(-1px)}.exam-training-topic span{display:grid;gap:4px}.exam-training-topic b{font-size:15px;color:#123c73}.exam-training-topic small{font-weight:500;line-height:1.45;color:#475569}.exam-training-topic strong{white-space:nowrap;color:#1d4ed8;font-size:12px}
       .exam-topic-overlay{z-index:10070}.exam-training-topic-viewer{width:min(820px,100%);max-height:92vh;overflow:auto;background:#fff;border-radius:16px;padding:22px;box-shadow:0 24px 70px #0007}.exam-topic-detail-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:16px 0}.exam-topic-detail-grid article,.exam-topic-related{border:1px solid #dbe3ef;border-radius:12px;padding:15px;background:#f8fafc}.exam-topic-detail-grid h3,.exam-topic-related h3{margin:0 0 8px;color:#123c73}.exam-topic-detail-grid p{margin:0;line-height:1.65}.exam-topic-related ul{margin:0;padding-left:22px}.exam-topic-related li{margin:6px 0}
+      .training-record-panel{margin:14px 0;border:1px solid #cbd5e1;border-radius:12px;padding:15px}.training-record-panel h3{margin:0 0 10px;color:#123c73}.training-record-status{display:grid;gap:3px;background:#fff7ed;border-left:5px solid #f59e0b;padding:10px 12px}.training-record-status.done{background:#ecfdf5;border-color:#10b981}.training-record-status span{color:#475569}
+      .training-record-editor{width:min(850px,100%);max-height:94vh;overflow:auto;background:#fff;border-radius:16px;padding:22px}.training-record-fields{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:16px 0}.training-record-fields label{font-weight:700}.training-record-fields input,.training-record-fields textarea{display:block;width:100%;box-sizing:border-box;margin-top:5px;padding:10px;font:inherit}.training-record-fields .full{grid-column:1/-1}.training-record-fields fieldset{display:flex;gap:20px;border:1px solid #cbd5e1}.training-record-fields fieldset label{font-weight:500}.training-record-fields fieldset input{display:inline;width:auto}.evidence-upload{background:#eff6ff;border:1px dashed #3b82f6;border-radius:10px;padding:12px}.evidence-upload small{display:block;color:#475569;margin-top:5px}.existing-evidence{border-top:1px solid #e2e8f0;padding-top:12px}.existing-evidence>label{margin-right:14px}
+      .training-evidence-grid{display:grid;grid-template-columns:repeat(4,minmax(100px,1fr));gap:8px;margin-top:10px}.training-evidence-grid a{display:grid;gap:4px;color:#1d4ed8;text-decoration:none}.training-evidence-grid img{width:100%;height:100px;object-fit:cover;border:1px solid #cbd5e1;border-radius:8px}.training-evidence-grid span{font-size:11px;overflow-wrap:anywhere}.training-evidence-file{place-items:center;border:1px solid #cbd5e1;border-radius:8px;padding:12px}.training-evidence-file b{font-size:22px;color:#dc2626}
+      .training-print-overlay{position:fixed;inset:0;z-index:10100;background:#64748b;overflow:auto;padding:20px}.training-print-toolbar{position:sticky;top:0;z-index:2;display:flex;justify-content:center;gap:10px;margin-bottom:12px}.training-record-sheet,.training-evidence-sheet{width:210mm;min-height:297mm;margin:0 auto 18px;background:#fff;color:#000;box-sizing:border-box;padding:12mm;font-family:Arial,sans-serif}.training-record-sheet h1,.training-evidence-sheet h1{text-align:center;font-size:22px;margin:0 0 10px}.tr-row{display:grid;border:1.5px solid #111;border-bottom:0}.tr-row>b{display:flex;align-items:center;justify-content:center;text-align:center;border-right:1.5px solid #111;padding:7px}.tr-program{grid-template-columns:42mm 1fr;min-height:65mm}.tr-program>div{padding:8px}.tr-program h2{font-size:17px;margin:0 0 8px}.tr-program p{margin:7px 0;line-height:1.45}.tr-two{grid-template-columns:42mm 1fr 42mm 1fr;min-height:22mm}.tr-two span{display:flex;align-items:center;padding:8px}.tr-two span:nth-of-type(1){border-right:1.5px solid #111}.tr-signatures{border:1.5px solid #111;border-bottom:0;padding:7px;min-height:90mm}.tr-signatures table{width:100%;border-collapse:collapse;margin-top:7px}.tr-signatures th,.tr-signatures td{border:1px solid #111;height:9mm;padding:3px}.tr-signatures th:first-child,.tr-signatures td:first-child{width:12mm;text-align:center}.tr-signatures th:last-child,.tr-signatures td:last-child{width:55mm}.tr-planned{display:grid;grid-template-columns:42mm 1fr;align-items:center;border:1.5px solid #111;border-bottom:0;min-height:17mm}.tr-planned b{padding:7px}.tr-planned span{font-size:16px}.tr-effect{border:1.5px solid #111;min-height:36mm;padding:8px}.tr-effect p{line-height:1.5}.training-evidence-sheet>p{border-bottom:1px solid #111;padding-bottom:8px}.training-evidence-sheet>div{display:grid;grid-template-columns:1fr 1fr;gap:10mm}.training-evidence-sheet figure{margin:0;break-inside:avoid}.training-evidence-sheet img{width:100%;height:95mm;object-fit:contain;border:1px solid #111}.training-evidence-sheet figcaption{text-align:center;margin-top:4px}
       .exam-viewer-meta{background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:12px 16px}.exam-viewer-meta p{margin:7px 0}
       .exam-detail-overlay{position:fixed;inset:0;z-index:10060;background:#0f172acc;display:flex;align-items:center;justify-content:center;padding:16px}
       .exam-detail-editor{width:min(720px,100%);max-height:92vh;overflow:auto;background:#fff;border-radius:16px;padding:22px;box-shadow:0 24px 70px #0007}
       .exam-detail-editor label{display:block;font-weight:700;margin:12px 0}.exam-detail-editor textarea,.exam-detail-editor input{display:block;width:100%;box-sizing:border-box;margin-top:6px;padding:10px;font:inherit}
-      @media(max-width:900px){.exam-detail-grid{grid-template-columns:1fr 1fr}}@media(max-width:560px){.exam-detail-grid{grid-template-columns:1fr}.exam-detail-title{align-items:flex-start;flex-direction:column}.exam-topic-detail-grid{grid-template-columns:1fr}.exam-training-topic{align-items:flex-start}.exam-training-topic strong{display:none}}
-      @media print{.exam-detail-head button{display:none}.exam-detail-grid{grid-template-columns:1fr 1fr;overflow:visible}}
+      @media(max-width:900px){.exam-detail-grid{grid-template-columns:1fr 1fr}}@media(max-width:560px){.exam-detail-grid{grid-template-columns:1fr}.exam-detail-title{align-items:flex-start;flex-direction:column}.exam-topic-detail-grid,.training-record-fields{grid-template-columns:1fr}.training-record-fields .full{grid-column:auto}.exam-training-topic{align-items:flex-start}.exam-training-topic strong{display:none}.training-evidence-grid{grid-template-columns:1fr 1fr}}
+      @media print{.exam-detail-head button{display:none}.exam-detail-grid{grid-template-columns:1fr 1fr;overflow:visible}body.training-form-printing>*:not(.training-print-overlay){display:none!important}body.training-form-printing .training-print-overlay{position:static;background:#fff;padding:0;overflow:visible}body.training-form-printing .training-record-sheet,body.training-form-printing .training-evidence-sheet{margin:0;width:210mm;min-height:297mm;page-break-after:always}body.training-form-printing .training-evidence-sheet:last-child{page-break-after:auto}}
     `;
     document.head.appendChild(style);
   }
@@ -281,4 +413,3 @@
     enhance();
   });
 })();
-d5e40aa017f2eb0facc6157f5ecd740bcb527c4a
