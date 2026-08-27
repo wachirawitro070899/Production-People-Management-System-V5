@@ -189,9 +189,26 @@
     `;
     document.head.appendChild(style);
   }
-  const observer = new MutationObserver(() => { clearTimeout(window.__examPlanDetailTimer); window.__examPlanDetailTimer = setTimeout(enhance, 80); });
+  function renamePlanLabels() {
+    document.querySelectorAll('#nav button, #nav a, button, a').forEach(el => {
+      const label = String(el.textContent || '').trim();
+      if (label === 'Examination Plan') {
+        el.textContent = 'Training & Examination Plan';
+        el.setAttribute('aria-label', 'Training & Examination Plan');
+      }
+    });
+    const title = document.querySelector('#app .page-head h2, #app .page-head h1');
+    if (title && String(title.textContent || '').trim() === 'Examination Plan') {
+      title.textContent = 'Training & Examination Plan';
+    }
+  }
+  const observer = new MutationObserver(() => {
+    clearTimeout(window.__examPlanDetailTimer);
+    window.__examPlanDetailTimer = setTimeout(() => { renamePlanLabels(); enhance(); }, 80);
+  });
   document.addEventListener('DOMContentLoaded', () => {
     addStyle();
+    renamePlanLabels();
     const app = document.querySelector('#app');
     if (app) observer.observe(app, { childList: true, subtree: true });
     enhance();
