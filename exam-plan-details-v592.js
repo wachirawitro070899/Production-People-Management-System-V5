@@ -10,45 +10,45 @@
 
   function sectionFocus(section) {
     const s = String(section || '').toLowerCase();
-    if (s.includes('stamping')) return 'Safety เครื่องปั๊ม\nWI และ Q-Point งานปั๊ม\nการตรวจ First Piece\nDefect งานปั๊มและการแยก NG';
-    if (s.includes('welding')) return 'Safety งานเชื่อม\nWI และพารามิเตอร์การเชื่อม\nการตรวจจุดเชื่อมและ Carbon Paper\nDefect งานเชื่อมและการแยก NG';
-    if (s.includes('sorting')) return 'Safety\nVisual Inspection ตาม Q-Point\nDefect Criteria และ Sample NG\nTraceability และ Packing';
-    if (s.includes('machine maintenance')) return 'Safety และ LOTO\nPreventive Maintenance\nBreakdown Repair\nElectrical / Mechanical';
-    if (s.includes('tooling maintenance') || s.includes('tooling')) return 'Safety งานแม่พิมพ์\nPreventive Maintenance แม่พิมพ์\nBreakdown และการซ่อม\nSpare Part Control';
-    if (s.includes('engineering')) return 'Safety\nDrawing และ Specification\nProblem Solving\nProcess Improvement';
-    if (s.includes('support production')) return 'Safety\nProduction Planning\nMaterial Control\nERP Record และ Document Control';
-    if (s.includes('cnc')) return 'Safety เครื่อง CNC\nWI และ Program / Parameter\nMeasurement และ Drawing\nDefect Criteria';
-    if (s.includes('tapping')) return 'Safety เครื่อง Tapping\nWI และการตั้งเครื่อง\nการตรวจเกลียวและ Measurement\nDefect Criteria';
-    if (s.includes('bending')) return 'Safety เครื่อง Bending\nWI และการตั้งเครื่อง\nDrawing และ Measurement\nDefect Criteria';
-    return 'Safety\nWI / SOP ประจำ Section\nQuality และ Defect Criteria\n5S และการตอบสนองเมื่อพบความผิดปกติ';
+    if (s.includes('stamping')) return 'Safety เครื่องปั๊ม — จุดอันตรายของ Die, Flywheel, Feeding และวิธีหยุดเครื่องฉุกเฉิน\nWI และ Q-Point งานปั๊ม — ลำดับการทำงาน จุดตรวจสำคัญ ความถี่ตรวจ และค่ามาตรฐานของ Part\nการตั้งเครื่องและ Parameter — วิธีตรวจ Die, Material, Feeder, Counter และค่าที่อนุญาตก่อนเริ่มผลิต\nFirst Piece Inspection — ตรวจชิ้นแรกตาม Drawing/Q-Point บันทึกผล และรออนุมัติก่อนผลิตต่อ\nDefect งานปั๊ม — วิธีแยก Crack, Burr, Dent, Dimension NG พร้อมการติดป้ายและกักงาน';
+    if (s.includes('welding')) return 'Safety งานเชื่อม — อันตรายจากไฟฟ้า สะเก็ดไฟ ความร้อน ควันเชื่อม PPE และ Emergency Stop\nWI และ Welding Parameter — วิธีตรวจ Current, Time, Pressure และเงื่อนไขก่อนเริ่มงาน\nการตรวจจุดเชื่อม — ตำแหน่งและจำนวนจุดเชื่อม ลักษณะรอยเชื่อม และ Carbon Paper Test\nการควบคุม Electrode — การตรวจสภาพหัวเชื่อม การเจียร การเปลี่ยน และการบันทึกอายุการใช้งาน\nDefect งานเชื่อม — Missing Weld, Weak Weld, Burn, Spatter, Deformation และวิธีกักงาน NG';
+    if (s.includes('sorting')) return 'Safety พื้นที่ Sorting — การจัดโต๊ะ แสงสว่าง PPE และการป้องกัน Part ปะปน\nVisual Inspection ตาม Q-Point — ตำแหน่งตรวจ วิธีจับชิ้นงาน ระยะมอง และลำดับการตรวจครบทุกจุด\nDefect Criteria — เปรียบเทียบ Sample OK/NG และเกณฑ์ Scratch, Dent, Crack, Burr, Rust และงานประกอบผิด\nMeasurement — เลือกและใช้เครื่องมือวัดให้เหมาะกับจุดตรวจ พร้อมตรวจ Zero ก่อนใช้งาน\nTraceability และ Packing — ควบคุม Lot, Label, จำนวนบรรจุ และป้องกัน Part ต่างรุ่นปะปน';
+    if (s.includes('machine maintenance')) return 'Safety และ LOTO — ตัดแยกพลังงาน ล็อกแหล่งพลังงาน ทดสอบ Zero Energy และคืนเครื่องอย่างปลอดภัย\nPreventive Maintenance — จุดตรวจรายวัน/เดือน วิธีตรวจสภาพ และเกณฑ์ตัดสินก่อนเกิด Breakdown\nBreakdown Repair — รับแจ้ง วิเคราะห์อาการ แยกสาเหตุ ซ่อม ทดสอบ และส่งมอบเครื่อง\nElectrical — อ่านวงจร ตรวจ Sensor, Motor, Relay, PLC และใช้อุปกรณ์วัดอย่างปลอดภัย\nMechanical — ตรวจ Bearing, Belt, Gear, Lubrication, Alignment และความแน่นของอุปกรณ์';
+    if (s.includes('tooling maintenance') || s.includes('tooling')) return 'Safety งานแม่พิมพ์ — การยกเคลื่อนย้าย การค้ำยัน จุดหนีบคม และการใช้เครื่องมืออย่างปลอดภัย\nPreventive Maintenance แม่พิมพ์ — ทำความสะอาด ตรวจ Punch/Die/Guide/Lubrication และบันทึกจำนวน Stroke\nBreakdown และการซ่อม — วิเคราะห์ Defect ที่สัมพันธ์กับแม่พิมพ์ ซ่อม ประกอบ ทดลอง และยืนยันชิ้นงาน\nDrawing และ Clearance — อ่าน Drawing ตรวจ Dimension และตั้ง Clearance ให้ตรงมาตรฐาน\nSpare Part Control — ระบุ Critical Spare, Min-Max, อายุใช้งาน และการเบิกคืนให้สอบย้อนกลับได้';
+    if (s.includes('engineering')) return 'Safety และข้อกำหนดกระบวนการ — ประเมินความเสี่ยงและกำหนด Control ให้สอดคล้อง WI/PFMEA\nDrawing และ Specification — อ่าน Dimension, Tolerance, Material, Special Characteristic และ Revision\nProblem Solving — ใช้ 5 Why/Fishbone แยก Root Cause และกำหนด Corrective Action\nProcess Improvement — วิเคราะห์ Cycle Time, Defect และ Loss เพื่อวางแผนปรับปรุงที่วัดผลได้\nTraining & Coaching — จัดทำเนื้อหา สาธิต ประเมินความเข้าใจ และติดตามผลหลังอบรม';
+    if (s.includes('support production')) return 'Safety และการประสานงาน — ข้อควรระวังในการสนับสนุนหน้างานและช่องทางแจ้งเหตุผิดปกติ\nProduction Planning — อ่าน Order จัดลำดับผลิต ตรวจ Capacity และติดตาม Plan เทียบ Actual\nMaterial Control — ตรวจ Part No., Lot, FIFO, จำนวน และป้องกัน Material Shortage หรือปะปน\nERP Record — บันทึกรับ-จ่าย ผลผลิต NG และเวลาให้ถูกต้องครบถ้วน\nDocument Control — ใช้เอกสาร Revision ล่าสุด แจกจ่าย เรียกคืน และจัดเก็บ Record';
+    if (s.includes('cnc')) return 'Safety เครื่อง CNC — จุดหมุน เศษโลหะ ประตูนิรภัย Coolant และ Emergency Stop\nProgram และ Parameter — เลือก Program ถูก Part ตรวจ Tool Offset, Speed, Feed และป้องกันแก้ค่าโดยไม่ได้รับอนุญาต\nSetup และ First Piece — ติดตั้ง Jig/Tool ตั้ง Zero ผลิตชิ้นแรก และรออนุมัติก่อนผลิตต่อ\nMeasurement และ Drawing — อ่าน Tolerance และใช้ Vernier, Micrometer, Height Gauge ตามจุดตรวจ\nDefect Criteria — Burr, Tool Mark, Dimension NG, Surface NG และวิธีหยุด/กักงาน';
+    if (s.includes('tapping')) return 'Safety เครื่อง Tapping — จุดหมุน จุดหนีบ เศษโลหะ การใช้ Guard และ Emergency Stop\nการตั้งเครื่อง — เลือก Tap, Jig, Speed, Depth และ Lubricant ให้ตรง Part\nการตรวจเกลียว — ใช้ Go/No-Go Gauge ตรวจความลึก ตำแหน่ง และเกลียวเสีย\nการควบคุมอายุ Tap — กำหนดจำนวนใช้งาน ตรวจการสึก และเปลี่ยนก่อนเกิด NG\nDefect Criteria — เกลียวไม่เต็ม เกลียวหวาน Tap หัก รูเอียง และวิธีกักงาน';
+    if (s.includes('bending')) return 'Safety เครื่อง Bending — จุดหนีบ การวางมือ Guard, Foot Switch และ Emergency Stop\nWI และการตั้งเครื่อง — เลือก Tool/Jig ตั้ง Back Gauge, Angle และ Parameter ให้ตรง Part\nDrawing และ Measurement — อ่านมุม ระยะ ความสูง และใช้ Angle Gauge/Vernier ตรวจชิ้นงาน\nFirst Piece และ Q-Point — ตรวจชิ้นแรกทุกจุดสำคัญ บันทึก และรออนุมัติ\nDefect Criteria — มุมผิด ระยะผิด Crack, Dent, Springback และวิธีกักงาน';
+    return 'Safety — อันตรายของพื้นที่ PPE จุดฉุกเฉิน และช่องทางแจ้งเหตุ\nWI / SOP — ลำดับงาน เงื่อนไขสำคัญ และข้อห้ามของตำแหน่ง\nQuality และ Defect Criteria — เกณฑ์ OK/NG ตัวอย่างมาตรฐาน และการกักงาน\n5S — แยกของ จัดวาง ทำความสะอาด รักษามาตรฐาน และสร้างวินัย\nAbnormal Response — หยุดงาน แยกของ แจ้งหัวหน้า และบันทึกเหตุการณ์';
   }
 
   function defaults(section) {
     const focus = sectionFocus(section);
     return {
       Q1: {
-        training: 'Safety และกฎความปลอดภัยประจำพื้นที่\nPPE ที่ต้องใช้ในแต่ละงาน\nWI / SOP และ Q-Point ประจำตำแหน่ง\n5S และการจัดพื้นที่ทำงาน\nวิธีหยุดงานและแจ้งหัวหน้าเมื่อพบความผิดปกติ\nฝึกปฏิบัติงานพื้นฐานตามตำแหน่ง',
-        exam: 'Safety และ PPE\nWI / SOP\nQ-Point\n5S\nการตอบสนองเมื่อพบความผิดปกติ',
-        method: 'Classroom + OJT หน้างาน + Job Observation',
-        criteria: 'ข้อสอบรายไตรมาส 20 ข้อ • ผ่าน 80% • ต้องผ่านการสังเกตการทำงาน'
+        training: 'Safety ประจำพื้นที่ — รู้จุดอันตราย จุดหนีบ/จุดหมุน แหล่งพลังงาน เส้นทางหนีไฟ และปุ่ม Emergency Stop\nPPE ประจำงาน — เลือก สวม ตรวจสภาพ และเปลี่ยน PPE ให้เหมาะกับความเสี่ยงของงาน\nWI / SOP — อ่านเอกสาร Revision ล่าสุด เข้าใจลำดับงาน เงื่อนไขควบคุม และข้อห้าม\nQ-Point — ระบุจุดตรวจ วิธีตรวจ ความถี่ Sample และเกณฑ์ OK/NG ของ Part ที่รับผิดชอบ\n5S — แยกสิ่งของ จัดตำแหน่ง ทำความสะอาด ตรวจมาตรฐาน และรักษาวินัยประจำพื้นที่\nAbnormal Response — เมื่อพบเครื่อง/Material/ชิ้นงานผิดปกติ ให้หยุด แยก แจ้ง และบันทึกก่อนเริ่มงานต่อ\nBasic OJT — ฝึกเริ่มงาน ผลิต ตรวจ บันทึก และจบงานตามขั้นตอนโดยมีผู้สอนประเมิน',
+        exam: 'Safety และตำแหน่งอุปกรณ์ฉุกเฉิน\nการเลือกและใช้ PPE\nลำดับ WI / SOP และข้อห้าม\nQ-Point และเกณฑ์ OK/NG\n5S ประจำพื้นที่\nขั้นตอน Stop–Segregate–Report–Record',
+        method: 'Classroom 1 ชั่วโมง + สาธิตหน้างาน + OJT อย่างน้อย 2 ชั่วโมง + Job Observation',
+        criteria: 'ข้อสอบ 20 ข้อ ผ่านอย่างน้อย 80% • ทำ Safety Check และปฏิบัติงานพื้นฐานถูกต้องทุก Critical Step'
       },
       Q2: {
-        training: focus + '\nวิธีตั้งเครื่องและตรวจสอบก่อนเริ่มงาน\nFirst Piece Inspection\nวิธีแยก กัก และรายงานงาน NG\nจุดควบคุมสำคัญประจำกระบวนการ',
-        exam: focus + '\nขั้นตอนการผลิต\nQuality และ First Piece\nDefect Criteria\nการจัดการงาน NG',
-        method: 'ทบทวนมาตรฐาน + OJT + Sample OK/NG + Job Observation',
-        criteria: 'ข้อสอบรายไตรมาส 20 ข้อ • ผ่าน 80% • ปฏิบัติการแยก NG ได้ถูกต้อง'
+        training: focus + '\nPre-start Check — ตรวจ Machine/Jig/Tool/Material/Document และสภาพพื้นที่ก่อนเปิดงาน\nFirst Piece Inspection — ตรวจชิ้นแรกตาม Drawing/Q-Point บันทึกผล และขออนุมัติก่อนผลิตต่อ\nSample OK/NG — ฝึกเปรียบเทียบของจริง อธิบายสาเหตุ และตัดสินงานตาม Defect Criteria\nNG Control — หยุดผลิต แยกกัก ติดป้าย ระบุ Lot/จำนวน แจ้งหัวหน้า และป้องกันงานหลุด\nProcess Control — รู้ Parameter และจุดควบคุมที่ห้ามเปลี่ยนเอง รวมถึง Reaction Plan เมื่อค่าเกินมาตรฐาน',
+        exam: 'Safety เฉพาะกระบวนการ\nWI และ Parameter ของ Section\nPre-start Check และ First Piece\nDefect Criteria จาก Sample OK/NG\nขั้นตอนกักและรายงาน NG\nReaction Plan เมื่อ Process ผิดมาตรฐาน',
+        method: 'ทบทวนมาตรฐาน 1 ชั่วโมง + OJT กับเครื่อง/กระบวนการจริง + ฝึกตัดสิน Sample OK/NG + Job Observation',
+        criteria: 'ข้อสอบ 20 ข้อ ผ่านอย่างน้อย 80% • ตั้งงาน/ตรวจ First Piece ตามหน้าที่ได้ • แยกและควบคุม NG ถูกต้อง 100%'
       },
       Q3: {
-        training: 'การใช้เครื่องมือวัดประจำกระบวนการ\nวิธีอ่าน Drawing และ Specification\nการบันทึก Production / Inspection Record\nTraceability และการสอบย้อนกลับ\nการตรวจสอบตาม Q-Point\nการตอบสนองเมื่อค่าตรวจสอบผิดมาตรฐาน',
-        exam: 'Measurement และเครื่องมือวัด\nDrawing / Specification\nTraceability\nProduction และ Inspection Record\nQ-Point\nการตอบสนองเมื่อค่าผิดมาตรฐาน',
-        method: 'สาธิต + ฝึกปฏิบัติจริง + ตรวจชิ้นงานตัวอย่าง + Job Observation',
-        criteria: 'ข้อสอบรายไตรมาส 20 ข้อ • ผ่าน 80% • การวัดและบันทึกต้องถูกต้อง'
+        training: 'Measurement — เลือกเครื่องมือวัดให้ตรงจุด ตรวจ Zero ทำความสะอาด จับวัด และอ่านค่าอย่างถูกต้อง\nDrawing และ Specification — อ่าน Dimension, Tolerance, Datum, Symbol และ Revision ที่ใช้กับ Part\nInspection Method — วัดตามลำดับและตำแหน่งใน Q-Point พร้อมควบคุมแรงวัดและสภาพชิ้นงาน\nProduction / Inspection Record — บันทึกเวลา Lot ค่าที่วัด จำนวน OK/NG และผู้ตรวจให้ครบ ห้ามบันทึกย้อนหลังโดยไม่มีเหตุผล\nTraceability — เชื่อมโยง Material Lot, Machine, Operator, Date/Shift และ Packing Label เพื่อสอบย้อนกลับ\nOut-of-Spec Response — หยุดงาน กักตั้งแต่ Last Good Check แจ้งผู้เกี่ยวข้อง ตรวจยืนยัน และบันทึกผลการจัดการ',
+        exam: 'การเลือกและตรวจ Zero เครื่องมือวัด\nการอ่าน Drawing, Tolerance และ Specification\nวิธีวัดตาม Q-Point\nการบันทึก Production/Inspection Record\nTraceability จาก Material ถึง Finished Good\nReaction Plan เมื่อค่าตรวจเกินมาตรฐาน',
+        method: 'สาธิต 1 ชั่วโมง + ฝึกวัดชิ้นงานจริงอย่างน้อย 5 ชิ้น + ฝึกอ่าน Drawing/Record + Practical Evaluation',
+        criteria: 'ข้อสอบ 20 ข้อ ผ่านอย่างน้อย 80% • ผลวัดตรงกับ Master/ผู้ประเมิน • บันทึกและสอบย้อนกลับได้ครบถ้วน'
       },
       Q4: {
-        training: 'ทบทวนเนื้อหา Q1–Q3\nทบทวน NG และ Customer Complaint ที่เกิดขึ้นจริง\nRoot Cause และการป้องกันการเกิดซ้ำ\nEmergency Response\nทบทวน Skill Matrix รายบุคคล\nจัดทำแผนพัฒนาพนักงานสำหรับปีถัดไป',
-        exam: 'ข้อสอบรวม Safety / Quality / Process\nDefect และ Customer Complaint\nRoot Cause / Problem Solving\nEmergency Response\nหัวข้อ Skill ของ Section',
-        method: 'Annual Refresh + Case Study + Practical Evaluation + Skill Review',
-        criteria: 'ข้อสอบรายไตรมาส 20 ข้อ • ผ่าน 80% • ประเมินภาคปฏิบัติและ Skill Matrix'
+        training: 'Annual Review — ทบทวน Safety, WI, Q-Point, Quality และ Process Control จาก Q1–Q3\nNG และ Customer Complaint — ศึกษาปัญหาจริง ผลกระทบ จุดที่ควรตรวจพบ และข้อกำหนดใหม่หลังแก้ไข\nRoot Cause — แยกอาการกับสาเหตุ ใช้ 5 Why/Fishbone และตรวจหลักฐานก่อนสรุป\nCorrective/Preventive Action — กำหนดวิธีแก้ ผู้รับผิดชอบ กำหนดเสร็จ และวิธีตรวจประสิทธิผลเพื่อป้องกันซ้ำ\nEmergency Response — ฝึกตอบสนองไฟไหม้ อุบัติเหตุ เครื่องเสีย สารเคมีรั่ว หรือ Quality Escape ตามบทบาท\nSkill Matrix Review — เปรียบเทียบทักษะปัจจุบันกับเป้าหมาย ระบุ Skill Gap และแผน OJT ปีถัดไป\nLesson Learned — แชร์ปัญหาและวิธีป้องกันให้พนักงานใน Section นำไปใช้กับงานคล้ายกัน',
+        exam: 'ข้อสอบรวม Safety / Quality / Process จาก Q1–Q3\nกรณีศึกษา NG และ Customer Complaint\n5 Why / Root Cause / Corrective Action\nEmergency Response ตามบทบาท\nหัวข้อทักษะเฉพาะ Section\nการประเมินภาคปฏิบัติปลายปี',
+        method: 'Annual Refresh 1 ชั่วโมง + Case Study + Emergency/NG Simulation + Practical Evaluation + Skill Review รายบุคคล',
+        criteria: 'ข้อสอบ 20 ข้อ ผ่านอย่างน้อย 80% • Case Study และภาคปฏิบัติผ่าน • Skill Matrix มีผลประเมินและแผนพัฒนาปีถัดไป'
       }
     };
   }
@@ -102,7 +102,7 @@
     return '<article class="exam-detail-card">' +
       '<div class="exam-detail-head"><h4>' + q + '</h4>' +
       (isAdmin() ? '<button type="button" data-exam-detail-edit="' + q + '">แก้ไข</button>' : '') + '</div>' +
-      '<div class="exam-detail-block training"><b>📘 Training / หัวข้อเทรนนิ่ง</b>' + listHtml(data.training) + '</div>' +
+      '<div class="exam-detail-block training"><b>📘 Training / หัวข้อและรายละเอียดการเทรนนิ่ง</b>' + listHtml(data.training) + '</div>' +
       '<div class="exam-detail-block exam"><b>📝 Examination / หัวข้อสอบ</b>' + listHtml(data.exam) + '</div>' +
       '<p><b>วิธีดำเนินการ:</b> ' + esc(data.method || '-') + '</p>' +
       '<p><b>เกณฑ์ผ่าน:</b> ' + esc(data.criteria || '-') + '</p></article>';
@@ -137,7 +137,7 @@
     const overlay = document.createElement('div');
     overlay.className = 'exam-detail-overlay';
     overlay.innerHTML = '<form class="exam-detail-editor"><h2>' + q + ' · ' + esc(ctx.section) + '</h2>' +
-      '<label>หัวข้อ Training (1 บรรทัดต่อ 1 หัวข้อ)<textarea name="training" rows="7" required>' + esc(current.training) + '</textarea></label>' +
+      '<label>หัวข้อและรายละเอียด Training (1 บรรทัดต่อ 1 หัวข้อ พร้อมอธิบายสิ่งที่ต้องสอน)<textarea name="training" rows="7" required>' + esc(current.training) + '</textarea></label>' +
       '<label>หัวข้อ Examination (1 บรรทัดต่อ 1 หัวข้อ)<textarea name="exam" rows="7" required>' + esc(current.exam) + '</textarea></label>' +
       '<label>วิธีดำเนินการ<input name="method" value="' + esc(current.method) + '" required></label>' +
       '<label>เกณฑ์ผ่าน<input name="criteria" value="' + esc(current.criteria) + '" required></label>' +
