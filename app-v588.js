@@ -1705,7 +1705,41 @@ async function overwriteAttendanceAndSettingsCloud(reason='Admin attendance over
 async function overwriteAttendanceDevicesCloud(){localStorage.setItem(ATTENDANCE_DEVICES_KEY,JSON.stringify(attendanceDevices||{}));localStorage.setItem(LOCAL_UPDATED_KEY,new Date().toISOString());localStorage.setItem(CLOUD_DIRTY_KEY,'0');if(cloudReady&&cloudDb){try{clearTimeout(cloudTimer);cloudWritePending=true;await cloudDb.ref(ATTENDANCE_CLOUD_ROOT+'/devices').set(firebaseEncodeData(attendanceDevices||{}));setCloudStatus('อัปเดตการผูกเครื่องและซิงก์ Firebase แล้ว')}catch(err){localStorage.setItem(CLOUD_DIRTY_KEY,'1');setCloudStatus('แก้ข้อมูลเครื่องในเครื่องแล้ว แต่ซิงก์ Firebase ไม่สำเร็จ: '+err.message);throw err}finally{cloudWritePending=false}}}
 async function overwriteAttendanceTestStateCloud(){localStorage.setItem(ATTENDANCE_KEY,JSON.stringify(attendance));localStorage.setItem(ATTENDANCE_DEVICES_KEY,JSON.stringify(attendanceDevices));localStorage.setItem(LOCAL_UPDATED_KEY,new Date().toISOString());localStorage.setItem(CLOUD_DIRTY_KEY,'0');if(cloudReady&&cloudDb){try{await Promise.all([cloudDb.ref(ATTENDANCE_CLOUD_ROOT+'/records').set(firebaseEncodeData(attendance)),cloudDb.ref(ATTENDANCE_CLOUD_ROOT+'/recordsByKey').set(firebaseEncodeData(attendanceRecordsByKeyFromRows(attendance))),cloudDb.ref(ATTENDANCE_CLOUD_ROOT+'/devices').set(firebaseEncodeData(attendanceDevices))]);setCloudStatus('ซิงก์ข้อมูลทดลอง Attendance ไป Firebase แล้ว')}catch(err){localStorage.setItem(CLOUD_DIRTY_KEY,'1');setCloudStatus('แก้ข้อมูลในเครื่องแล้ว แต่ซิงก์ Firebase ไม่สำเร็จ: '+err.message);throw err}}}
 async function overwriteTestDataCloud(){localStorage.setItem(ATTENDANCE_KEY,JSON.stringify(attendance));localStorage.setItem(ATTENDANCE_DEVICES_KEY,JSON.stringify(attendanceDevices));localStorage.setItem(EXAM_RESULT_KEY,JSON.stringify(examResults));localStorage.setItem(EXAM_DELETED_KEY,JSON.stringify([...examDeletedKeys]));localStorage.setItem(LOCAL_UPDATED_KEY,new Date().toISOString());localStorage.setItem(CLOUD_DIRTY_KEY,'0');if(cloudReady&&cloudDb){try{await Promise.all([cloudDb.ref(ATTENDANCE_CLOUD_ROOT+'/records').set(firebaseEncodeData(attendance)),cloudDb.ref(ATTENDANCE_CLOUD_ROOT+'/recordsByKey').set(firebaseEncodeData(attendanceRecordsByKeyFromRows(attendance))),cloudDb.ref(ATTENDANCE_CLOUD_ROOT+'/settings').set(firebaseEncodeData(attendanceSettings)),cloudDb.ref(ATTENDANCE_CLOUD_ROOT+'/devices').set(firebaseEncodeData(attendanceDevices)),cloudDb.ref('ppms').update({examResults:firebaseEncodeData(examResults),examDeletedKeys:firebaseEncodeData([...examDeletedKeys])})]);setCloudStatus('ซิงก์การล้างข้อมูลทดลองไป Firebase แล้ว')}catch(err){localStorage.setItem(CLOUD_DIRTY_KEY,'1');setCloudStatus('ล้างในเครื่องแล้ว แต่ซิงก์ Firebase ไม่สำเร็จ: '+err.message);throw err}}}
-async function overwriteExamResultsCloud(){localStorage.setItem(EXAM_RESULT_KEY,JSON.stringify(examResults));localStorage.setItem(EXAM_DELETED_KEY,JSON.stringify([...examDeletedKeys]));localStorage.setItem(LOCAL_UPDATED_KEY,new Date().toISOString());localStorage.setItem(CLOUD_DIRTY_KEY,'0');if(cloudReady&&cloudDb){try{await cloudDb.ref('ppms').update({examResults:firebaseEncodeData(examResults),examDeletedKeys:firebaseEncodeData([...examDeletedKeys])});setCloudStatus('ซิงก์ประวัติการสอบและรายการลบถาวรไป Firebase แล้ว')}catch(err){localStorage.setItem(CLOUD_DIRTY_KEY,'1');setCloudStatus('แก้ประวัติในเครื่องแล้ว แต่ซิงก์ Firebase ไม่สำเร็จ: '+err.message);throw err}}}
+async function overwriteExamResultsCloud(){
+ localStorage.setItem(EXAM_RESULT_KEY,JSON.stringify(examResults));
+ localStorage.setItem(EXAM_DELETED_KEY,JSON.stringify([...examDeletedKeys]));
+ localStorage.setItem(LOCAL_UPDATED_KEY,new Date().toISOString());
+ localStorage.setItem(CLOUD_DIRTY_KEY,'1');
+ const ready=await ensureCloudReady(15000);
+ if(!ready||!cloudDb)throw Error('Firebase ยังไม่พร้อม จึงยังปลดล็อกข้อสอบไม่ได้ กรุณาลองลบอีกครั้ง');
+ cloudWritePending=true;clearTimeout(cloudTimer);
+ try{
+  await cloudDb.ref('ppms').transaction(server=>{
+   const root=firebaseDecodeData(server)||{};
+   const deleted=new Set([...(Array.isArray(root.examDeletedKeys)?root.examDeletedKeys:[]),...examDeletedKeys].map(String));
+   const remote=Array.isArray(root.examResults)?root.examResults:Object.values(root.examResults||{});
+   root.examDeletedKeys=[...deleted];
+   root.examResults=mergeRecordArrays(remote,examResults,'exam').filter(r=>!deleted.has(recordStableKey(r,'exam')));
+   root.meta={...(root.meta||{}),updatedAt:new Date().toISOString(),version:APP_DATA_VERSION,examDeleteUnlock:'V619'};
+   return firebaseEncodeData(root);
+  });
+  const verify=firebaseDecodeData((await cloudDb.ref('ppms').once('value')).val())||{};
+  const remoteDeleted=new Set((Array.isArray(verify.examDeletedKeys)?verify.examDeletedKeys:[]).map(String));
+  const remoteResults=Array.isArray(verify.examResults)?verify.examResults:Object.values(verify.examResults||{});
+  for(const key of examDeletedKeys)if(!remoteDeleted.has(String(key))||remoteResults.some(r=>recordStableKey(r,'exam')===String(key)))throw Error('Firebase ยังไม่ยืนยันการปลดล็อกข้อสอบ');
+  examResults=remoteResults.filter(r=>!remoteDeleted.has(recordStableKey(r,'exam')));
+  examDeletedKeys=remoteDeleted;
+  localStorage.setItem(EXAM_RESULT_KEY,JSON.stringify(examResults));
+  localStorage.setItem(EXAM_DELETED_KEY,JSON.stringify([...examDeletedKeys]));
+  localStorage.setItem(CLOUD_DIRTY_KEY,'0');
+  setCloudStatus('ลบประวัติและปลดล็อกสิทธิ์สอบบน Firebase แล้ว');
+  return true;
+ }catch(err){
+  localStorage.setItem(CLOUD_DIRTY_KEY,'1');
+  setCloudStatus('ลบในเครื่องแล้ว แต่ยังปลดล็อกข้อสอบส่วนกลางไม่สำเร็จ: '+err.message);
+  throw err;
+ }finally{cloudWritePending=false;flushPendingRemoteSnapshot();refreshCloudFromServer(false)}
+}
 
 async function syncExamResultCloudVerified(record){
  if(!record||!record.createdAt)throw Error('ข้อมูลผลสอบไม่สมบูรณ์');
