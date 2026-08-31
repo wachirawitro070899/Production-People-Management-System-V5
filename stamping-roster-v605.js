@@ -14,10 +14,12 @@ const STYLE=`
 .stamping-infographic,.stamping-v605{display:none!important}@media(max-width:900px){.stamping-v606-teams{grid-template-columns:1fr}}@media(max-width:540px){.stamping-v606-group{grid-template-columns:58px 1fr}.stamping-v606-slot{grid-template-columns:90px 1fr}}
 `;
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const list=v=>Array.isArray(v)?v.filter(Boolean):v&&typeof v==='object'?Object.values(v).filter(Boolean):[];
+const list=v=>Array.isArray(v)?v.filter(Boolean):v&&typeof v==='object'?Object.entries(v).map(([k,e])=>e&&typeof e==='object'?{...e,id:e.id||k}:null).filter(Boolean):[];
+const decode=v=>{if(Array.isArray(v))return v.map(decode);if(!v||typeof v!=='object')return v;const out={};for(const [k,x] of Object.entries(v)){let key=k;if(key.startsWith('__ppmskey__'))try{key=decodeURIComponent(key.slice(11))}catch{}out[key]=decode(x)}return out};
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 const isLeader=e=>/leader/i.test(String(e.position||''));
 let rows=[],selectedId='',busy=false;
-async function load(){if(!window.firebase)return[];if(!firebase.apps.length)firebase.initializeApp(window.PPMS_FIREBASE_CONFIG||{});const s=await firebase.database().ref('ppms/employees').once('value');return list(s.val()).filter(e=>String(e.section)==='Stamping Section')}
+async function load(){if(!window.firebase)return[];if(!firebase.apps.length)firebase.initializeApp(window.PPMS_FIREBASE_CONFIG||{});const db=firebase.database();for(let attempt=0;attempt<4;attempt++){let raw=(await db.ref('ppms/employees').once('value')).val();let data=list(decode(raw));if(!data.length){const root=decode((await db.ref('ppms').once('value')).val())||{};data=list(root.employees)}const found=data.filter(e=>String(e.section||'').trim().toLowerCase()==='stamping section');if(found.length)return found;await sleep(700)}return[]}
 const occupant=(team,slot,except='')=>rows.find(e=>String(e.id)!==String(except)&&e.stampingShift===team&&e.stampingGroup===slot.g&&e.stampingRole===slot.r);
 function avatar(e){const p=e.photo||e.photoUrl||'';return p?`<img src="${esc(p)}" alt="">`:'<span class="stamping-v606-avatar">?</span>'}
 function card(e){return `<div class="stamping-v606-card ${String(e.id)===selectedId?'selected':''}" draggable="true" data-emp="${esc(e.id)}">${avatar(e)}<div><b>${esc(e.name)}</b><small>${esc(e.id)} · ${esc(e.position)}</small><small>${esc(e.stampingMachines||e.stampingRole||'ยังไม่กำหนด')}</small></div></div>`}
