@@ -1,61 +1,36 @@
-// V605: Simple Stamping roster — same list style as other sections, with shift and machine assignment.
+// V605: Stamping hierarchy — Leader on top, operators ordered below; click a card to assign shift/machine.
 (()=>{'use strict';
 const STYLE=`
-.stamping-v605{margin:12px 0}.stamping-v605-head{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:10px}
-.stamping-v605-list{display:grid;gap:8px}.stamping-v605-row{display:grid;grid-template-columns:minmax(240px,1.5fr) repeat(5,minmax(115px,.7fr)) auto;gap:8px;align-items:end;padding:10px;border:1px solid #cbd5e1;border-radius:12px;background:#fff}
-.stamping-v605-person{display:flex;gap:10px;align-items:center}.stamping-v605-person img,.stamping-v605-avatar{width:42px;height:42px;border-radius:50%;object-fit:cover;border:2px solid #1976d2}.stamping-v605-avatar{display:grid;place-items:center;background:#eff6ff;color:#1d4ed8;font-weight:800}
-.stamping-v605-person b,.stamping-v605-person small{display:block}.stamping-v605 label{font-size:11px;color:#475569}.stamping-v605 select{width:100%;min-height:38px;margin-top:3px}.stamping-v605 button{min-height:38px}
-.stamping-v605-fixed{grid-column:2/-1;color:#64748b;align-self:center}.stamping-infographic{display:none!important}
-@media(max-width:1050px){.stamping-v605-row{grid-template-columns:1fr 1fr 1fr}.stamping-v605-person{grid-column:1/-1}.stamping-v605-fixed{grid-column:1/-1}}
-@media(max-width:620px){.stamping-v605-row{grid-template-columns:1fr 1fr}.stamping-v605-person{grid-column:1/-1}.stamping-v605-row button{grid-column:1/-1}}
+.stamping-v605{margin:12px 0;padding:18px}.stamping-v605-title{text-align:center;margin-bottom:18px}.stamping-v605-level{text-align:center}.stamping-v605-level>h4{margin:8px;color:#1e3a8a}
+.stamping-v605-cards{display:flex;justify-content:center;gap:8px;flex-wrap:wrap}.stamping-v605-card{width:118px;min-height:130px;padding:9px 7px;border:1.5px solid #fb7185;border-radius:10px;background:#fff1f2;text-align:center;cursor:pointer;position:relative}
+.stamping-v605-card.leader{border-color:#14b8a6;background:#ecfdf5}.stamping-v605-card img,.stamping-v605-avatar{width:38px;height:38px;border-radius:50%;object-fit:cover;margin:auto;border:2px solid #fff;box-shadow:0 0 0 1px #2563eb}.stamping-v605-avatar{display:grid;place-items:center;background:#dbeafe;color:#1d4ed8;font-weight:800}
+.stamping-v605-card b,.stamping-v605-card small{display:block}.stamping-v605-card b{font-size:10px;margin-top:6px;overflow-wrap:anywhere}.stamping-v605-card small{font-size:8px;margin-top:3px}.stamping-v605-edit{position:absolute;right:5px;top:5px;background:#fff;border-radius:50%;width:18px;height:18px;font-size:10px;display:grid;place-items:center}
+.stamping-v605-line{height:20px;width:2px;background:#94a3b8;margin:auto}.stamping-v605-branch{border-top:2px solid #94a3b8;margin:0 auto 8px;max-width:88%}
+.stamping-v605-modal{position:fixed;inset:0;background:#0f172a99;z-index:99999;display:grid;place-items:center;padding:14px}.stamping-v605-dialog{background:#fff;border-radius:14px;padding:18px;width:min(720px,96vw);max-height:92vh;overflow:auto}.stamping-v605-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.stamping-v605-grid label{font-size:12px}.stamping-v605-grid select,.stamping-v605-grid input{width:100%;min-height:40px;margin-top:4px}.stamping-v605-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:14px}
+.stamping-infographic{display:none!important}@media(max-width:620px){.stamping-v605-card{width:102px}.stamping-v605-grid{grid-template-columns:1fr 1fr}}
 `;
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const list=v=>Array.isArray(v)?v.filter(Boolean):v&&typeof v==='object'?Object.values(v).filter(Boolean):[];
-const rank=p=>{p=String(p||'').toLowerCase();if(p.includes('manager'))return 0;if(p.includes('engineer'))return 1;if(p.includes('supervisor'))return 2;if(p.includes('leader'))return 3;if(p.includes('technician'))return 4;if(p.includes('operator'))return 5;return 6};
-const editable=p=>!/(manager|engineer|supervisor|leader)/i.test(String(p||''));
-const opt=(value,current,label=value)=>`<option value="${esc(value)}" ${String(value)===String(current)?'selected':''}>${esc(label)}</option>`;
-const field=(label,name,options)=>`<label>${label}<select data-field="${name}">${options}</select></label>`;
-function machineOptions(current){
- const values=['','No.1# & No.2#','No.3# & No.4#','No.5# & No.6#',...Array.from({length:13},(_,i)=>'No.'+(i+1)+'#')];
- if(current&&!values.includes(current))values.push(current);
- return values.map(v=>opt(v,current,v||'ยังไม่กำหนด')).join('');
+const isLeader=e=>/leader/i.test(String(e.position||''));
+const opt=(v,c,l=v)=>`<option value="${esc(v)}" ${String(v)===String(c)?'selected':''}>${esc(l)}</option>`;
+async function load(){if(!window.firebase)return[];if(!firebase.apps.length)firebase.initializeApp(window.PPMS_FIREBASE_CONFIG||{});const s=await firebase.database().ref('ppms/employees').once('value');return list(s.val()).filter(e=>String(e.section)==='Stamping Section')}
+function card(e,leader=false){const photo=e.photo||e.photoUrl||'',avatar=photo?`<img src="${esc(photo)}" alt="">`:'<span class="stamping-v605-avatar">?</span>';return `<button type="button" class="stamping-v605-card ${leader?'leader':''}" data-stamp-id="${esc(e.id)}"><span class="stamping-v605-edit">✎</span>${avatar}<b>${esc(e.name)}</b><small>${esc(e.id)}</small><small>${esc(e.position)}</small>${leader?'':`<small>${esc(e.stampingMachines||'ยังไม่กำหนดเครื่อง')}</small>`}</button>`}
+function choices(values,current,blank='ยังไม่กำหนด'){return opt('',current,blank)+values.map(v=>opt(v,current)).join('')}
+function openEditor(e){
+ const roles=Array.from({length:10},(_,i)=>'Operator '+(i+1)).concat(['Spare','Support']),machines=['No.1# & No.2#','No.3# & No.4#','No.5# & No.6#',...Array.from({length:13},(_,i)=>'No.'+(i+1)+'#')];
+ const box=document.createElement('div');box.className='stamping-v605-modal';box.innerHTML=`<form class="stamping-v605-dialog"><h3>จัดลำดับ / กะ / เครื่องจักร</h3><p><b>${esc(e.id)} · ${esc(e.name)}</b><br>${esc(e.position)}</p><div class="stamping-v605-grid">
+ <label>ลำดับการแสดง<input name="stampingOrder" type="number" min="1" max="999" value="${esc(e.stampingOrder||'')}"></label>
+ <label>กะทำงาน<select name="attendanceShift">${opt('day',e.attendanceShift||e.attShift||'day','Day')+opt('night',e.attendanceShift||e.attShift||'day','Night')}</select></label>
+ <label>Team<select name="stampingShift">${choices(['Team A','Team B'],e.stampingShift)}</select></label>
+ <label>Group<select name="stampingGroup">${choices(['A','B','C'],e.stampingGroup)}</select></label>
+ <label>หน้าที่<select name="stampingRole">${choices(roles,e.stampingRole)}</select></label>
+ <label>เครื่องจักร<select name="stampingMachines">${choices(machines,e.stampingMachines)}</select></label></div>
+ <div class="stamping-v605-actions"><button type="button" data-cancel class="secondary">ยกเลิก</button><button type="submit">บันทึก</button></div></form>`;
+ document.body.appendChild(box);box.querySelector('[data-cancel]').onclick=()=>box.remove();box.onclick=x=>{if(x.target===box)box.remove()};
+ box.querySelector('form').onsubmit=async ev=>{ev.preventDefault();const fd=new FormData(ev.target),values=Object.fromEntries(fd);values.stampingOrder=Number(values.stampingOrder)||0;values.attShift=values.attendanceShift;const btn=ev.submitter;btn.disabled=true;btn.textContent='กำลังบันทึก...';try{await firebase.database().ref('ppms/employees').transaction(raw=>{if(!raw)return raw;const rows=Array.isArray(raw)?raw:Object.values(raw),emp=rows.find(x=>String(x?.id)===String(e.id));if(!emp)return;Object.assign(emp,values,{updatedAt:new Date().toISOString()});return raw});box.remove();document.querySelector('.stamping-v605')?.remove();mount()}catch(err){btn.disabled=false;btn.textContent='บันทึก';alert('บันทึกไม่สำเร็จ: '+err.message)}}
 }
-async function employees(){
- if(!window.firebase)return[];if(!firebase.apps.length)firebase.initializeApp(window.PPMS_FIREBASE_CONFIG||{});
- const snap=await firebase.database().ref('ppms/employees').once('value');return list(snap.val()).filter(e=>String(e.section)==='Stamping Section');
-}
-function person(e){
- const photo=e.photo||e.photoUrl||'',avatar=photo?`<img src="${esc(photo)}" alt="">`:`<span class="stamping-v605-avatar">?</span>`;
- if(!editable(e.position))return `<div class="stamping-v605-row"><div class="stamping-v605-person">${avatar}<div><b>${esc(e.name)}</b><small>${esc(e.id)} · ${esc(e.position)}</small></div></div><div class="stamping-v605-fixed">ตำแหน่งบริหารประจำแผนก — ไม่เปลี่ยนตามกะเครื่องจักร</div></div>`;
- return `<div class="stamping-v605-row" data-id="${esc(e.id)}"><div class="stamping-v605-person">${avatar}<div><b>${esc(e.name)}</b><small>${esc(e.id)} · ${esc(e.position)} · เริ่มงาน ${esc(e.startDate||'-')}</small></div></div>
- ${field('กะทำงาน', 'attendanceShift',opt('day',e.attendanceShift||e.attShift||'day','Day')+opt('night',e.attendanceShift||e.attShift||'day','Night'))}
- ${field('ทีม', 'stampingShift',opt('',e.stampingShift,'ยังไม่กำหนด')+opt('Team A',e.stampingShift)+opt('Team B',e.stampingShift))}
- ${field('Group', 'stampingGroup',opt('',e.stampingGroup,'ยังไม่กำหนด')+['A','B','C'].map(x=>opt(x,e.stampingGroup,'Group '+x)).join(''))}
- ${field('หน้าที่', 'stampingRole',['','Operator 1','Operator 2','Operator 3','Operator 4','Operator 5','Operator 6','Operator 7','Operator 8','Operator 9','Operator 10','Spare','Support'].map(x=>opt(x,e.stampingRole,x||'ยังไม่กำหนด')).join(''))}
- ${field('เครื่องจักร', 'stampingMachines',machineOptions(e.stampingMachines||''))}
- <button type="button" data-save>บันทึก</button></div>`;
-}
-async function saveRow(row){
- const id=row.dataset.id,values={};row.querySelectorAll('[data-field]').forEach(x=>values[x.dataset.field]=x.value);
- const button=row.querySelector('[data-save]');button.disabled=true;button.textContent='กำลังบันทึก...';
- try{
-  const ref=firebase.database().ref('ppms/employees');await ref.transaction(raw=>{
-   if(!raw)return raw;const rows=Array.isArray(raw)?raw:Object.values(raw);const emp=rows.find(x=>String(x?.id)===String(id));if(!emp)return;
-   Object.assign(emp,values,{attShift:values.attendanceShift,updatedAt:new Date().toISOString()});return raw;
-  });button.disabled=false;button.textContent='บันทึกแล้ว';setTimeout(()=>button.textContent='บันทึก',1200);
- }catch(err){button.disabled=false;button.textContent='บันทึก';alert('บันทึกไม่สำเร็จ: '+err.message)}
-}
-let rendering=false,lastHost=null;
-async function mount(){
- const old=document.querySelector('.stamping-infographic');if(!old||rendering)return;
- const host=old.parentElement;if(host.querySelector('.stamping-v605'))return;rendering=true;
- try{
-  const rows=(await employees()).sort((a,b)=>rank(a.position)-rank(b.position)||String(a.startDate||'9999').localeCompare(String(b.startDate||'9999'))||String(a.id).localeCompare(String(b.id)));
-  const root=document.createElement('section');root.className='panel stamping-v605';root.innerHTML=`<div class="stamping-v605-head"><div><h3>Stamping Employee & Machine Assignment</h3><small>เรียงตามตำแหน่ง → วันที่เริ่มงาน → รหัสพนักงาน · แก้กะ ทีม Group หน้าที่ และเครื่องจักรได้ในแถวเดียว</small></div><b>${rows.length} คน</b></div><div class="stamping-v605-list">${rows.map(person).join('')}</div>`;
-  root.addEventListener('click',e=>{const b=e.target.closest('[data-save]');if(b)saveRow(b.closest('[data-id]'))});host.insertBefore(root,old);lastHost=host;
- }finally{rendering=false}
-}
+let busy=false;
+async function mount(){const old=document.querySelector('.stamping-infographic');if(!old||old.parentElement.querySelector('.stamping-v605')||busy)return;busy=true;try{const rows=await load(),leaders=rows.filter(isLeader).sort((a,b)=>String(a.id).localeCompare(String(b.id))),workers=rows.filter(e=>!isLeader(e)&&!/(manager|engineer|supervisor)/i.test(String(e.position||''))).sort((a,b)=>(Number(a.stampingOrder)||9999)-(Number(b.stampingOrder)||9999)||String(a.startDate||'9999').localeCompare(String(b.startDate||'9999'))||String(a.id).localeCompare(String(b.id)));const root=document.createElement('section');root.className='panel stamping-v605';root.innerHTML=`<div class="stamping-v605-title"><h3>STAMPING ORGANIZATION & MACHINE ASSIGNMENT</h3><small>คลิกการ์ดเพื่อจัดลำดับ กะ และเครื่องจักร</small></div><div class="stamping-v605-level"><h4>Leader</h4><div class="stamping-v605-cards">${leaders.map(e=>card(e,true)).join('')||'ยังไม่มี Leader'}</div></div><div class="stamping-v605-line"></div><div class="stamping-v605-branch"></div><div class="stamping-v605-level"><h4>Operator</h4><div class="stamping-v605-cards">${workers.map(e=>card(e)).join('')||'ยังไม่มี Operator'}</div></div>`;root.onclick=ev=>{const c=ev.target.closest('[data-stamp-id]');if(c){const e=rows.find(x=>String(x.id)===c.dataset.stampId);if(e)openEditor(e)}};old.parentElement.insertBefore(root,old)}finally{busy=false}}
 if(!document.getElementById('stampingV605Style')){const s=document.createElement('style');s.id='stampingV605Style';s.textContent=STYLE;document.head.appendChild(s)}
-new MutationObserver(()=>{if(lastHost&&!document.body.contains(lastHost))lastHost=null;mount()}).observe(document.body,{childList:true,subtree:true});
-mount();
+new MutationObserver(mount).observe(document.body,{childList:true,subtree:true});mount();
 })();
