@@ -856,3 +856,63 @@ input[id*="exam"][id*="Emp"], input[id*="Exam"][id*="Emp"] {
 .stamp-drag-ghost{position:fixed;z-index:99999;width:min(520px,75vw);pointer-events:none;opacity:.92;box-shadow:0 12px 35px #0005;background:#fff;border:2px solid #2563eb;border-radius:8px;padding:7px;display:flex;gap:8px;align-items:center}
 .stamp-drag-ghost .stamp-machine-box{margin-left:auto}
 @media print{.stamp-drag-ghost{display:none!important}}
+
+
+/* V620: mobile entry menu — keep Attendance, Examination, Admin and Leader separate */
+@media (max-width:700px){
+  body.exam-only-mode > header{
+    display:block!important;
+    position:static!important;
+    inset:auto!important;
+    width:100%!important;
+    padding:10px 12px!important;
+    background:#fff!important;
+    border-bottom:1px solid #dce6f1!important;
+    box-shadow:none!important;
+  }
+  body.exam-only-mode > header .auth{
+    display:grid!important;
+    grid-template-columns:minmax(0,1fr) minmax(0,1fr)!important;
+    gap:8px!important;
+    width:100%!important;
+  }
+  body.exam-only-mode > header #loginBtn,
+  body.exam-only-mode > header #leaderLoginBtn{
+    display:flex!important;
+    position:static!important;
+    width:100%!important;
+    min-width:0!important;
+    min-height:48px!important;
+    padding:10px 8px!important;
+    align-items:center!important;
+    justify-content:center!important;
+    white-space:normal!important;
+    text-align:center!important;
+    font-size:14px!important;
+    line-height:1.25!important;
+    box-shadow:none!important;
+  }
+  body.exam-only-mode > nav{
+    display:grid!important;
+    grid-template-columns:minmax(0,1fr) minmax(0,1fr)!important;
+    position:sticky!important;
+    top:0!important;
+    width:100%!important;
+    gap:8px!important;
+    padding:10px 12px!important;
+    overflow:visible!important;
+  }
+  body.exam-only-mode > nav button{
+    width:100%!important;
+    min-width:0!important;
+    min-height:50px!important;
+    margin:0!important;
+    padding:10px 7px!important;
+    white-space:normal!important;
+    text-align:center!important;
+    font-size:14px!important;
+    line-height:1.25!important;
+  }
+  body.exam-only-mode main{padding:12px!important}
+  .statusbar{left:12px!important;right:12px!important;width:auto!important;max-width:none!important}
+}
