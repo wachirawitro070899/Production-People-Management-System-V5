@@ -422,7 +422,8 @@ function mergeCloudPayloadPreserve(serverValue,localValue){
  const localEmployees=cloudEmployeeList(local);
  const mergedEmployees=mergeEmployeesNewest(localEmployees,serverEmployees).filter(e=>e&&e.id!=null&&!deleted.has(String(e.id)));
  const examDeleted=new Set([...(Array.isArray(server.examDeletedKeys)?server.examDeletedKeys:[]),...(Array.isArray(local.examDeletedKeys)?local.examDeletedKeys:[])].map(String));
- const mergedExamResults=mergeRecordArrays(server.examResults,local.examResults,'exam').filter(r=>!examDeleted.has(recordStableKey(r,'exam')));
+ const serverExamInbox=server.examResultInbox&&typeof server.examResultInbox==='object'?Object.values(server.examResultInbox).filter(Boolean):[];
+ const mergedExamResults=mergeRecordArrays([...(Array.isArray(server.examResults)?server.examResults:Object.values(server.examResults||{})),...serverExamInbox],local.examResults,'exam').filter(r=>!examDeleted.has(recordStableKey(r,'exam')));
  return {
   ...server,
   employees:mergedEmployees,
@@ -430,6 +431,7 @@ function mergeCloudPayloadPreserve(serverValue,localValue){
   evaluations:mergeRecordArrays(server.evaluations,local.evaluations,'evaluation'),
   training:mergeRecordArrays(server.training,local.training,'training'),
   examResults:mergedExamResults,
+  examResultInbox:server.examResultInbox&&typeof server.examResultInbox==='object'?server.examResultInbox:{},
   examDeletedKeys:[...examDeleted],
   examQuestionBank:mergeExamQuestionBank(server.examQuestionBank,local.examQuestionBank),
   shiftSchedules:mergeShiftScheduleMaps(server.shiftSchedules,local.shiftSchedules),
@@ -1759,35 +1761,37 @@ setTimeout(retryExamOutbox,2500);
 async function syncExamResultCloudVerified(record){
  if(!record||!record.createdAt)throw Error('ข้อมูลผลสอบไม่สมบูรณ์');
  const ready=await ensureCloudReady(15000);
- if(!ready||!cloudDb)throw Error('Firebase ยังไม่พร้อม กรุณาตรวจสอบอินเทอร์เน็ตแล้วกดส่งอีกครั้ง');
- const key=recordStableKey(record,'exam');
+ if(!ready||!cloudDb){queueExamResult(record);throw Error('Firebase ยังไม่พร้อม ระบบเก็บผลสอบไว้และจะส่งซ้ำอัตโนมัติ')}
+ const key=recordStableKey(record,'exam'),inboxKey=firebaseSafeKey(key);
  cloudWritePending=true;
  try{
-  await cloudDb.ref('ppms/examResults').transaction(server=>{
-   const remote=Array.isArray(firebaseDecodeData(server))?firebaseDecodeData(server):Object.values(firebaseDecodeData(server)||{});
-   const merged=mergeRecordArrays(remote,[record],'exam').filter(r=>!examDeletedKeys.has(recordStableKey(r,'exam')));
-   return firebaseEncodeData(merged);
-  });
-  const snap=await cloudDb.ref('ppms/examResults').once('value');
-  const remote=Array.isArray(firebaseDecodeData(snap.val()))?firebaseDecodeData(snap.val()):Object.values(firebaseDecodeData(snap.val())||{});
-  const found=remote.some(r=>recordStableKey(r,'exam')===key);
-  if(!found)throw Error('Firebase ยังไม่ยืนยันผลสอบ');
-  examResults=mergeRecordArrays(remote,examResults,'exam').filter(r=>!examDeletedKeys.has(recordStableKey(r,'exam')));
+  const inboxRecord={...record,inboxReceivedAt:new Date().toISOString(),inboxVersion:'V622'};
+  const inboxRef=cloudDb.ref('ppms/examResultInbox/'+inboxKey);
+  await inboxRef.set(firebaseEncodeData(inboxRecord));
+  const inboxVerify=firebaseDecodeData((await inboxRef.once('value')).val());
+  if(!inboxVerify||recordStableKey(inboxVerify,'exam')!==key)throw Error('Firebase ยังไม่ยืนยันช่องรับผลสอบ');
+  let remote=[];
+  try{
+   await cloudDb.ref('ppms/examResults').transaction(server=>{
+    const rows=Array.isArray(firebaseDecodeData(server))?firebaseDecodeData(server):Object.values(firebaseDecodeData(server)||{});
+    return firebaseEncodeData(mergeRecordArrays(rows,[record],'exam').filter(r=>!examDeletedKeys.has(recordStableKey(r,'exam'))));
+   });
+   const snap=await cloudDb.ref('ppms/examResults').once('value');
+   remote=Array.isArray(firebaseDecodeData(snap.val()))?firebaseDecodeData(snap.val()):Object.values(firebaseDecodeData(snap.val())||{});
+  }catch(promoteErr){console.warn('Exam saved in central inbox; canonical promotion pending',promoteErr)}
+  examResults=mergeRecordArrays([...remote,inboxVerify],examResults,'exam').filter(r=>!examDeletedKeys.has(recordStableKey(r,'exam')));
   localStorage.setItem(EXAM_RESULT_KEY,JSON.stringify(examResults));
   localStorage.setItem(CLOUD_DIRTY_KEY,'0');
   localStorage.setItem(LOCAL_UPDATED_KEY,new Date().toISOString());
   removeExamOutbox(record);
-  setCloudStatus('ส่งผลสอบเข้า Examination History และ Firebase เรียบร้อย');
+  setCloudStatus('ส่งผลสอบเข้าช่องรับส่วนกลางและ Examination History แล้ว');
   return true;
  }catch(err){
   queueExamResult(record);
   localStorage.setItem(CLOUD_DIRTY_KEY,'1');
-  setCloudStatus('บันทึกผลสอบแล้ว • ระบบกำลังรอส่งเข้า Firebase อัตโนมัติ');
+  setCloudStatus('บันทึกผลสอบแล้ว • ระบบกำลังรอส่งเข้าช่องรับส่วนกลางอัตโนมัติ');
   throw err;
- }finally{
-  cloudWritePending=false;
-  flushPendingRemoteSnapshot();
- }
+ }finally{cloudWritePending=false;flushPendingRemoteSnapshot()}
 }
 
 
