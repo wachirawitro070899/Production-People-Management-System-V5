@@ -414,7 +414,9 @@ function removeAccidentalExitDuplicates(rows){
 }
 function quarterlyAttemptTime(r){const t=Date.parse(String(r?.createdAt||r?.date||''));return Number.isFinite(t)?t:Number.MAX_SAFE_INTEGER}
 function quarterlyAttemptKey(r){
- if(!r||isPermanentExam(r.examType))return '';
+ // V634: An exam interrupted by the old mobile auto-exit bug is history,
+ // not a completed quarterly attempt. It must never lock the employee out.
+ if(!r||isPermanentExam(r.examType)||r.forcedExit===true)return '';
  const employeeId=String(r.employeeId||'').trim(),quarter=String(r.quarter||'').trim(),year=examResultYear(r);
  return employeeId&&quarter&&year?`${employeeId}|${year}|${quarter}`:'';
 }
@@ -430,7 +432,7 @@ function keepFirstQuarterlyAttempts(rows){
  return keep.sort((a,b)=>quarterlyAttemptTime(b)-quarterlyAttemptTime(a));
 }
 function quarterlyExamAttempt(employeeId,quarter,year=new Date().getFullYear()){
- return examResults.filter(r=>!isPermanentExam(r.examType)&&String(r.employeeId)===String(employeeId)&&String(r.quarter)===String(quarter)&&examResultYear(r)===Number(year)).sort((a,b)=>quarterlyAttemptTime(a)-quarterlyAttemptTime(b))[0]||null;
+ return examResults.filter(r=>!isPermanentExam(r.examType)&&r.forcedExit!==true&&String(r.employeeId)===String(employeeId)&&String(r.quarter)===String(quarter)&&examResultYear(r)===Number(year)).sort((a,b)=>quarterlyAttemptTime(a)-quarterlyAttemptTime(b))[0]||null;
 }
 examResults=keepFirstQuarterlyAttempts(removeAccidentalExitDuplicates(examResults));
 try{localStorage.setItem(EXAM_RESULT_KEY,JSON.stringify(examResults))}catch{}
