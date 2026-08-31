@@ -100,7 +100,7 @@ function examSkillHistoryMatches(employee,result){
 async function persistExamUpskillEmployee(employeeId){
  const employee=employees.find(e=>String(e.id)===String(employeeId));
  if(!employee)throw Error('ไม่พบข้อมูลพนักงานสำหรับอัปเดต Skill');
- await persistEmployeeCloudNow(employee,employee.id);
+ await syncEmployeeCloudNow(employee,employee.id);
  return true;
 }
 async function repairHistoricalExamSkills(){
