@@ -1386,7 +1386,7 @@ function cardsPage(){
  if(!e)return head('Employee Skill Cards')+'<div class="empty">ไม่มีข้อมูลใน Section นี้</div>';
  const opts=`<option value="__ALL__" ${showAll?'selected':''}>ดูทั้งหมดใน Section (${sectionEmployees.length} คน)</option>`+sectionEmployees.map(x=>`<option value="${esc(x.id)}" ${String(x.id)===String(e.id)&&!showAll?'selected':''}>${esc(x.id)} - ${esc(x.name)}</option>`).join('');
  const secOpts=sections.map(x=>`<option ${x===selectedSection?'selected':''}>${esc(x)}</option>`).join('');
- const buttons=`${printBtn()}<button data-action="pagePdf">ดาวน์โหลด PDF</button><button data-action="pageExcel">ดาวน์โหลด Excel</button><button data-action="cardsA4Pdf">PDF 10 ใบ / A4</button>`;
+ const buttons=`<button data-action="printSkillCardsDuplex">พิมพ์หน้าหลัง A4</button><button data-action="pagePdf">ดาวน์โหลด PDF</button><button data-action="pageExcel">ดาวน์โหลด Excel</button><button data-action="cardsA4Pdf">PDF 10 ใบ / A4</button>`;
  const subtitle=showAll?`${esc(selectedSection)} · ${sectionEmployees.length} คน`:`${esc(e.id)} · ${esc(e.name)}`;
  const cards=showAll?sectionEmployees.map(x=>`<div class="wallet-employee-pair"><div class="wallet-pair-label">${esc(x.id)} · ${esc(x.name)}</div>${walletCardMarkup(x,'front')}${walletCardMarkup(x,'back')}</div>`).join(''):`${walletCardMarkup(e,'front')}${walletCardMarkup(e,'back')}`;
  const printList=showAll?sectionEmployees:[e];
@@ -2075,6 +2075,19 @@ function enhanceSelects(){
  // Dynamic option rebuilding/search inputs can close native pickers on mobile.
  return;
 }
+function printSkillCardsDuplex(){
+ if(current!=='cards')return;
+ const cardCount=document.querySelectorAll('.wallet-duplex-print .wallet-print-front .wallet-card').length;
+ if(!cardCount)return alert('ไม่พบ Skill Card สำหรับพิมพ์');
+ modal(`<h2>พิมพ์ Skill Card แบบหน้าหลัง</h2><p><b>ระบบจัดเอกสารให้แล้ว:</b> หน้าแรกเป็นด้านหน้าบัตร และหน้าถัดไปเป็นด้านหลังที่วางตำแหน่งตรงกัน ขนาด A4 แนวตั้ง จำนวนสูงสุด 10 ใบต่อด้าน</p><div class="notice"><b>ที่หน้าต่างเครื่องพิมพ์ ให้เลือก:</b><br>พิมพ์สองด้าน / Two-sided → พลิกขอบยาว / Flip on long edge<br><small>ตัวเลือกนี้ขึ้นอยู่กับเครื่องพิมพ์ เว็บไม่สามารถเปิด Duplex ของเครื่องแทนผู้ใช้ได้</small></div><div class="actions"><button id="doDuplexPrint">เปิดหน้าพิมพ์หน้าหลัง</button><button class="secondary" data-action="close">ยกเลิก</button></div>`);
+ const btn=document.getElementById('doDuplexPrint');if(btn)btn.onclick=()=>{
+  const old=document.getElementById('dynamicPrintStyle');if(old)old.remove();
+  document.body.classList.add('print-skill-cards');
+  const cleanup=()=>{document.body.classList.remove('print-skill-cards');window.removeEventListener('afterprint',cleanup)};
+  window.addEventListener('afterprint',cleanup);
+  closeModal();setTimeout(()=>window.print(),150);
+ };
+}
 function printSettings(){
  const matrixPrint=current==='matrix';
  const savedSize=sessionStorage.getItem('matrixPaperSize')||'A4';
@@ -2216,6 +2229,7 @@ document.addEventListener('click',e=>{
  if(a==='viewMedicalCertificate'){e.preventDefault();openMedicalCertificateViewer(b.dataset.employeeId,b.dataset.attendanceDate);return}
  if(a==='openEmployeeAttendancePage'){e.preventDefault();sessionStorage.setItem('attendanceSection',b.dataset.section||'__ALL__');sessionStorage.setItem('attendanceKpiEmployee',String(b.dataset.employeeId||''));sessionStorage.setItem('attendanceYear',String(thaiYear()));closeModal();current='attendanceAdmin';render();return}
  if(a==='toggleExamPreview'){e.preventDefault();sessionStorage.setItem('examPlanPreview',examPreviewEnabled()?'0':'1');render();return}
+ if(a==='printSkillCardsDuplex'){e.preventDefault();printSkillCardsDuplex()}
  if(a==='printSettings'){e.preventDefault();printSettings()}
  if(a==='matrixPdf'){e.preventDefault();matrixPdfDownload()}
  if(a==='matrixExcel'){e.preventDefault();matrixExcelDownload()}
