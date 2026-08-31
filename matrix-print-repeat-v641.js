@@ -10,8 +10,9 @@
     const table=report?.querySelector('.skill-matrix-table');
     const thead=table?.tHead;
     const originalHeader=report?.querySelector(':scope > .matrix-print-header');
+    const originalCriteria=report?.querySelector(':scope > .criteria-grid');
     const originalFooter=report?.querySelector(':scope > .signature-row');
-    if(!report||!table||!thead||!originalHeader||!originalFooter)return;
+    if(!report||!table||!thead||!originalHeader||!originalCriteria||!originalFooter)return;
 
     const columnCount=Math.max(1,thead.rows[thead.rows.length-1]?.cells.length||1);
 
@@ -28,13 +29,18 @@
     const footerRow=tfoot.insertRow();
     const footerCell=footerRow.insertCell();
     footerCell.colSpan=columnCount;
-    footerCell.appendChild(originalFooter.cloneNode(true));
+    const repeatBlock=document.createElement('div');
+    repeatBlock.className='matrix-repeat-bottom-block';
+    repeatBlock.appendChild(originalCriteria.cloneNode(true));
+    repeatBlock.appendChild(originalFooter.cloneNode(true));
+    footerCell.appendChild(repeatBlock);
   }
 
   const style=document.createElement('style');
   style.textContent=`
     @media print{
       body.print-matrix .matrix-report>.matrix-print-header,
+      body.print-matrix .matrix-report>.criteria-grid,
       body.print-matrix .matrix-report>.signature-row{
         display:none!important;
       }
@@ -58,6 +64,16 @@
         padding:2mm 0 0!important;
         border:0!important;
         background:#fff!important;
+      }
+      body.print-matrix .matrix-repeat-footer .criteria-grid{
+        display:grid!important;
+        padding:2mm 0 0!important;
+        margin:0!important;
+        break-inside:avoid!important;
+      }
+      body.print-matrix .matrix-repeat-footer .criteria-grid .acceptance-row{
+        padding:1mm 2mm!important;
+        min-height:0!important;
       }
       body.print-matrix .matrix-repeat-footer .signature-row{
         display:grid!important;
