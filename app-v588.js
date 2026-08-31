@@ -32,7 +32,11 @@ let remoteRenderTimer=null, remoteRenderQueued=false, remoteCacheTimer=null;
 let cloudInitPromise=null, pendingRemoteSnapshot=null, cloudRefreshInFlight=false;
 const CLOUD_REFRESH_INTERVAL_MS=15000;
 let activeExamForceSubmit=null,examExitGuardInstalled=false;
-function installExamExitGuard(){if(examExitGuardInstalled)return;examExitGuardInstalled=true;document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden'&&activeExamForceSubmit)activeExamForceSubmit('visibility_hidden')});window.addEventListener('pagehide',()=>{if(activeExamForceSubmit)activeExamForceSubmit('pagehide')});window.addEventListener('beforeunload',()=>{if(activeExamForceSubmit)activeExamForceSubmit('beforeunload')})}
+// V631: Mobile browsers briefly hide the page when opening the keyboard, camera,
+// file picker, notification shade, or switching apps. Never auto-submit from
+// visibilitychange/pagehide because that made an active exam suddenly close.
+// Keep the exam on screen and only warn before a real browser navigation.
+function installExamExitGuard(){if(examExitGuardInstalled)return;examExitGuardInstalled=true;window.addEventListener('beforeunload',event=>{if(!activeExamForceSubmit)return;event.preventDefault();event.returnValue=''})}
 installExamExitGuard();
 
 const SECTION_SKILLS={
