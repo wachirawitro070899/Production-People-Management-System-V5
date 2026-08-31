@@ -42,7 +42,7 @@ async function saveRow(row){
   const ref=firebase.database().ref('ppms/employees');await ref.transaction(raw=>{
    if(!raw)return raw;const rows=Array.isArray(raw)?raw:Object.values(raw);const emp=rows.find(x=>String(x?.id)===String(id));if(!emp)return;
    Object.assign(emp,values,{attShift:values.attendanceShift,updatedAt:new Date().toISOString()});return raw;
-  });button.textContent='บันทึกแล้ว';setTimeout(()=>button.textContent='บันทึก',1200);
+  });button.disabled=false;button.textContent='บันทึกแล้ว';setTimeout(()=>button.textContent='บันทึก',1200);
  }catch(err){button.disabled=false;button.textContent='บันทึก';alert('บันทึกไม่สำเร็จ: '+err.message)}
 }
 let rendering=false,lastHost=null;
