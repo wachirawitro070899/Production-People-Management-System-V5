@@ -955,3 +955,31 @@ input[id*="exam"][id*="Emp"], input[id*="Exam"][id*="Emp"] {
   }
   .wallet-print-placeholder{width:85.6mm;height:53.98mm}
 }
+
+
+/* V640: balanced two-page Section Skill Matrix print layout */
+@media print{
+  body.print-matrix .skill-matrix-table thead{
+    display:table-header-group!important;
+  }
+  body.print-matrix .skill-matrix-table tbody tr{
+    break-inside:avoid!important;
+    page-break-inside:avoid!important;
+  }
+  body.print-matrix .skill-matrix-table tbody tr:nth-child(15){
+    break-before:page!important;
+    page-break-before:always!important;
+  }
+  body.print-matrix .criteria-grid{
+    break-inside:avoid!important;
+    page-break-inside:avoid!important;
+    margin-top:3mm!important;
+  }
+  body.print-matrix .signature-row{
+    break-inside:avoid!important;
+    page-break-inside:avoid!important;
+  }
+  body.print-matrix .matrix-report{
+    overflow:visible!important;
+  }
+}
