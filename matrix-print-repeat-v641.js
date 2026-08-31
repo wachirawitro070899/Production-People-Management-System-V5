@@ -71,7 +71,7 @@
     .${PAGE_CLASS}{display:none}
     @media print{
       body.matrix-explicit-print-active .matrix-report{display:none!important}
-      body.matrix-explicit-print-active .${PAGE_CLASS}{display:block!important}
+      body.print-matrix.matrix-explicit-print-active main>.${PAGE_CLASS}{display:block!important;visibility:visible!important}
       body.matrix-explicit-print-active .matrix-explicit-print-page{
         display:block!important;
         width:100%!important;
