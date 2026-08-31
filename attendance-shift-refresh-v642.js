@@ -3,6 +3,27 @@
   if(typeof getAttendanceEmployeeReady!=='function')return;
   const originalGetAttendanceEmployeeReady=getAttendanceEmployeeReady;
 
+
+  /* V646 fallback: if no authoritative roster rule reached this phone,
+     resolve the active factory shift from the actual check-in window. */
+  if(typeof employeeShiftKey==='function'){
+    const originalEmployeeShiftKey=employeeShiftKey;
+    employeeShiftKey=function(emp,date){
+      const workDate=String(date||thaiDateKey());
+      const resolved=originalEmployeeShiftKey.apply(this,arguments);
+      let rules=[];
+      try{rules=typeof activeShiftRulesFor==='function'?activeShiftRulesFor(emp,workDate):[]}catch(_){}
+      if(rules.length)return resolved;
+
+      const now=typeof currentThaiMinutes==='function'?currentThaiMinutes():(new Date().getHours()*60+new Date().getMinutes());
+      const today=thaiDateKey();
+      const previous=typeof dateOffsetKey==='function'?dateOffsetKey(-1):'';
+      if(workDate===today&&now>=19*60)return 'night';
+      if(workDate===previous&&now<12*60)return 'night';
+      return resolved;
+    };
+  }
+
   async function refreshAttendanceShiftMaster(){
     if(!window.firebase)return;
     try{
