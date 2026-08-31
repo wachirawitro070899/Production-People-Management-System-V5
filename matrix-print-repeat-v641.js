@@ -87,7 +87,16 @@
       }
       body.matrix-explicit-print-active .matrix-print-header{
         display:grid!important;
+        position:static!important;
+        top:auto!important;
+        left:auto!important;
+        right:auto!important;
+        width:100%!important;
+        height:auto!important;
+        min-height:16mm!important;
         margin:0 0 1mm!important;
+        z-index:auto!important;
+        transform:none!important;
       }
       body.matrix-explicit-print-active .skill-legend{
         display:flex!important;
