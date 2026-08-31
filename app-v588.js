@@ -2106,27 +2106,13 @@ function printSkillCardsDuplex(){
  if(current!=='cards')return;
  const cardCount=document.querySelectorAll('.wallet-duplex-print .wallet-print-front .wallet-card').length;
  if(!cardCount)return alert('ไม่พบ Skill Card สำหรับพิมพ์');
- modal(`<h2>พิมพ์ Skill Card สองรอบอัตโนมัติ</h2><p><b>ระบบจะแยกให้เอง:</b> รอบที่ 1 พิมพ์ด้านหน้าทั้งหมด จากนั้นระบบจะแจ้งให้กลับกระดาษและเปิดรอบที่ 2 เพื่อพิมพ์ด้านหลัง ไม่ต้องเลือก Odd/Even</p><div class="notice"><b>เตรียมเครื่องพิมพ์:</b><br>A4 · Portrait · Pages per sheet = 1<br><small>ในแต่ละหน้าต่างพิมพ์ ให้กด Print ตามปกติ</small></div><div class="actions"><button id="doDuplexPrint">เริ่มรอบที่ 1 · พิมพ์ด้านหน้า</button><button class="secondary" data-action="close">ยกเลิก</button></div>`);
+ modal(`<h2>พิมพ์ Skill Card แบบหน้าหลัง</h2><p><b>ระบบจัดเอกสารให้แล้ว:</b> หน้าแรกเป็นด้านหน้าบัตร และหน้าถัดไปเป็นด้านหลังที่วางตำแหน่งตรงกัน ขนาด A4 แนวตั้ง จำนวนสูงสุด 10 ใบต่อด้าน</p><div class="notice"><b>ที่หน้าต่างเครื่องพิมพ์ ให้เลือก:</b><br>พิมพ์สองด้าน / Two-sided → พลิกขอบยาว / Flip on long edge<br><small>ตัวเลือกนี้ขึ้นอยู่กับเครื่องพิมพ์ เว็บไม่สามารถเปิด Duplex ของเครื่องแทนผู้ใช้ได้</small></div><div class="actions"><button id="doDuplexPrint">เปิดหน้าพิมพ์หน้าหลัง</button><button class="secondary" data-action="close">ยกเลิก</button></div>`);
  const btn=document.getElementById('doDuplexPrint');if(btn)btn.onclick=()=>{
-  let st=document.getElementById('dynamicPrintStyle');if(!st){st=document.createElement('style');st.id='dynamicPrintStyle';document.head.appendChild(st)}
-  st.textContent='@media print{@page{size:A4 portrait;margin:0}.print-front-only .wallet-print-back{display:none!important}.print-back-only .wallet-print-front{display:none!important}}';
-  document.body.classList.add('print-skill-cards','print-front-only');
-  closeModal();
-  const afterFront=()=>{
-   window.removeEventListener('afterprint',afterFront);
-   document.body.classList.remove('print-front-only');
-   modal(`<h2>รอบที่ 1 เสร็จแล้ว · เตรียมพิมพ์ด้านหลัง</h2><div class="notice"><b>1.</b> นำกระดาษที่พิมพ์ด้านหน้าแล้วใส่กลับเข้าถาด<br><b>2.</b> วางกระดาษให้ทิศทางเดิมและกลับด้านตามทางเข้ากระดาษของเครื่อง<br><b>3.</b> กดปุ่มด้านล่าง ระบบจะพิมพ์เฉพาะด้านหลังให้ตรงตำแหน่งเดิม</div><div class="actions"><button id="doBackPrint">เริ่มรอบที่ 2 · พิมพ์ด้านหลัง</button><button id="finishFrontOnly" class="secondary">หยุดไว้แค่ด้านหน้า</button></div>`);
-   const finish=()=>{document.body.classList.remove('print-skill-cards','print-front-only','print-back-only');const style=document.getElementById('dynamicPrintStyle');if(style)style.remove();closeModal()};
-   const cancel=document.getElementById('finishFrontOnly');if(cancel)cancel.onclick=finish;
-   const back=document.getElementById('doBackPrint');if(back)back.onclick=()=>{
-    document.body.classList.add('print-back-only');closeModal();
-    const afterBack=()=>{window.removeEventListener('afterprint',afterBack);finish();status('พิมพ์ Skill Card ครบ 2 รอบแล้ว','ok')};
-    window.addEventListener('afterprint',afterBack);
-    setTimeout(()=>window.print(),180);
-   };
-  };
-  window.addEventListener('afterprint',afterFront);
-  setTimeout(()=>window.print(),180);
+  const old=document.getElementById('dynamicPrintStyle');if(old)old.remove();
+  document.body.classList.add('print-skill-cards');
+  const cleanup=()=>{document.body.classList.remove('print-skill-cards');window.removeEventListener('afterprint',cleanup)};
+  window.addEventListener('afterprint',cleanup);
+  closeModal();setTimeout(()=>window.print(),150);
  };
 }
 function printSettings(){
