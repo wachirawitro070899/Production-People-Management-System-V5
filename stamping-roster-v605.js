@@ -32,5 +32,14 @@ async function refresh(){const old=document.querySelector('.stamping-infographic
 function dedupe(){const boards=[...document.querySelectorAll('.stamping-v606')];boards.slice(1).forEach(x=>x.remove())}
 async function mount(){dedupe();if(busy||document.getElementById('stampingV606Board'))return;const old=document.querySelector('.stamping-infographic');if(!old)return;busy=true;try{rows=await load();render(old)}finally{busy=false}}
 if(!document.getElementById('stampingV606Style')){const s=document.createElement('style');s.id='stampingV606Style';s.textContent=STYLE;document.head.appendChild(s)}
-new MutationObserver(()=>{dedupe();mount()}).observe(document.body,{childList:true,subtree:true});mount();
+function hideLegacyPool(){
+  document.querySelectorAll('h1,h2,h3,h4,b,strong,div').forEach(el=>{
+    if(el.closest('.stamping-v606'))return;
+    const text=String(el.textContent||'').replace(/\s+/g,' ').trim();
+    if(text!=='ยังไม่กำหนดทีม / Group / หน้าที่')return;
+    const legacy=el.closest('section.panel,section,.panel');
+    if(legacy)legacy.style.display='none';
+  });
+}
+new MutationObserver(()=>{dedupe();hideLegacyPool();mount()}).observe(document.body,{childList:true,subtree:true});hideLegacyPool();mount();
 })();
