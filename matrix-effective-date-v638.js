@@ -50,7 +50,10 @@
       row.className='matrix-effective-date';
       box.appendChild(row);
     }
-    row.innerHTML='<b>วันที่เริ่มใช้ / Effective Date:</b> '+String(value||defaultDate());
+    const nextValue=String(value||defaultDate());
+    if(row.dataset.value===nextValue)return;
+    row.dataset.value=nextValue;
+    row.innerHTML='<b>วันที่เริ่มใช้ / Effective Date:</b> '+nextValue;
   }
 
   const style=document.createElement('style');
