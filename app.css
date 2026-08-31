@@ -916,3 +916,42 @@ input[id*="exam"][id*="Emp"], input[id*="Exam"][id*="Emp"] {
   body.exam-only-mode main{padding:12px!important}
   .statusbar{left:12px!important;right:12px!important;width:auto!important;max-width:none!important}
 }
+
+
+/* V629: duplex A4 printing for Employee Skill Cards */
+.wallet-duplex-print{display:none}
+@media print{
+  @page skillcards{size:A4 portrait;margin:7mm}
+  body:has(.wallet-duplex-print) main{padding:0!important;margin:0!important;max-width:none!important}
+  body:has(.wallet-duplex-print) main>*:not(.wallet-duplex-print){display:none!important}
+  body:has(.wallet-duplex-print) .wallet-duplex-print{display:block!important}
+  .wallet-print-page{
+    page:skillcards;
+    width:196mm;
+    height:283mm;
+    box-sizing:border-box;
+    display:grid!important;
+    grid-template-columns:85.6mm 85.6mm;
+    grid-template-rows:repeat(5,53.98mm);
+    gap:3mm;
+    align-content:start;
+    justify-content:center;
+    break-after:page;
+    page-break-after:always;
+    overflow:hidden;
+  }
+  .wallet-print-page:last-child{break-after:auto;page-break-after:auto}
+  .wallet-print-page .wallet-card{
+    width:85.6mm!important;
+    height:53.98mm!important;
+    margin:0!important;
+    box-shadow:none!important;
+    border-radius:0!important;
+    break-inside:avoid!important;
+    break-after:auto!important;
+    page-break-after:auto!important;
+    -webkit-print-color-adjust:exact!important;
+    print-color-adjust:exact!important;
+  }
+  .wallet-print-placeholder{width:85.6mm;height:53.98mm}
+}
