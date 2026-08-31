@@ -1942,6 +1942,11 @@ function attendanceDetailCsvDownload(){const year=Number(sessionStorage.getItem(
 // This is the final guard against mobile select/keyboard popups being destroyed by any render() call.
 let deferredUiRender=false;
 function render(){
+ // V632: Once an employee is on the question form, background Firebase,
+ // attendance recovery, and delayed UI refreshes must never replace that form.
+ // Submission sets data-submitting=1, which intentionally unlocks the final render.
+ const liveExam=document.querySelector('#examForm');
+ if(document.body.classList.contains('exam-taking')&&liveExam&&liveExam.dataset.submitting!=='1'){deferredUiRender=true;return false}
  const a=document.activeElement;
  const editing=!!(a&&a!==document.body&&a!==document.documentElement&&a.matches?.('input,select,textarea,[contenteditable="true"]'));
  // V489: onchange handlers run while the native <select> is still focused.
