@@ -11,13 +11,12 @@
     employeeShiftKey=function(emp,date){
       const workDate=String(date||thaiDateKey());
       const resolved=originalEmployeeShiftKey.apply(this,arguments);
-      let rules=[];
-      try{rules=typeof activeShiftRulesFor==='function'?activeShiftRulesFor(emp,workDate):[]}catch(_){}
-      if(rules.length)return resolved;
-
       const now=typeof currentThaiMinutes==='function'?currentThaiMinutes():(new Date().getHours()*60+new Date().getMinutes());
       const today=thaiDateKey();
       const previous=typeof dateOffsetKey==='function'?dateOffsetKey(-1):'';
+
+      // The factory has separate day/night check-in windows. During the night
+      // window, never allow a stale cached day rule to apply the 08:05 cutoff.
       if(workDate===today&&now>=19*60)return 'night';
       if(workDate===previous&&now<12*60)return 'night';
       return resolved;
