@@ -17,7 +17,20 @@
     const criteria=report.querySelector(':scope > .criteria-grid');
     const signatures=report.querySelector(':scope > .signature-row');
 
-    if(header)page.appendChild(header.cloneNode(true));
+    if(header){
+      const headerClone=header.cloneNode(true);
+      const effectiveDate=new Intl.DateTimeFormat('en-CA',{
+        timeZone:'Asia/Bangkok',year:'numeric',month:'2-digit',day:'2-digit'
+      }).format(new Date());
+      const docBox=headerClone.querySelector('.doc-box,.matrix-print-doc');
+      if(docBox){
+        const dateRow=document.createElement('div');
+        dateRow.className='matrix-effective-date-print';
+        dateRow.innerHTML='<b>วันที่เริ่มใช้ / Effective Date:</b> '+effectiveDate;
+        docBox.appendChild(dateRow);
+      }
+      page.appendChild(headerClone);
+    }
     if(legend)page.appendChild(legend.cloneNode(true));
 
     const tableWrap=document.createElement('div');
@@ -97,6 +110,13 @@
         margin:0 0 1mm!important;
         z-index:auto!important;
         transform:none!important;
+      }
+      body.matrix-explicit-print-active .matrix-effective-date-print{
+        margin-top:1mm!important;
+        padding-top:1mm!important;
+        border-top:0.2mm solid rgba(255,255,255,.55)!important;
+        white-space:nowrap!important;
+        font-size:6px!important;
       }
       body.matrix-explicit-print-active .skill-legend{
         display:flex!important;
