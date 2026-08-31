@@ -17,6 +17,7 @@
     .ppms-alert-card{width:min(560px,100%);background:#fff;border:6px solid #ef4444;border-radius:22px;padding:26px;text-align:center;box-shadow:0 24px 70px #0008}
     .ppms-alert-icon{font-size:64px}.ppms-alert-card h2{margin:5px 0;color:#991b1b;font-size:clamp(25px,6vw,38px)}.ppms-alert-card p{font-size:20px;white-space:pre-wrap}.ppms-alert-card button{font-size:18px;padding:12px 24px}
     .ppms-alert-form label{display:block;margin:12px 0;text-align:left}.ppms-alert-form select,.ppms-alert-form textarea,.ppms-alert-form input{width:100%;box-sizing:border-box;padding:10px;font-size:16px}.ppms-alert-form textarea{min-height:90px}.ppms-plan-list{max-height:180px;overflow:auto;margin:14px 0;text-align:left}.ppms-plan-row{border:1px solid #ddd;border-radius:10px;padding:9px;margin:6px 0;font-size:14px}.ppms-plan-row button{float:right;font-size:13px;padding:4px 8px}
+    @media print{#ppmsAlertAdmin,#ppmsAlertEnable,.ppms-alert-overlay{display:none!important}}
     @keyframes ppmsPulse{from{background:#7f1d1ddd}to{background:#dc2626e8}}
   `;
   function addStyle(){const s=document.createElement('style');s.textContent=css;document.head.appendChild(s)}
