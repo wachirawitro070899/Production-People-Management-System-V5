@@ -1,5 +1,38 @@
 /* V651: leave verification + authoritative roster repair */
 (()=>{
+  // If an employee was deleted and later added again with the same code, an old
+  // deletedEmployeeIds tombstone must not hide the active Firebase employee row.
+  if(typeof fetchAttendanceEmployeeDirect==='function'){
+    const originalFetchAttendanceEmployeeDirect=fetchAttendanceEmployeeDirect;
+    fetchAttendanceEmployeeDirect=async function(value){
+      const found=await originalFetchAttendanceEmployeeDirect.apply(this,arguments);
+      if(found)return found;
+      try{
+        if(!window.firebase)return null;
+        if(!firebase.apps.length)firebase.initializeApp(window.PPMS_FIREBASE_CONFIG);
+        const db=cloudDb||firebase.database();
+        const snap=await db.ref('ppms/employees').once('value');
+        const list=cloudEmployeeList(firebaseDecodeData(snap.val()));
+        const active=findAttendanceEmployeeInList(list,value);
+        if(!active)return null;
+        const deletedSnap=await db.ref('ppms/deletedEmployeeIds').once('value');
+        const deleted=firebaseDecodeData(deletedSnap.val());
+        const rows=Array.isArray(deleted)?deleted:Object.values(deleted||{});
+        const cleaned=rows.filter(id=>!sameAttendanceEmployeeId(id,active.id));
+        if(cleaned.length!==rows.length)await db.ref('ppms/deletedEmployeeIds').set(firebaseEncodeData(cleaned));
+        for(const id of [...deletedEmployeeIds])if(sameAttendanceEmployeeId(id,active.id))deletedEmployeeIds.delete(id);
+        const index=employees.findIndex(emp=>sameAttendanceEmployeeId(emp?.id,active.id));
+        if(index>=0)employees[index]={...employees[index],...active};else employees.push({...active});
+        localStorage.setItem(KEY,JSON.stringify(employees));
+        localStorage.setItem(DELETED_KEY,JSON.stringify([...deletedEmployeeIds]));
+        return index>=0?employees[index]:employees[employees.length-1];
+      }catch(error){
+        console.warn('V657 active employee recovery failed',error);
+        return null;
+      }
+    };
+  }
+
   if(typeof syncAttendanceRecordCloud==='function'){
     const originalSyncAttendanceRecordCloud=syncAttendanceRecordCloud;
     syncAttendanceRecordCloud=async function(rec){
