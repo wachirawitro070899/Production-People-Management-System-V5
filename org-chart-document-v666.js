@@ -22,7 +22,7 @@ function render(){
  if(!report)return;
  const sec=section();if(!sec)return;
  document.querySelectorAll('.top-action-toolbar button[data-action="printSettings"]').forEach(button=>button.remove());
- const toolbar=document.querySelector('.top-action-toolbar');if(toolbar&&!toolbar.querySelector('button'))toolbar.remove();
+ const toolbar=document.querySelector('.top-action-toolbar');if(toolbar&&!toolbar.querySelector('[data-action="orgChartPrint"]')){const button=document.createElement('button');button.type='button';button.dataset.action='orgChartPrint';button.textContent='พิมพ์ Organization Chart';toolbar.prepend(button)}
  let header=report.querySelector('.org-document-header');
  if(!header){header=document.createElement('section');header.className='org-document-header';report.prepend(header)}
  const headerHtml=`<div><h1>SECTION ORGANIZATION CHART</h1><p>Production People Management System</p></div><dl><div><dt>Section</dt><dd>${esc(sec)}</dd></div><div><dt>Effective Date / วันที่เริ่มใช้งาน</dt><dd>${esc(effectiveDate())}</dd></div><div><dt>Revision</dt><dd>00</dd></div></dl>`;if(header.innerHTML!==headerHtml)header.innerHTML=headerHtml;
@@ -36,5 +36,6 @@ function render(){
 let queued=false;const schedule=()=>{if(queued)return;queued=true;requestAnimationFrame(()=>{queued=false;render()})};
 new MutationObserver(schedule).observe(document.documentElement,{childList:true,subtree:true});
 document.addEventListener('change',event=>{if(event.target?.id==='sectionSelect')setTimeout(schedule,0)});
+document.addEventListener('click',event=>{if(!event.target.closest?.('[data-action="orgChartPrint"]'))return;event.preventDefault();document.body.classList.add('print-section-org');window.print();setTimeout(()=>document.body.classList.remove('print-section-org'),500)},true);
 document.addEventListener('DOMContentLoaded',schedule);
 })();
