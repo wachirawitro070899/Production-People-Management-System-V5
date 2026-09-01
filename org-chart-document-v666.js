@@ -60,6 +60,7 @@ function render(){
 let queued=false;const schedule=()=>{if(queued)return;queued=true;requestAnimationFrame(()=>{queued=false;render()})};
 new MutationObserver(schedule).observe(document.documentElement,{childList:true,subtree:true});
 document.addEventListener('change',event=>{if(event.target?.id==='sectionSelect')setTimeout(schedule,0)});
-document.addEventListener('click',event=>{if(!event.target.closest?.('[data-action="orgChartPrint"]'))return;event.preventDefault();document.body.classList.add('print-section-org');window.print();setTimeout(()=>document.body.classList.remove('print-section-org'),500)},true);
+document.addEventListener('click',event=>{if(!event.target.closest?.('[data-action="orgChartPrint"]'))return;event.preventDefault();document.body.classList.add('print-section-org');window.print()},true);
+window.addEventListener('afterprint',()=>document.body.classList.remove('print-section-org'));
 document.addEventListener('DOMContentLoaded',schedule);
 })();
