@@ -11,8 +11,8 @@ const employmentRank=item=>String(item?.contractType||'').trim().toLowerCase()==
 const startTime=item=>{const time=Date.parse(item?.startDate||'');return Number.isFinite(time)?time:Number.MAX_SAFE_INTEGER};
 const rankOf=node=>{const text=node.textContent||'';if(/supervisor/i.test(text))return['supervisor','Supervisor'];if(/leader|หัวหน้าทีม/i.test(text))return['leader','Leader'];if(/technician/i.test(text))return['technician','Technician'];if(/operator/i.test(text))return['operator','Operator'];return['other','Other']};
 function weldingCard(id,node,item,rank,position){
- const visual=node.querySelector('img,.avatar')?.cloneNode(true),photo=visual?visual.outerHTML:'<div class="avatar">?</div>',light=node.querySelector('.exam-plan-light')?.cloneNode(true),name=item?.name||node.querySelector('b,strong')?.textContent||'',examClass=[...node.classList].find(value=>/^section-exam-/.test(value))||'';
- return`<div class="person ${rank} person-editable section-exam-person ${examClass}" data-edit="${esc(id)}" role="button" tabindex="0">${light?light.outerHTML:''}${photo}<b>${esc(name)}</b><small>${esc(id)}<br>${esc(position)}</small></div>`;
+ const visual=node.querySelector('img,.avatar')?.cloneNode(true),photo=visual?visual.outerHTML:'<div class="avatar">?</div>',name=item?.name||node.querySelector('b,strong')?.textContent||'';
+ return`<div class="person ${rank} person-editable" data-edit="${esc(id)}" role="button" tabindex="0">${photo}<b>${esc(name)}</b><small>${esc(id)}<br>${esc(position)}</small></div>`;
 }
 function stampingHierarchy(report,footer){
  let extra=report.querySelector('.stamping-standard-hierarchy');
