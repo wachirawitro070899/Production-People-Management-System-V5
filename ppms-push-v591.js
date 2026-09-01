@@ -16,7 +16,18 @@
       if (value) return String(value).trim();
     }
     const input = document.querySelector('input[id*="employee"][id*="code"],#attendanceEmployeeId,#employeeCode');
-    return input?.value?.trim() || '';
+    return input?.value?.trim() || sessionStorage.getItem('attendanceEmp') || '';
+  }
+  function employeeShift(code) {
+    try {
+      const list=JSON.parse(localStorage.getItem('ppms_v3_employees')||'[]');
+      const key=String(code||'').trim().toUpperCase().replace(/[\s._\-/]+/g,'');
+      const emp=Array.isArray(list)?list.find(x=>String(x?.id||'').trim().toUpperCase().replace(/[\s._\-/]+/g,'')===key):null;
+      const value=String(emp?.attendanceShift||emp?.shift||'').toLowerCase();
+      if(/night|กลางคืน|ดึก/.test(value))return'night';
+      if(/day|กลางวัน|เช้า/.test(value))return'day';
+    } catch (_) {}
+    return localStorage.getItem('ppms_employee_shift') || currentShift();
   }
   function iosStandaloneRequired() {
     return /iphone|ipad|ipod/i.test(navigator.userAgent) &&
@@ -37,13 +48,14 @@
     if (!token) throw new Error('ไม่สามารถสร้างโทเคนแจ้งเตือนได้');
     const workerUrl = String(window.PPMS_PUSH_WORKER_URL || '').replace(/\/$/, '');
     if (!workerUrl) throw new Error('ระบบ Push ยังไม่ได้ใส่ Cloudflare Worker URL');
+    const code=employeeCode(),shift=employeeShift(code);if(code)localStorage.setItem('ppms_employee_code',code);localStorage.setItem('ppms_employee_shift',shift);
     const response = await fetch(workerUrl + '/register', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         token,
-        employeeCode: employeeCode(),
-        shift: localStorage.getItem('ppms_employee_shift') || currentShift()
+        employeeCode: code,
+        shift
       })
     });
     if (!response.ok) throw new Error('ลงทะเบียนเครื่องกับ Push Server ไม่สำเร็จ (' + response.status + ')');
@@ -55,5 +67,6 @@
     try { return await enable(); } catch (error) { console.warn('PPMS push refresh failed', error); return false; }
   }
   window.PPMSPush = { enable, refresh, supported };
+  document.addEventListener('change',event=>{if(!event.target?.matches?.('#attendanceEmployeeId,#employeeCode,input[id*="employee"][id*="code"]'))return;const code=String(event.target.value||'').trim();if(!code)return;localStorage.setItem('ppms_employee_code',code);localStorage.setItem('ppms_employee_shift',employeeShift(code));setTimeout(refresh,500)});
   document.addEventListener('DOMContentLoaded', () => setTimeout(refresh, 2500));
 })();
