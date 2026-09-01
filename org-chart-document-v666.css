@@ -78,4 +78,22 @@
  body.org-sorting.org-paper-a3.print-section-org .sorting-person-card .avatar,body.org-sorting.org-paper-a3.print-section-org .sorting-person-card img{width:16mm!important;height:16mm!important;min-width:16mm!important}
  body.org-sorting.org-paper-a3.print-section-org .sorting-card-name{font-size:11px!important;height:9mm!important;min-height:9mm!important;max-height:9mm!important}
  body.org-sorting.org-paper-a3.print-section-org .sorting-card-id,body.org-sorting.org-paper-a3.print-section-org .sorting-card-position{font-size:9px!important;line-height:4mm!important;height:4mm!important}
+ body.print-section-org .unified-section-page>.hierarchy{flex:1 1 auto;border:1px solid #9fb4c8!important;border-radius:3mm!important;padding:3mm!important;box-shadow:none!important;overflow:visible!important}
+ body.print-section-org .unified-section-page .level{display:flex!important;flex-direction:column!important;align-items:center!important;margin:1.5mm 0!important;break-inside:avoid-page!important}
+ body.print-section-org .unified-section-page .level h4{align-self:flex-start!important;margin:0 0 1.5mm 1mm!important;color:#173c63!important;font-size:10px!important}
+ body.print-section-org .unified-section-page .people{display:flex!important;justify-content:center!important;flex-wrap:wrap!important;gap:2mm!important;width:100%!important}
+ body.print-section-org .unified-section-page .people.people-multi{display:grid!important;grid-template-columns:repeat(8,minmax(0,1fr))!important;max-width:252mm!important}
+ body.print-section-org .unified-section-page .person{width:30mm!important;min-height:36mm!important;height:36mm!important;padding:1.5mm!important;display:flex!important;flex-direction:column!important;align-items:center!important;overflow:hidden!important}
+ body.print-section-org .unified-section-page .person img,body.print-section-org .unified-section-page .person .avatar{width:14mm!important;height:14mm!important;min-width:14mm!important;object-fit:cover!important;object-position:center top!important;border-radius:50%!important}
+ body.org-paper-a3.print-section-org .unified-section-page .people.people-multi{grid-template-columns:repeat(10,minmax(0,1fr))!important;max-width:380mm!important;gap:3mm!important}
+ body.org-paper-a3.print-section-org .unified-section-page .person{width:38mm!important;min-height:50mm!important;height:50mm!important;padding:2mm!important}
+ body.org-paper-a3.print-section-org .unified-section-page .person img,body.org-paper-a3.print-section-org .unified-section-page .person .avatar{width:20mm!important;height:20mm!important;min-width:20mm!important}
+ body.org-paper-a3.print-section-org .unified-section-page .person strong,body.org-paper-a3.print-section-org .unified-section-page .person b{font-size:12px!important}body.org-paper-a3.print-section-org .unified-section-page .person small{font-size:10px!important}
+ body.org-paper-a3.print-section-org,body.org-paper-a3.print-section-org main{width:406mm!important;max-width:406mm!important}
+ body.org-paper-a4.print-section-org,body.org-paper-a4.print-section-org main{width:283mm!important;max-width:283mm!important}
+ body.print-section-org .section-org-report>.hierarchy{border:1px solid #9fb4c8!important;border-radius:3mm!important;padding:3mm!important}
+ body.print-section-org .section-org-report>.hierarchy .person{width:30mm!important;min-height:36mm!important;padding:1.5mm!important}
+ body.print-section-org .section-org-report>.hierarchy .person img,body.print-section-org .section-org-report>.hierarchy .person .avatar{width:14mm!important;height:14mm!important;object-fit:cover!important;object-position:center top!important;border-radius:50%!important}
+ body.org-paper-a3.print-section-org .section-org-report>.hierarchy .person{width:38mm!important;min-height:50mm!important;padding:2mm!important}
+ body.org-paper-a3.print-section-org .section-org-report>.hierarchy .person img,body.org-paper-a3.print-section-org .section-org-report>.hierarchy .person .avatar{width:20mm!important;height:20mm!important}
 }
