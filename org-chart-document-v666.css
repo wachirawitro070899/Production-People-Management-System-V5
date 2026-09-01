@@ -34,10 +34,10 @@
  body.org-stamping.print-section-org .stamping-print-page .level{margin:1mm 0!important;align-items:stretch!important}
  body.org-stamping.print-section-org .stamping-print-page .level h4{align-self:flex-start!important;margin:0 0 1.2mm 1mm!important;font-size:9px!important}
  body.org-stamping.print-section-org .stamping-print-page .level-operator .people{display:grid!important;grid-template-columns:repeat(8,minmax(0,1fr));gap:1.8mm 2.2mm!important;width:100%;max-width:252mm;margin:auto}
- body.org-stamping.print-section-org .stamping-print-page .level-operator .person{width:100%!important;min-width:0!important;min-height:29mm!important;height:29mm!important;padding:1.4mm!important;overflow:hidden!important}
+ body.org-stamping.print-section-org .stamping-print-page .level-operator .person{width:100%!important;min-width:0!important;min-height:32mm!important;height:32mm!important;padding:1.5mm!important;overflow:hidden!important}
  body.org-stamping.print-section-org .stamping-print-page .level-operator .people.people-wrapped{gap:1.5mm 2mm!important}
- body.org-stamping.print-section-org .stamping-print-page .level-operator .people.people-wrapped .person{min-height:29mm!important;height:29mm!important;padding:1.4mm!important}
- body.org-stamping.print-section-org .stamping-print-page .person .avatar,body.org-stamping.print-section-org .stamping-print-page .person img{width:10mm!important;height:10mm!important;min-width:10mm!important;object-fit:cover!important;aspect-ratio:1/1!important;border-radius:50%!important}
+ body.org-stamping.print-section-org .stamping-print-page .level-operator .people.people-wrapped .person{min-height:32mm!important;height:32mm!important;padding:1.5mm!important}
+ body.org-stamping.print-section-org .stamping-print-page .person .avatar,body.org-stamping.print-section-org .stamping-print-page .person img{width:12mm!important;height:12mm!important;min-width:12mm!important;object-fit:cover!important;object-position:center top!important;aspect-ratio:1/1!important;border-radius:50%!important}
  body.org-stamping.print-section-org .stamping-print-page .person strong,body.org-stamping.print-section-org .stamping-print-page .person b{display:block!important;font-size:8px!important;line-height:1.15!important;text-align:center!important;overflow-wrap:anywhere!important}
  body.org-stamping.print-section-org .stamping-print-page .person small{display:block!important;font-size:7px!important;line-height:1.15!important;text-align:center!important;margin-top:.5mm!important}
  body.org-stamping.print-section-org .stamping-print-page .stamp-assignee-info,body.org-stamping.print-section-org .stamping-print-page .stamp-assignee-photo,body.org-stamping.print-section-org .stamping-print-page .person>div{text-align:center!important;justify-content:center!important}
@@ -49,11 +49,11 @@
  body.print-section-org .section-org-report>.hierarchy .level{break-inside:avoid-page!important}
  body.org-stamping.org-paper-a3.print-section-org .stamping-print-page{min-height:277mm!important}
  body.org-stamping.org-paper-a3.print-section-org .stamping-print-page .level-operator .people{grid-template-columns:repeat(10,minmax(0,1fr))!important;max-width:380mm!important;gap:3mm!important}
- body.org-stamping.org-paper-a3.print-section-org .stamping-print-page .level-operator .person{height:36mm!important;min-height:36mm!important;padding:2mm!important}
- body.org-stamping.org-paper-a3.print-section-org .stamping-print-page .person .avatar,body.org-stamping.org-paper-a3.print-section-org .stamping-print-page .person img{width:14mm!important;height:14mm!important;min-width:14mm!important}
+ body.org-stamping.org-paper-a3.print-section-org .stamping-print-page .level-operator .person{height:42mm!important;min-height:42mm!important;padding:2mm!important}
+ body.org-stamping.org-paper-a3.print-section-org .stamping-print-page .person .avatar,body.org-stamping.org-paper-a3.print-section-org .stamping-print-page .person img{width:16mm!important;height:16mm!important;min-width:16mm!important}
  body.org-stamping.org-paper-a3.print-section-org .stamping-print-page .person strong,body.org-stamping.org-paper-a3.print-section-org .stamping-print-page .person b{font-size:11px!important}
  body.org-stamping.org-paper-a3.print-section-org .stamping-print-page .person small{font-size:9px!important}
- body.org-stamping.org-paper-a3.print-section-org .stamping-print-page .level:not(.level-operator) .person{width:36mm!important;min-height:38mm!important}
+ body.org-stamping.org-paper-a3.print-section-org .stamping-print-page .level:not(.level-operator) .person{width:38mm!important;min-height:42mm!important}
  body.org-sorting.org-paper-a3.print-section-org .sorting-print-page{min-height:277mm!important}
  body.org-sorting.org-paper-a3.print-section-org .sorting-print-team .person{width:34mm!important;min-height:38mm!important;padding:2mm!important}
  body.org-sorting.org-paper-a3.print-section-org .sorting-print-team .person .avatar,body.org-sorting.org-paper-a3.print-section-org .sorting-print-team .person img{width:14mm!important;height:14mm!important;object-fit:cover!important;border-radius:50%!important}
