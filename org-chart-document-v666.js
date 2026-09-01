@@ -22,7 +22,7 @@ function render(){
  if(!report)return;
  const sec=section();if(!sec)return;
  document.querySelectorAll('.top-action-toolbar button[data-action="printSettings"]').forEach(button=>button.remove());
- const toolbar=document.querySelector('.top-action-toolbar');if(toolbar){toolbar.classList.add('org-chart-toolbar');if(!toolbar.querySelector('[data-action="orgChartPrint"]')){const button=document.createElement('button');button.type='button';button.dataset.action='orgChartPrint';button.textContent='พิมพ์ Organization Chart';toolbar.prepend(button)}}
+ const toolbar=document.querySelector('.top-action-toolbar');if(toolbar)toolbar.remove();
  let header=report.querySelector('.org-document-header');
  if(!header){header=document.createElement('section');header.className='org-document-header';report.prepend(header)}
  const logo=document.querySelector('header .logo img')?.src||'';const headerHtml=`<div class="org-document-logo">${logo?`<img src="${esc(logo)}" alt="JR">`:'<b>JR</b>'}</div><div class="org-document-title"><h1>SECTION ORGANIZATION CHART — ${esc(sec)}</h1><p>Production People Management System · Section: ${esc(sec)}</p></div><dl><div><dt>Revision</dt><dd>00</dd></div><div><dt>Effective Date / วันที่เริ่มใช้งาน</dt><dd>${esc(effectiveDate())}</dd></div></dl>`;if(header.innerHTML!==headerHtml)header.innerHTML=headerHtml;
@@ -31,7 +31,7 @@ function render(){
  const footerHtml='<div><b>Prepared by / จัดทำโดย</b><span></span><small>Signature / Date</small></div><div><b>Reviewed by / ตรวจสอบโดย</b><span></span><small>Signature / Date</small></div><div><b>Approved by / อนุมัติโดย</b><span></span><small>Signature / Date</small></div>';if(footer.innerHTML!==footerHtml)footer.innerHTML=footerHtml;
  stampingHierarchy(report,footer);
  const panel=document.querySelector('#sectionSelect')?.closest('.panel');
- if(panel&&!panel.querySelector('#orgEffectiveDate')){const label=document.createElement('label');label.className='org-effective-control';label.innerHTML='<span>วันที่เริ่มใช้งาน / Effective Date</span><input id="orgEffectiveDate" type="date">';panel.append(label);const input=label.querySelector('input');input.value=effectiveDate();input.addEventListener('change',()=>{if(input.value)localStorage.setItem(storageKey(),input.value);render()})}
+ if(panel&&!panel.querySelector('#orgEffectiveDate')){const label=document.createElement('label');label.className='org-effective-control';label.innerHTML='<span>วันที่เริ่มใช้งาน / Effective Date</span><input id="orgEffectiveDate" type="date">';panel.append(label);const input=label.querySelector('input');input.value=effectiveDate();input.addEventListener('change',()=>{if(input.value)localStorage.setItem(storageKey(),input.value);render()});const print=document.createElement('button');print.type='button';print.className='org-compact-print';print.dataset.action='orgChartPrint';print.textContent='พิมพ์';panel.append(print)}
 }
 let queued=false;const schedule=()=>{if(queued)return;queued=true;requestAnimationFrame(()=>{queued=false;render()})};
 new MutationObserver(schedule).observe(document.documentElement,{childList:true,subtree:true});
