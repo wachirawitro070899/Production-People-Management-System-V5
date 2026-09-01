@@ -10,6 +10,17 @@
   const currentShift=()=>shiftAt(Date.now());
   const targetShift=data=>data?.shift==='current'?currentShift():(data?.shift||currentShift());
   const shiftLabel=s=>s==='day'?'กะกลางวัน':s==='night'?'กะกลางคืน':'ทุกกะ';
+  const employeeCode=()=>String(localStorage.getItem('ppms_employee_code')||sessionStorage.getItem('attendanceEmp')||document.querySelector('#attendanceEmployeeId')?.value||'').trim();
+  const dateKey=value=>{const p=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Bangkok',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date(value??Date.now())),o={};p.forEach(x=>o[x.type]=x.value);return `${o.year}-${o.month}-${o.day}`};
+  const normalized=value=>String(value||'').trim().toUpperCase().replace(/[\s._\-/]+/g,'');
+  function assignedShiftAt(code,value=Date.now()){
+    try{
+      const employees=JSON.parse(localStorage.getItem('ppms_v3_employees')||'[]'),schedules=JSON.parse(localStorage.getItem('ppms_v3_shift_schedules')||'{}'),emp=(Array.isArray(employees)?employees:[]).find(x=>normalized(x?.id)===normalized(code));
+      if(!emp)return'';const d=dateKey(value),section=normalized(emp.section),id=normalized(emp.id),team=normalized(emp.team);
+      const rules=Object.values(schedules||{}).filter(r=>r&&!r.deleted&&normalized(r.section)===section&&String(r.startDate||'')<=d&&String(r.endDate||'')>=d&&((r.scope==='employee'&&normalized(r.employeeId)===id)||(r.scope==='team'&&team&&normalized(r.team)===team))).sort((a,b)=>(b.scope==='employee'?2:1)-(a.scope==='employee'?2:1)||String(b.updatedAt||'').localeCompare(String(a.updatedAt||'')));
+      const shift=String(rules[0]?.shift||emp.attendanceShift||emp.attShift||'day').toLowerCase();return shift==='night'?'night':'day';
+    }catch(_){return''}
+  }
   const seen=()=>{try{return JSON.parse(localStorage.getItem(SEEN_KEY)||'[]')}catch(_){return[]}};
   const markSeen=id=>localStorage.setItem(SEEN_KEY,JSON.stringify([...new Set([...seen(),id])].slice(-100)));
   const css=`
@@ -28,12 +39,14 @@
     if(!data||seen().includes(id))return;
     const activeShift=targetShift(data);
     if(activeShift!==currentShift())return;
+    const code=employeeCode(),rosterShift=assignedShiftAt(code,Number(data.scheduledAt||data.createdAt||Date.now()));
+    if(!isAdmin()&&(!code||!rosterShift||rosterShift!==activeShift))return;
     const created=Number(data.createdAt||0),expires=Number(data.expiresAt||created+8*3600000);
     if(!created||Date.now()>expires)return;
     markSeen(id);beep();
     const old=document.querySelector('.ppms-alert-overlay');if(old)old.remove();
     const el=document.createElement('div');el.className='ppms-alert-overlay';
-    el.innerHTML=`<div class="ppms-alert-card"><div class="ppms-alert-icon">${data.type==='audit'?'📋':'👥'}</div><h2>${data.type==='audit'?'แจ้งเตือน: มี Audit':'แจ้งเตือน: มีผู้เยี่ยมชม'}</h2><p>${esc(data.message||'กรุณาจัดเตรียมพื้นที่และปฏิบัติตามมาตรฐาน')}</p><small>${esc(shiftLabel(activeShift))} (กะที่กำลังทำงาน) • ${new Date(created).toLocaleString('th-TH')}</small><div style="margin-top:18px"><button type="button">รับทราบ</button></div></div>`;
+    el.innerHTML=`<div class="ppms-alert-card"><div class="ppms-alert-icon">${data.type==='audit'?'📋':'👥'}</div><h2>${data.type==='audit'?'แจ้งเตือน: มี Audit':'แจ้งเตือน: มีผู้เยี่ยมชม'}</h2><p>${esc(data.message||'กรุณาจัดเตรียมพื้นที่และปฏิบัติตามมาตรฐาน')}</p><small>${esc(shiftLabel(activeShift))} • อ้างอิงกะที่จัดในระบบ${code?' • '+esc(code):''} • ${new Date(created).toLocaleString('th-TH')}</small><div style="margin-top:18px"><button type="button">รับทราบ</button></div></div>`;
     el.querySelector('button').onclick=()=>el.remove();document.body.appendChild(el);
     if(document.hidden&&Notification.permission==='granted'){
       const n=new Notification(data.type==='audit'?'มี Audit เข้าพื้นที่':'มีผู้เยี่ยมชมเข้าพื้นที่',{body:data.message||'กรุณาจัดเตรียมพื้นที่และปฏิบัติตามมาตรฐาน',tag:'ppms-'+id,requireInteraction:true});
@@ -55,7 +68,7 @@
     wrap.querySelector('#paSend').onclick=async()=>{const b=wrap.querySelector('#paSend');b.disabled=true;try{if(!enabled())throw Error('Firebase ไม่พร้อม');const now=Date.now(),whenValue=wrap.querySelector('#paWhen').value,eventAt=whenValue?new Date(whenValue).getTime():now,leadMinutes=Number(wrap.querySelector('#paLead').value||0),scheduledAt=whenValue?eventAt-leadMinutes*60000:now;if(!Number.isFinite(eventAt)||!Number.isFinite(scheduledAt))throw Error('วันที่หรือเวลาไม่ถูกต้อง');if(whenValue&&scheduledAt<=now+30000)throw Error('เวลาส่งแจ้งเตือนผ่านมาแล้ว กรุณากำหนดเวลาเข้าพื้นที่ให้มากกว่าระยะเวลาแจ้งล่วงหน้า');const payload={type:wrap.querySelector('#paType').value,shift:wrap.querySelector('#paShift').value,message:wrap.querySelector('#paMessage').value.trim(),eventAt,leadMinutes,scheduledAt,createdAt:now,expiresAt:eventAt+8*3600000,createdBy:'admin'};if(scheduledAt>now+30000){await plansRef.push(payload);alert('บันทึกแผนเรียบร้อย • เข้าพื้นที่ '+new Date(eventAt).toLocaleString('th-TH')+' • แจ้งเตือน '+new Date(scheduledAt).toLocaleString('th-TH'))}else{payload.createdAt=now;payload.expiresAt=now+8*3600000;await db.ref(ROOT).push(payload);alert('ส่งแจ้งเตือนไปยัง '+shiftLabel(payload.shift)+' เรียบร้อยแล้ว')}wrap.remove()}catch(e){b.disabled=false;alert('บันทึกไม่สำเร็จ: '+e.message)}};
     document.body.appendChild(wrap);
   }
-  async function requestPermission(){if(!('Notification'in window))return alert('เบราว์เซอร์นี้ไม่รองรับการแจ้งเตือน');try{if(window.PPMSPush?.enable)await window.PPMSPush.enable();else{const p=await Notification.requestPermission();if(p!=='granted')throw Error('ยังไม่ได้อนุญาต Notification')}alert('เปิดแจ้งเตือนบนเครื่องนี้เรียบร้อยแล้ว ปิดเว็บก็รับแจ้งเตือนได้');refreshButtons()}catch(e){alert('เปิดแจ้งเตือนไม่สำเร็จ: '+e.message)}}
+  async function requestPermission(){if(!('Notification'in window))return alert('เบราว์เซอร์นี้ไม่รองรับการแจ้งเตือน');if(!employeeCode())return alert('กรุณากรอกรหัสพนักงานในหน้าเช็คชื่อก่อน เพื่อให้ระบบดึงกะที่จัดไว้ของพนักงานคนนี้');try{if(window.PPMSPush?.enable)await window.PPMSPush.enable();else{const p=await Notification.requestPermission();if(p!=='granted')throw Error('ยังไม่ได้อนุญาต Notification')}alert('เปิดแจ้งเตือนเรียบร้อย • ระบบจะส่งตามกะที่จัดไว้ในหน้าเว็บของพนักงานคนนี้');refreshButtons()}catch(e){alert('เปิดแจ้งเตือนไม่สำเร็จ: '+e.message)}}
   function refreshButtons(){
     document.querySelectorAll('#ppmsAlertAdmin,#ppmsAlertEnable').forEach(x=>x.remove());
     const b=document.createElement('button');
