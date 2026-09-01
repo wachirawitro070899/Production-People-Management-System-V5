@@ -97,3 +97,13 @@
  body.org-paper-a3.print-section-org .section-org-report>.hierarchy .person{width:38mm!important;min-height:50mm!important;padding:2mm!important}
  body.org-paper-a3.print-section-org .section-org-report>.hierarchy .person img,body.org-paper-a3.print-section-org .section-org-report>.hierarchy .person .avatar{width:20mm!important;height:20mm!important}
 }
+@media screen{
+ .stamping-standard-hierarchy .hierarchy{overflow:visible!important}
+ .stamping-standard-hierarchy .people{display:grid!important;grid-template-columns:repeat(auto-fit,120px)!important;justify-content:center!important;gap:10px!important;width:100%!important;max-width:1160px!important;margin:0 auto!important}
+ .stamping-standard-hierarchy .stamping-person-card{box-sizing:border-box!important;width:120px!important;height:158px!important;min-height:158px!important;padding:9px 7px!important;overflow:hidden!important}
+ .stamping-standard-hierarchy .stamping-card-photo img,.stamping-standard-hierarchy .stamping-card-photo .avatar{width:56px!important;height:56px!important;min-width:56px!important;object-fit:cover!important;object-position:center top!important;border-radius:50%!important}
+ .stamping-standard-hierarchy .stamping-card-name{font-size:11px!important;line-height:1.18!important;min-height:39px!important;height:39px!important;max-height:39px!important;padding:2px 0!important;word-break:normal!important;overflow-wrap:anywhere!important}
+ .stamping-standard-hierarchy .stamping-card-id{font-size:9px!important;line-height:14px!important;height:14px!important}
+ .stamping-standard-hierarchy .stamping-card-position{font-size:9px!important;line-height:14px!important;height:14px!important}
+ .stamping-standard-hierarchy .level:not(.level-operator) .people{display:flex!important;max-width:100%!important}
+}
