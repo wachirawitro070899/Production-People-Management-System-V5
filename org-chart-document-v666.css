@@ -24,10 +24,11 @@
  body.org-sorting.print-section-org .sorting-print-team{flex:1;display:flex;align-items:flex-start;justify-content:center}
  body.org-sorting.print-section-org .sorting-print-team>.sorting-team{padding:4mm!important}
  body.org-sorting.print-section-org .sorting-print-page>.org-document-approval{flex:0 0 auto;margin-top:3mm!important}
- body.org-stamping.print-section-org .section-org-report>.org-document-header,body.org-stamping.print-section-org .section-org-report>.stamping-infographic,body.org-stamping.print-section-org .section-org-report>.stamping-unassigned,body.org-stamping.print-section-org .section-org-report>.stamping-standard-hierarchy,body.org-stamping.print-section-org .section-org-report>.org-document-approval{display:none!important}
- body.org-stamping.print-section-org .stamping-print-page{display:flex!important;flex-direction:column;width:100%;min-height:190mm}
+ body.org-stamping.print-section-org .section-org-report>:not(.stamping-print-page){display:none!important}
+ body.org-stamping.print-section-org .stamping-print-page{display:flex!important;flex-direction:column;width:100%;height:190mm;min-height:0!important;overflow:hidden!important}
  body.org-stamping.print-section-org .stamping-print-page>.org-document-header{display:grid!important;flex:0 0 auto}
- body.org-stamping.print-section-org .stamping-print-page>.stamping-standard-hierarchy{display:block!important;zoom:1!important;width:100%!important;flex:1;margin:0!important;padding:3mm!important;break-before:auto!important;border-top:4px solid #155ca0}
+ body.org-stamping.print-section-org .stamping-print-page>.stamping-standard-hierarchy{display:flex!important;flex-direction:column;zoom:1!important;width:100%!important;min-height:0!important;flex:1 1 auto;margin:0!important;padding:2mm!important;break-before:auto!important;break-inside:auto!important;border-top:4px solid #155ca0;overflow:hidden!important}
+ body.org-stamping.print-section-org .stamping-print-page>.stamping-standard-hierarchy>.hierarchy{flex:1 1 auto;min-height:0!important;padding:2mm!important;break-inside:auto!important;overflow:hidden!important}
  body.org-stamping.print-section-org .stamping-print-page .level{margin:1.5mm 0!important}
  body.org-stamping.print-section-org .stamping-print-page .level-operator .people{display:grid!important;grid-template-columns:repeat(9,minmax(0,1fr));gap:2mm!important;width:100%;max-width:255mm;margin:auto}
  body.org-stamping.print-section-org .stamping-print-page .level-operator .person{width:100%!important;min-width:0!important;min-height:29mm!important;padding:1.5mm!important}
