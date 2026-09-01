@@ -33,7 +33,7 @@ function sortingPrintPages(report,header,footer){
  let pages=report.querySelector('.sorting-print-pages');
  if(!/^sorting\s*section$/i.test(section())){pages?.remove();return}
  const teams=[...report.querySelectorAll('.sorting-split>.sorting-team')];if(!teams.length)return;
- const html=teams.slice(0,2).map((team,index)=>`<section class="sorting-print-page">${header.outerHTML}<div class="sorting-print-title">SORTING ${index+1}</div><div class="sorting-print-team">${team.outerHTML}</div>${footer.outerHTML}</section>`).join('');
+ const meta=employeeMeta();const html=teams.slice(0,2).map(team=>{const clone=team.cloneNode(true);clone.querySelectorAll('[data-edit]').forEach(card=>{const id=String(card.dataset.edit||''),item=meta.get(employeeId(id))||null,visual=card.querySelector('img,.avatar')?.cloneNode(true),photo=visual?visual.outerHTML:'<div class="avatar">?</div>',name=item?.name||card.querySelector('b,strong')?.textContent||'',position=item?.position||card.closest('.level')?.querySelector('h4')?.textContent||'';card.classList.add('sorting-person-card');card.innerHTML=`<div class="sorting-card-photo">${photo}</div><strong class="sorting-card-name">${esc(name)}</strong><small class="sorting-card-id">${esc(id)}</small><small class="sorting-card-position">${esc(position)}</small>`});return`<section class="sorting-print-page">${header.outerHTML}<div class="sorting-print-team">${clone.outerHTML}</div>${footer.outerHTML}</section>`}).join('');
  if(!pages){pages=document.createElement('div');pages.className='sorting-print-pages';report.append(pages)}
  if(pages.innerHTML!==html)pages.innerHTML=html;
 }
