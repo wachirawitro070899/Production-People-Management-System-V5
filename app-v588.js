@@ -1912,7 +1912,7 @@ function dateKeyFromParts(y,m,d){return `${String(y).padStart(4,'0')}-${String(m
 function addDaysToKey(key,days){const [y,m,d]=String(key).split('-').map(Number),x=new Date(y,m-1,d,12,0,0);x.setDate(x.getDate()+Number(days||0));return dateKeyFromParts(x.getFullYear(),x.getMonth()+1,x.getDate())}
 function mondayOfKey(key=thaiDateKey()){const [y,m,d]=String(key).split('-').map(Number),x=new Date(y,m-1,d,12,0,0),dow=x.getDay(),back=(dow+6)%7;x.setDate(x.getDate()-back);return dateKeyFromParts(x.getFullYear(),x.getMonth()+1,x.getDate())}
 function isMondayKey(key){const [y,m,d]=String(key).split('-').map(Number);return new Date(y,m-1,d,12,0,0).getDay()===1}
-const SHIFT_CYCLE_ANCHOR='2026-08-10';
+const SHIFT_CYCLE_ANCHOR='2026-08-31';
 function daysBetweenKeys(a,b){const pa=String(a).split('-').map(Number),pb=String(b).split('-').map(Number);return Math.floor((Date.UTC(pb[0],pb[1]-1,pb[2])-Date.UTC(pa[0],pa[1]-1,pa[2]))/86400000)}
 function currentShiftCycleStart(key=thaiDateKey()){const diff=daysBetweenKeys(SHIFT_CYCLE_ANCHOR,key),n=Math.floor(diff/14);return addDaysToKey(SHIFT_CYCLE_ANCHOR,n*14)}
 function shiftRoundNumber(startKey){return Math.floor(daysBetweenKeys(SHIFT_CYCLE_ANCHOR,startKey)/14)+1}
