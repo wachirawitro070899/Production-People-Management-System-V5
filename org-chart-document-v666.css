@@ -107,3 +107,28 @@
  .stamping-standard-hierarchy .stamping-card-position{font-size:9px!important;line-height:14px!important;height:14px!important}
  .stamping-standard-hierarchy .level:not(.level-operator) .people{display:flex!important;max-width:100%!important}
 }
+/* V685: Welding is the master visual template for every Section chart. */
+.section-org-report .person{box-sizing:border-box!important;display:flex!important;flex-direction:column!important;align-items:center!important;justify-content:flex-start!important;text-align:center!important;border-width:1.5px!important;border-style:solid!important;border-radius:10px!important;box-shadow:none!important;overflow:hidden!important}
+.section-org-report .person.leader{border-color:#10b99a!important;background:#e5faf5!important}
+.section-org-report .person.operator{border-color:#ff5274!important;background:#fff0f4!important}
+.section-org-report .person.technician{border-color:#efa400!important;background:#fff7d9!important}
+.section-org-report .person.supervisor,.section-org-report .person.manager,.section-org-report .person.engineer{border-color:#7c5cff!important;background:#f3efff!important}
+.section-org-report .person.other{border-color:#2f80ed!important;background:#eef6ff!important}
+.section-org-report .person img,.section-org-report .person .avatar{flex:0 0 auto!important;object-fit:cover!important;object-position:center top!important;border-radius:50%!important}
+.section-org-report .person>b,.section-org-report .person>strong,.section-org-report .stamping-card-name,.section-org-report .sorting-card-name{display:flex!important;align-items:center!important;justify-content:center!important;width:100%!important;text-align:center!important;word-break:normal!important;overflow-wrap:anywhere!important;overflow:hidden!important;margin:0!important}
+.section-org-report .person>small,.section-org-report .stamping-card-id,.section-org-report .stamping-card-position,.section-org-report .sorting-card-id,.section-org-report .sorting-card-position{width:100%!important;text-align:center!important;margin:0!important}
+@media screen{
+ .section-org-report>.hierarchy .people,.section-org-report .sorting-team .people{justify-content:center!important;gap:10px!important}
+ .section-org-report>.hierarchy .person,.section-org-report .sorting-team .person{width:120px!important;height:158px!important;min-height:158px!important;padding:9px 7px!important}
+ .section-org-report>.hierarchy .person img,.section-org-report>.hierarchy .person .avatar,.section-org-report .sorting-team .person img,.section-org-report .sorting-team .person .avatar{width:56px!important;height:56px!important;min-width:56px!important}
+ .section-org-report>.hierarchy .person>b,.section-org-report .sorting-team .person>b{font-size:11px!important;line-height:1.18!important;height:39px!important;min-height:39px!important;max-height:39px!important;padding:2px 0!important}
+ .section-org-report>.hierarchy .person>small,.section-org-report .sorting-team .person>small{font-size:9px!important;line-height:14px!important}
+}
+@media print{
+ body.print-section-org .section-org-report .person>b,body.print-section-org .section-org-report .person>strong,body.print-section-org .section-org-report .stamping-card-name,body.print-section-org .section-org-report .sorting-card-name{font-size:8px!important;line-height:1.15!important;height:7mm!important;min-height:7mm!important;max-height:7mm!important;padding:.4mm 0!important}
+ body.print-section-org .section-org-report .person>small,body.print-section-org .section-org-report .stamping-card-id,body.print-section-org .section-org-report .stamping-card-position,body.print-section-org .section-org-report .sorting-card-id,body.print-section-org .section-org-report .sorting-card-position{font-size:7px!important;line-height:3mm!important}
+ body.print-section-org .unified-section-page .people.people-multi{grid-template-columns:repeat(9,minmax(0,1fr))!important;max-width:255mm!important;gap:2mm!important}
+ body.org-paper-a3.print-section-org .unified-section-page .people.people-multi,body.org-paper-a3.print-section-org .section-org-report>.hierarchy .people.people-multi{grid-template-columns:repeat(10,minmax(0,1fr))!important;max-width:380mm!important;gap:3mm!important}
+ body.org-paper-a3.print-section-org .section-org-report .person>b,body.org-paper-a3.print-section-org .section-org-report .person>strong,body.org-paper-a3.print-section-org .section-org-report .stamping-card-name,body.org-paper-a3.print-section-org .section-org-report .sorting-card-name{font-size:11px!important;line-height:1.15!important;height:10mm!important;min-height:10mm!important;max-height:10mm!important}
+ body.org-paper-a3.print-section-org .section-org-report .person>small,body.org-paper-a3.print-section-org .section-org-report .stamping-card-id,body.org-paper-a3.print-section-org .section-org-report .stamping-card-position,body.org-paper-a3.print-section-org .section-org-report .sorting-card-id,body.org-paper-a3.print-section-org .section-org-report .sorting-card-position{font-size:9px!important;line-height:4mm!important}
+}
