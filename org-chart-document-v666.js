@@ -17,6 +17,14 @@ function stampingHierarchy(report,footer){
  if(!extra){extra=document.createElement('section');extra.className='stamping-standard-hierarchy';report.insertBefore(extra,footer)}
  if(extra.innerHTML!==html)extra.innerHTML=html;
 }
+function sortingPrintPages(report,header,footer){
+ let pages=report.querySelector('.sorting-print-pages');
+ if(!/^sorting\s*section$/i.test(section())){pages?.remove();return}
+ const teams=[...report.querySelectorAll('.sorting-split>.sorting-team')];if(!teams.length)return;
+ const html=teams.slice(0,2).map((team,index)=>`<section class="sorting-print-page">${header.outerHTML}<div class="sorting-print-title">SORTING ${index+1}</div><div class="sorting-print-team">${team.outerHTML}</div>${footer.outerHTML}</section>`).join('');
+ if(!pages){pages=document.createElement('div');pages.className='sorting-print-pages';report.append(pages)}
+ if(pages.innerHTML!==html)pages.innerHTML=html;
+}
 function render(){
  const report=document.querySelector('.section-org-report');
  if(!report)return;
@@ -30,6 +38,7 @@ function render(){
  if(!footer){footer=document.createElement('section');footer.className='org-document-approval';report.append(footer)}
  const footerHtml='<div><b>Prepared by / จัดทำโดย</b><span></span><small>Signature / Date</small></div><div><b>Reviewed by / ตรวจสอบโดย</b><span></span><small>Signature / Date</small></div><div><b>Approved by / อนุมัติโดย</b><span></span><small>Signature / Date</small></div>';if(footer.innerHTML!==footerHtml)footer.innerHTML=footerHtml;
  stampingHierarchy(report,footer);
+ sortingPrintPages(report,header,footer);
  const panel=document.querySelector('#sectionSelect')?.closest('.panel');
  if(panel&&!panel.querySelector('#orgEffectiveDate')){const label=document.createElement('label');label.className='org-effective-control';label.innerHTML='<span>วันที่เริ่มใช้งาน / Effective Date</span><input id="orgEffectiveDate" type="date">';panel.append(label);const input=label.querySelector('input');input.value=effectiveDate();input.addEventListener('change',()=>{if(input.value)localStorage.setItem(storageKey(),input.value);render()});const print=document.createElement('button');print.type='button';print.className='org-compact-print';print.dataset.action='orgChartPrint';print.textContent='พิมพ์';panel.append(print)}
 }
