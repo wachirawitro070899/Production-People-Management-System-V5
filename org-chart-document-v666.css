@@ -25,13 +25,18 @@
  body.org-sorting.print-section-org .sorting-print-team>.sorting-team{padding:4mm!important}
  body.org-sorting.print-section-org .sorting-print-page>.org-document-approval{flex:0 0 auto;margin-top:3mm!important}
  body.org-stamping.print-section-org .section-org-report>:not(.stamping-print-page){display:none!important}
- body.org-stamping.print-section-org .stamping-print-page{display:flex!important;flex-direction:column;width:100%;height:190mm;min-height:0!important;overflow:hidden!important}
+ body.org-stamping.print-section-org .stamping-print-page{display:flex!important;flex-direction:column;width:100%;min-height:190mm;height:auto!important;overflow:visible!important;break-inside:avoid-page!important}
  body.org-stamping.print-section-org .stamping-print-page>.org-document-header{display:grid!important;flex:0 0 auto}
- body.org-stamping.print-section-org .stamping-print-page>.stamping-standard-hierarchy{display:flex!important;flex-direction:column;zoom:1!important;width:100%!important;min-height:0!important;flex:1 1 auto;margin:0!important;padding:2mm!important;break-before:auto!important;break-inside:auto!important;border-top:4px solid #155ca0;overflow:hidden!important}
- body.org-stamping.print-section-org .stamping-print-page>.stamping-standard-hierarchy>.hierarchy{flex:1 1 auto;min-height:0!important;padding:2mm!important;break-inside:auto!important;overflow:hidden!important}
+ body.org-stamping.print-section-org .stamping-print-page>.stamping-standard-hierarchy{display:flex!important;flex-direction:column;zoom:1!important;width:100%!important;min-height:0!important;flex:1 1 auto;margin:0!important;padding:2mm!important;break-before:auto!important;break-inside:auto!important;border-top:4px solid #155ca0;overflow:visible!important}
+ body.org-stamping.print-section-org .stamping-print-page>.stamping-standard-hierarchy>.hierarchy{flex:1 1 auto;min-height:0!important;padding:1.5mm!important;break-inside:auto!important;overflow:visible!important}
  body.org-stamping.print-section-org .stamping-print-page .level{margin:1.5mm 0!important}
  body.org-stamping.print-section-org .stamping-print-page .level-operator .people{display:grid!important;grid-template-columns:repeat(9,minmax(0,1fr));gap:2mm!important;width:100%;max-width:255mm;margin:auto}
  body.org-stamping.print-section-org .stamping-print-page .level-operator .person{width:100%!important;min-width:0!important;min-height:29mm!important;padding:1.5mm!important}
+ body.org-stamping.print-section-org .stamping-print-page .level-operator .people.people-wrapped{gap:1.2mm!important}
+ body.org-stamping.print-section-org .stamping-print-page .level-operator .people.people-wrapped .person{min-height:24mm!important;height:24mm!important;padding:1mm!important}
+ body.org-stamping.print-section-org .stamping-print-page .level-operator .people.people-wrapped .avatar{width:8mm!important;height:8mm!important}
+ body.org-stamping.print-section-org .stamping-print-page .level-operator .people.people-wrapped b,body.org-stamping.print-section-org .stamping-print-page .level-operator .people.people-wrapped strong{font-size:7px!important;line-height:1.1!important}
+ body.org-stamping.print-section-org .stamping-print-page .level-operator .people.people-wrapped small{font-size:6px!important;line-height:1.1!important}
  body.org-stamping.print-section-org .stamping-print-page .level:not(.level-operator) .people{display:flex!important;justify-content:center!important;flex-wrap:wrap!important}
  body.org-stamping.print-section-org .stamping-print-page .level:not(.level-operator) .person{width:27mm!important;min-height:29mm!important}
  body.org-stamping.print-section-org .stamping-print-page>.org-document-approval{display:grid!important;flex:0 0 auto;margin-top:2mm!important}
