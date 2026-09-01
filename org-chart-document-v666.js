@@ -5,17 +5,29 @@ const today=()=>new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Bangkok',year:'n
 const section=()=>String(sessionStorage.getItem('chartSec')||document.querySelector('#sectionSelect')?.value||'').trim();
 const storageKey=()=>`ppms_org_effective_date_${section().toLowerCase().replace(/\s+/g,'_')}`;
 const effectiveDate=()=>localStorage.getItem(storageKey())||today();
+const employeeId=value=>String(value||'').normalize('NFKC').trim().toUpperCase();
+function employeeMeta(){let list=[];try{const raw=JSON.parse(localStorage.getItem('ppms_v3_employees')||'[]');list=Array.isArray(raw)?raw:Object.values(raw||{})}catch(_){}return new Map(list.filter(Boolean).map(item=>[employeeId(item.id),item]))}
+const employmentRank=item=>String(item?.contractType||'').trim().toLowerCase()==='permanent'?0:1;
+const startTime=item=>{const time=Date.parse(item?.startDate||'');return Number.isFinite(time)?time:Number.MAX_SAFE_INTEGER};
 const rankOf=node=>{const text=node.textContent||'';if(/supervisor/i.test(text))return['supervisor','Supervisor'];if(/leader|หัวหน้าทีม/i.test(text))return['leader','Leader'];if(/technician/i.test(text))return['technician','Technician'];if(/operator/i.test(text))return['operator','Operator'];return['other','Other']};
 function stampingHierarchy(report,footer){
  let extra=report.querySelector('.stamping-standard-hierarchy');
  if(!/^stamping\s*section$/i.test(section())){extra?.remove();return}
  const unique=new Map();report.querySelectorAll('[data-edit]').forEach(node=>{const id=String(node.dataset.edit||'').trim();if(id&&!node.closest('.stamping-standard-hierarchy')&&!unique.has(id))unique.set(id,node)});
- const groups=new Map();for(const [id,node]of unique){const [rank,label]=rankOf(node);if(!groups.has(rank))groups.set(rank,{label,items:[]});groups.get(rank).items.push({id,node})}
+ const meta=employeeMeta(),groups=new Map();for(const [id,node]of unique){const [rank,label]=rankOf(node);if(!groups.has(rank))groups.set(rank,{label,items:[]});groups.get(rank).items.push({id,node,meta:meta.get(employeeId(id))||null})}for(const group of groups.values())group.items.sort((a,b)=>employmentRank(a.meta)-employmentRank(b.meta)||startTime(a.meta)-startTime(b.meta)||String(a.id).localeCompare(String(b.id),undefined,{numeric:true}));
  const order=['manager','engineer','supervisor','leader','technician','operator','other'];
- const levels=order.filter(rank=>groups.has(rank)).map(rank=>{const group=groups.get(rank);const people=group.items.map(({node})=>{const clone=node.cloneNode(true);clone.className=`person ${rank}`;clone.querySelectorAll('.org-exam-light,.stamp-machine-box,.stamp-assignee-info .stamp-role-name').forEach(el=>el.remove());return clone.outerHTML}).join('');return`<div class="level"><h4>${group.label}</h4><div class="people">${people}</div></div>`}).join('');
+ const levels=order.filter(rank=>groups.has(rank)).map(rank=>{const group=groups.get(rank);const people=group.items.map(({node,meta})=>{const clone=node.cloneNode(true);clone.className=`person ${rank}`;clone.dataset.contract=employmentRank(meta)===0?'permanent':'subcontractor';clone.querySelectorAll('.org-exam-light,.stamp-machine-box,.stamp-assignee-info .stamp-role-name').forEach(el=>el.remove());return clone.outerHTML}).join('');return`<div class="level level-${rank}"><h4>${group.label}</h4><div class="people">${people}</div></div>`}).join('');
  const html=`<h2>STAMPING SECTION – STANDARD ORGANIZATION CHART</h2><p>โครงสร้างตามลำดับตำแหน่ง / Position Hierarchy</p><div class="panel hierarchy">${levels||'<div class="empty">ไม่มีข้อมูลพนักงาน</div>'}</div>`;
  if(!extra){extra=document.createElement('section');extra.className='stamping-standard-hierarchy';report.insertBefore(extra,footer)}
  if(extra.innerHTML!==html)extra.innerHTML=html;
+}
+function stampingPrintPage(report,header,footer){
+ let page=report.querySelector('.stamping-print-page');if(!/^stamping\s*section$/i.test(section())){page?.remove();return}
+ const chart=report.querySelector('.stamping-standard-hierarchy');if(!chart)return;const html=`${header.outerHTML}${chart.outerHTML}${footer.outerHTML}`;
+ if(!page){page=document.createElement('section');page.className='stamping-print-page';report.append(page)}if(page.innerHTML!==html)page.innerHTML=html;
+}
+function sortAllPeople(report){
+ const meta=employeeMeta();report.querySelectorAll('.people').forEach(container=>{if(container.closest('.sorting-print-pages,.stamping-print-page'))return;const nodes=[...container.children].filter(node=>node.matches?.('[data-edit]'));if(!nodes.length)return;const indexed=nodes.map((node,index)=>({node,index,id:String(node.dataset.edit||''),meta:meta.get(employeeId(node.dataset.edit))||null}));const sorted=[...indexed].sort((a,b)=>employmentRank(a.meta)-employmentRank(b.meta)||startTime(a.meta)-startTime(b.meta)||(a.meta&&b.meta?String(a.id).localeCompare(String(b.id),undefined,{numeric:true}):a.index-b.index));if(sorted.some((item,index)=>item.node!==nodes[index]))sorted.forEach(item=>container.append(item.node));container.classList.toggle('people-multi',nodes.length>9);container.classList.toggle('people-wrapped',nodes.length>18)})
 }
 function sortingPrintPages(report,header,footer){
  let pages=report.querySelector('.sorting-print-pages');
@@ -29,6 +41,7 @@ function render(){
  const report=document.querySelector('.section-org-report');
  if(!report)return;
  const sec=section();if(!sec)return;
+ document.body.classList.toggle('org-stamping',/^stamping\s*section$/i.test(sec));document.body.classList.toggle('org-sorting',/^sorting\s*section$/i.test(sec));
  document.querySelectorAll('.top-action-toolbar button[data-action="printSettings"]').forEach(button=>button.remove());
  const toolbar=document.querySelector('.top-action-toolbar');if(toolbar)toolbar.remove();
  let header=report.querySelector('.org-document-header');
@@ -38,6 +51,8 @@ function render(){
  if(!footer){footer=document.createElement('section');footer.className='org-document-approval';report.append(footer)}
  const footerHtml='<div><b>Prepared by / จัดทำโดย</b><span></span><small>Signature / Date</small></div><div><b>Reviewed by / ตรวจสอบโดย</b><span></span><small>Signature / Date</small></div><div><b>Approved by / อนุมัติโดย</b><span></span><small>Signature / Date</small></div>';if(footer.innerHTML!==footerHtml)footer.innerHTML=footerHtml;
  stampingHierarchy(report,footer);
+ sortAllPeople(report);
+ stampingPrintPage(report,header,footer);
  sortingPrintPages(report,header,footer);
  const panel=document.querySelector('#sectionSelect')?.closest('.panel');
  if(panel&&!panel.querySelector('#orgEffectiveDate')){const label=document.createElement('label');label.className='org-effective-control';label.innerHTML='<span>วันที่เริ่มใช้งาน / Effective Date</span><input id="orgEffectiveDate" type="date">';panel.append(label);const input=label.querySelector('input');input.value=effectiveDate();input.addEventListener('change',()=>{if(input.value)localStorage.setItem(storageKey(),input.value);render()});const print=document.createElement('button');print.type='button';print.className='org-compact-print';print.dataset.action='orgChartPrint';print.textContent='พิมพ์';panel.append(print)}
