@@ -36,14 +36,21 @@ async function refreshLeaderEmployeeMaster(){
  const leaderId=String(sessionStorage.getItem('ppms_leader_id')||'').trim();if(!leaderId||!window.firebase)return false;
  try{
   if(!firebase.apps.length)firebase.initializeApp(window.PPMS_FIREBASE_CONFIG||{});
-  const db=firebase.database(),[employeeSnap,deletedSnap]=await Promise.all([
-   db.ref('ppms/employees').once('value'),db.ref('ppms/deletedEmployeeIds').once('value')
-  ]);
+  const db=firebase.database();
+  let employeeSnap=null,lastError=null;
+  for(let attempt=1;attempt<=3&&!employeeSnap;attempt++){
+   try{employeeSnap=await db.ref('ppms/employees').once('value')}catch(error){lastError=error;if(attempt<3)await new Promise(resolve=>setTimeout(resolve,600*attempt))}
+  }
+  if(!employeeSnap)throw lastError||Error('โหลด Employee Master ไม่สำเร็จ');
   const list=employeeList(employeeSnap.val()),leader=findEmployee(list,leaderId);if(!leader)return false;
-  const decoded=typeof firebaseDecodeData==='function'?firebaseDecodeData(deletedSnap.val()):deletedSnap.val();
-  const deleted=Array.isArray(decoded)?decoded:Object.values(decoded||{}),activeKeys=new Set(list.map(item=>employeeKey(item?.id)));
-  const cleaned=deleted.filter(id=>!activeKeys.has(employeeKey(id)));
-  if(cleaned.length!==deleted.length)await db.ref('ppms/deletedEmployeeIds').set(typeof firebaseEncodeData==='function'?firebaseEncodeData(cleaned):cleaned);
+  let cleaned=typeof deletedEmployeeIds!=='undefined'?[...deletedEmployeeIds].map(String):[];
+  try{
+   const deletedSnap=await db.ref('ppms/deletedEmployeeIds').once('value');
+   const decoded=typeof firebaseDecodeData==='function'?firebaseDecodeData(deletedSnap.val()):deletedSnap.val();
+   const deleted=Array.isArray(decoded)?decoded:Object.values(decoded||{}),activeKeys=new Set(list.map(item=>employeeKey(item?.id)));
+   cleaned=deleted.filter(id=>!activeKeys.has(employeeKey(id)));
+   if(cleaned.length!==deleted.length)await db.ref('ppms/deletedEmployeeIds').set(typeof firebaseEncodeData==='function'?firebaseEncodeData(cleaned):cleaned);
+  }catch(error){console.warn('Leader deletion marker refresh skipped',error)}
   const leaderSection=String(leader.section||''),leaderSectionKey=sectionKey(leaderSection);
   const fresh=list.map(item=>sectionKey(item?.section)===leaderSectionKey?{...item,section:leaderSection}:{...item});
   employees=fresh;
@@ -55,7 +62,7 @@ async function refreshLeaderEmployeeMaster(){
   return true;
  }catch(error){
   console.warn('Leader employee master refresh failed',error);
-  return false;
+  return Boolean(typeof leaderEmployee==='function'&&leaderEmployee());
  }
 }
 async function leaderLogin(){
@@ -110,7 +117,7 @@ document.addEventListener('click',event=>{
  open.disabled=true;
  refreshLeaderEmployeeMaster().then(ok=>{
   const leader=typeof leaderEmployee==='function'?leaderEmployee():null;
-  if(!ok||!leader)throw Error('โหลดรายชื่อพนักงานของ Section ไม่สำเร็จ กรุณาตรวจอินเทอร์เน็ต');
+  if(!leader)throw Error('ไม่พบข้อมูล Leader กรุณา Logout แล้ว Login ใหม่');
   shiftManagementModal(leader.section,typeof currentShiftCycleStart==='function'?currentShiftCycleStart():'');
  }).catch(error=>alert(error.message||String(error))).finally(()=>{open.disabled=false});
 },true);
