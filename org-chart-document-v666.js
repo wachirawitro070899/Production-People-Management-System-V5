@@ -5,6 +5,18 @@ const today=()=>new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Bangkok',year:'n
 const section=()=>String(sessionStorage.getItem('chartSec')||document.querySelector('#sectionSelect')?.value||'').trim();
 const storageKey=()=>`ppms_org_effective_date_${section().toLowerCase().replace(/\s+/g,'_')}`;
 const effectiveDate=()=>localStorage.getItem(storageKey())||today();
+const rankOf=node=>{const text=node.textContent||'';if(/supervisor/i.test(text))return['supervisor','Supervisor'];if(/leader|หัวหน้าทีม/i.test(text))return['leader','Leader'];if(/technician/i.test(text))return['technician','Technician'];if(/operator/i.test(text))return['operator','Operator'];return['other','Other']};
+function stampingHierarchy(report,footer){
+ let extra=report.querySelector('.stamping-standard-hierarchy');
+ if(!/^stamping\s*section$/i.test(section())){extra?.remove();return}
+ const unique=new Map();report.querySelectorAll('[data-edit]').forEach(node=>{const id=String(node.dataset.edit||'').trim();if(id&&!node.closest('.stamping-standard-hierarchy')&&!unique.has(id))unique.set(id,node)});
+ const groups=new Map();for(const [id,node]of unique){const [rank,label]=rankOf(node);if(!groups.has(rank))groups.set(rank,{label,items:[]});groups.get(rank).items.push({id,node})}
+ const order=['manager','engineer','supervisor','leader','technician','operator','other'];
+ const levels=order.filter(rank=>groups.has(rank)).map(rank=>{const group=groups.get(rank);const people=group.items.map(({node})=>{const clone=node.cloneNode(true);clone.className=`person ${rank}`;clone.querySelectorAll('.org-exam-light,.stamp-machine-box,.stamp-assignee-info .stamp-role-name').forEach(el=>el.remove());return clone.outerHTML}).join('');return`<div class="level"><h4>${group.label}</h4><div class="people">${people}</div></div>`}).join('');
+ const html=`<h2>STAMPING SECTION – STANDARD ORGANIZATION CHART</h2><p>โครงสร้างตามลำดับตำแหน่ง / Position Hierarchy</p><div class="panel hierarchy">${levels||'<div class="empty">ไม่มีข้อมูลพนักงาน</div>'}</div>`;
+ if(!extra){extra=document.createElement('section');extra.className='stamping-standard-hierarchy';report.insertBefore(extra,footer)}
+ if(extra.innerHTML!==html)extra.innerHTML=html;
+}
 function render(){
  const report=document.querySelector('.section-org-report');
  if(!report)return;
@@ -17,6 +29,7 @@ function render(){
  let footer=report.querySelector('.org-document-approval');
  if(!footer){footer=document.createElement('section');footer.className='org-document-approval';report.append(footer)}
  const footerHtml='<div><b>Prepared by / จัดทำโดย</b><span></span><small>Signature / Date</small></div><div><b>Reviewed by / ตรวจสอบโดย</b><span></span><small>Signature / Date</small></div><div><b>Approved by / อนุมัติโดย</b><span></span><small>Signature / Date</small></div>';if(footer.innerHTML!==footerHtml)footer.innerHTML=footerHtml;
+ stampingHierarchy(report,footer);
  const panel=document.querySelector('#sectionSelect')?.closest('.panel');
  if(panel&&!panel.querySelector('#orgEffectiveDate')){const label=document.createElement('label');label.className='org-effective-control';label.innerHTML='<span>วันที่เริ่มใช้งาน / Effective Date</span><input id="orgEffectiveDate" type="date">';panel.append(label);const input=label.querySelector('input');input.value=effectiveDate();input.addEventListener('change',()=>{if(input.value)localStorage.setItem(storageKey(),input.value);render()})}
 }
