@@ -6,7 +6,9 @@
   const enabled=()=>typeof firebase!=='undefined'&&window.PPMS_FIREBASE_CONFIG;
   const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const isAdmin=()=>sessionStorage.getItem('ppms_admin')==='1';
-  const currentShift=()=>{const h=new Date().getHours();return h>=7&&h<19?'day':'night'};
+  const shiftAt=value=>{const h=new Date(value??Date.now()).getHours();return h>=7&&h<19?'day':'night'};
+  const currentShift=()=>shiftAt(Date.now());
+  const targetShift=data=>data?.shift==='current'?currentShift():(data?.shift||currentShift());
   const shiftLabel=s=>s==='day'?'กะกลางวัน':s==='night'?'กะกลางคืน':'ทุกกะ';
   const seen=()=>{try{return JSON.parse(localStorage.getItem(SEEN_KEY)||'[]')}catch(_){return[]}};
   const markSeen=id=>localStorage.setItem(SEEN_KEY,JSON.stringify([...new Set([...seen(),id])].slice(-100)));
@@ -24,13 +26,14 @@
   function beep(){try{const C=window.AudioContext||window.webkitAudioContext,a=new C(),o=a.createOscillator(),g=a.createGain();o.frequency.value=880;g.gain.value=.16;o.connect(g);g.connect(a.destination);o.start();setTimeout(()=>{o.stop();a.close()},650)}catch(_){}}
   function showAlert(data,id){
     if(!data||seen().includes(id))return;
-    if(data.shift!=='all'&&data.shift!==currentShift())return;
+    const activeShift=targetShift(data);
+    if(activeShift!==currentShift())return;
     const created=Number(data.createdAt||0),expires=Number(data.expiresAt||created+8*3600000);
     if(!created||Date.now()>expires)return;
     markSeen(id);beep();
     const old=document.querySelector('.ppms-alert-overlay');if(old)old.remove();
     const el=document.createElement('div');el.className='ppms-alert-overlay';
-    el.innerHTML=`<div class="ppms-alert-card"><div class="ppms-alert-icon">${data.type==='audit'?'📋':'👥'}</div><h2>${data.type==='audit'?'แจ้งเตือน: มี Audit':'แจ้งเตือน: มีผู้เยี่ยมชม'}</h2><p>${esc(data.message||'กรุณาจัดเตรียมพื้นที่และปฏิบัติตามมาตรฐาน')}</p><small>${esc(shiftLabel(data.shift))} • ${new Date(created).toLocaleString('th-TH')}</small><div style="margin-top:18px"><button type="button">รับทราบ</button></div></div>`;
+    el.innerHTML=`<div class="ppms-alert-card"><div class="ppms-alert-icon">${data.type==='audit'?'📋':'👥'}</div><h2>${data.type==='audit'?'แจ้งเตือน: มี Audit':'แจ้งเตือน: มีผู้เยี่ยมชม'}</h2><p>${esc(data.message||'กรุณาจัดเตรียมพื้นที่และปฏิบัติตามมาตรฐาน')}</p><small>${esc(shiftLabel(activeShift))} (กะที่กำลังทำงาน) • ${new Date(created).toLocaleString('th-TH')}</small><div style="margin-top:18px"><button type="button">รับทราบ</button></div></div>`;
     el.querySelector('button').onclick=()=>el.remove();document.body.appendChild(el);
     if(document.hidden&&Notification.permission==='granted'){
       const n=new Notification(data.type==='audit'?'มี Audit เข้าพื้นที่':'มีผู้เยี่ยมชมเข้าพื้นที่',{body:data.message||'กรุณาจัดเตรียมพื้นที่และปฏิบัติตามมาตรฐาน',tag:'ppms-'+id,requireInteraction:true});
@@ -45,6 +48,10 @@
     const renderPlans=snap=>{const rows=[];snap.forEach(x=>{const p=x.val()||{};if(Number(p.scheduledAt||0)+8*3600000<Date.now())return;rows.push({id:x.key,...p})});rows.sort((a,b)=>a.scheduledAt-b.scheduledAt);list.innerHTML=rows.length?rows.map(p=>`<div class="ppms-plan-row"><button type="button" data-plan-delete="${esc(p.id)}">ลบ</button><b>${p.type==='audit'?'📋 Audit':'👥 ผู้เยี่ยมชม'}</b> • ${esc(shiftLabel(p.shift))}<br>เข้าพื้นที่: ${new Date(p.eventAt||p.scheduledAt).toLocaleString('th-TH')}<br>แจ้งเตือน: ${new Date(p.scheduledAt).toLocaleString('th-TH')}<br>${esc(p.message)}</div>`).join(''):'ยังไม่มีแผนแจ้งเตือน';list.querySelectorAll('[data-plan-delete]').forEach(b=>b.onclick=async()=>{if(confirm('ลบแผนแจ้งเตือนนี้หรือไม่?'))await plansRef.child(b.dataset.planDelete).remove()})};
     plansRef.on('value',renderPlans);wrap.addEventListener('remove',()=>plansRef.off('value',renderPlans));
     wrap.querySelector('#paCancel').onclick=()=>wrap.remove();
+    const shiftSelect=wrap.querySelector('#paShift');
+    const refreshTargetShift=()=>{const whenValue=wrap.querySelector('#paWhen').value,lead=Number(wrap.querySelector('#paLead').value||0),targetAt=whenValue?new Date(whenValue).getTime()-lead*60000:Date.now(),shift=shiftAt(targetAt);shiftSelect.innerHTML=`<option value="${shift}">${shiftLabel(shift)} (กะที่กำลังทำงานตอนแจ้ง)</option>`;shiftSelect.value=shift};
+    refreshTargetShift();wrap.querySelector('#paWhen').addEventListener('change',refreshTargetShift);wrap.querySelector('#paLead').addEventListener('change',refreshTargetShift);
+    wrap.querySelector('#paSend').addEventListener('click',refreshTargetShift,true);
     wrap.querySelector('#paSend').onclick=async()=>{const b=wrap.querySelector('#paSend');b.disabled=true;try{if(!enabled())throw Error('Firebase ไม่พร้อม');const now=Date.now(),whenValue=wrap.querySelector('#paWhen').value,eventAt=whenValue?new Date(whenValue).getTime():now,leadMinutes=Number(wrap.querySelector('#paLead').value||0),scheduledAt=whenValue?eventAt-leadMinutes*60000:now;if(!Number.isFinite(eventAt)||!Number.isFinite(scheduledAt))throw Error('วันที่หรือเวลาไม่ถูกต้อง');if(whenValue&&scheduledAt<=now+30000)throw Error('เวลาส่งแจ้งเตือนผ่านมาแล้ว กรุณากำหนดเวลาเข้าพื้นที่ให้มากกว่าระยะเวลาแจ้งล่วงหน้า');const payload={type:wrap.querySelector('#paType').value,shift:wrap.querySelector('#paShift').value,message:wrap.querySelector('#paMessage').value.trim(),eventAt,leadMinutes,scheduledAt,createdAt:now,expiresAt:eventAt+8*3600000,createdBy:'admin'};if(scheduledAt>now+30000){await plansRef.push(payload);alert('บันทึกแผนเรียบร้อย • เข้าพื้นที่ '+new Date(eventAt).toLocaleString('th-TH')+' • แจ้งเตือน '+new Date(scheduledAt).toLocaleString('th-TH'))}else{payload.createdAt=now;payload.expiresAt=now+8*3600000;await db.ref(ROOT).push(payload);alert('ส่งแจ้งเตือนไปยัง '+shiftLabel(payload.shift)+' เรียบร้อยแล้ว')}wrap.remove()}catch(e){b.disabled=false;alert('บันทึกไม่สำเร็จ: '+e.message)}};
     document.body.appendChild(wrap);
   }
