@@ -18,16 +18,37 @@
     const input = document.querySelector('input[id*="employee"][id*="code"],#attendanceEmployeeId,#employeeCode');
     return input?.value?.trim() || sessionStorage.getItem('attendanceEmp') || '';
   }
-  function employeeShift(code) {
+  function normalized(value) {
+    return String(value || '').trim().toUpperCase().replace(/[\s._\-/]+/g, '');
+  }
+  function bangkokDateKey(value) {
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Bangkok', year: 'numeric', month: '2-digit', day: '2-digit'
+    }).formatToParts(new Date(value || Date.now()));
+    const get = type => parts.find(part => part.type === type)?.value || '';
+    return `${get('year')}-${get('month')}-${get('day')}`;
+  }
+  function employeeShift(code, value) {
     try {
-      const list=JSON.parse(localStorage.getItem('ppms_v3_employees')||'[]');
-      const key=String(code||'').trim().toUpperCase().replace(/[\s._\-/]+/g,'');
-      const emp=Array.isArray(list)?list.find(x=>String(x?.id||'').trim().toUpperCase().replace(/[\s._\-/]+/g,'')===key):null;
-      const value=String(emp?.attendanceShift||emp?.shift||'').toLowerCase();
-      if(/night|กลางคืน|ดึก/.test(value))return'night';
-      if(/day|กลางวัน|เช้า/.test(value))return'day';
+      const list = JSON.parse(localStorage.getItem('ppms_v3_employees') || '[]');
+      const schedules = JSON.parse(localStorage.getItem('ppms_v3_shift_schedules') || '{}');
+      const key = normalized(code);
+      const emp = Array.isArray(list) ? list.find(item => normalized(item?.id) === key) : null;
+      const date = bangkokDateKey(value);
+      const rules = Object.values(schedules || {}).filter(rule => {
+        if (!rule || rule.deleted || normalized(rule.section) !== normalized(emp?.section)) return false;
+        if (date < String(rule.startDate || '') || date > String(rule.endDate || '')) return false;
+        if (rule.scope === 'employee') return normalized(rule.employeeId) === key;
+        return rule.scope === 'team' && normalized(rule.team) === normalized(emp?.team);
+      }).sort((a, b) => {
+        const priority = rule => rule.scope === 'employee' ? 2 : 1;
+        return priority(b) - priority(a) || String(b.updatedAt || '').localeCompare(String(a.updatedAt || ''));
+      });
+      const assigned = String(rules[0]?.shift || emp?.attendanceShift || emp?.attShift || emp?.shift || '').toLowerCase();
+      if (/night|กลางคืน|ดึก/.test(assigned)) return 'night';
+      if (/day|กลางวัน|เช้า/.test(assigned)) return 'day';
     } catch (_) {}
-    return localStorage.getItem('ppms_employee_shift') || currentShift();
+    return currentShift();
   }
   function iosStandaloneRequired() {
     return /iphone|ipad|ipod/i.test(navigator.userAgent) &&
@@ -68,5 +89,8 @@
   }
   window.PPMSPush = { enable, refresh, supported };
   document.addEventListener('change',event=>{if(!event.target?.matches?.('#attendanceEmployeeId,#employeeCode,input[id*="employee"][id*="code"]'))return;const code=String(event.target.value||'').trim();if(!code)return;localStorage.setItem('ppms_employee_code',code);localStorage.setItem('ppms_employee_shift',employeeShift(code));setTimeout(refresh,500)});
-  document.addEventListener('DOMContentLoaded', () => setTimeout(refresh, 2500));
+  document.addEventListener('DOMContentLoaded', () => {
+    setTimeout(refresh, 2500);
+    setInterval(refresh, 10 * 60 * 1000);
+  });
 })();
