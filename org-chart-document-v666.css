@@ -108,6 +108,7 @@
  .stamping-standard-hierarchy .level:not(.level-operator) .people{display:flex!important;max-width:100%!important}
 }
 /* V685: Welding is the master visual template for every Section chart. */
+.section-org-report .exam-plan-light{display:none!important}
 .section-org-report .person{box-sizing:border-box!important;display:flex!important;flex-direction:column!important;align-items:center!important;justify-content:flex-start!important;text-align:center!important;border-width:1.5px!important;border-style:solid!important;border-radius:10px!important;box-shadow:none!important;overflow:hidden!important}
 .section-org-report .person.leader{border-color:#10b99a!important;background:#e5faf5!important}
 .section-org-report .person.operator{border-color:#ff5274!important;background:#fff0f4!important}
