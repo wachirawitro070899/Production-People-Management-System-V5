@@ -1,139 +1,30 @@
-// V603: Leader login must wait for Firebase employee master before validating an ID.
+// V662: standalone Leader roster. Reads and verifies Firebase directly.
 (()=>{'use strict';
-function isLeader(position){const text=String(position||'').trim();return /\bleader\b/i.test(text)||text.includes('หัวหน้าทีม')}
-function employeeList(value){
- const decoded=typeof firebaseDecodeData==='function'?firebaseDecodeData(value):value;
- const source=decoded&&typeof decoded==='object'&&Object.prototype.hasOwnProperty.call(decoded,'employees')?decoded.employees:decoded;
- if(Array.isArray(source))return source.filter(Boolean);
- if(source&&typeof source==='object')return Object.entries(source).map(([key,item])=>item&&typeof item==='object'?{...item,id:String(item.id||'').trim()||key}:null).filter(Boolean);
- return[];
+const esc=value=>String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
+const employeeKey=value=>String(value||'').normalize('NFKC').replace(/[\u200B-\u200D\uFEFF]/g,'').trim().toUpperCase().replace(/[\s._\-/]+/g,'');
+const sectionKey=value=>String(value||'').normalize('NFKC').trim().toLowerCase().replace(/\b(section|department|dept)\b/g,'').replace(/[\s._\-/]+/g,'');
+const isLeader=position=>/\bleader\b/i.test(String(position||''))||String(position||'').includes('หัวหน้าทีม');
+const employeesFrom=value=>{const source=value&&typeof value==='object'&&Object.prototype.hasOwnProperty.call(value,'employees')?value.employees:value;if(Array.isArray(source))return source.filter(Boolean);return source&&typeof source==='object'?Object.entries(source).map(([key,item])=>item&&typeof item==='object'?{...item,id:String(item.id||'').trim()||key}:null).filter(Boolean):[]};
+const findEmployee=(list,value)=>{const key=employeeKey(value);let found=list.find(item=>employeeKey(item?.id)===key);if(found)return found;const match=key.match(/(\d+)$/);if(!match)return null;const tail=String(Number(match[1])),matches=list.filter(item=>{const m=employeeKey(item?.id).match(/(\d+)$/);return m&&String(Number(m[1]))===tail});return matches.length===1?matches[0]:null};
+function firebaseDb(){if(!window.firebase)throw Error('โหลด Firebase ไม่สำเร็จ กรุณาตรวจสอบอินเทอร์เน็ต');if(!firebase.apps.length)firebase.initializeApp(window.PPMS_FIREBASE_CONFIG||{});return firebase.database()}
+async function loadMaster(){const db=firebaseDb(),snap=await db.ref('ppms').once('value'),root=snap.val()||{};return{db,root,employees:employeesFrom(root),schedules:root.shiftSchedules&&typeof root.shiftSchedules==='object'?root.shiftSchedules:{}}}
+async function leaderLogin(){const id=String(prompt('กรอกรหัสพนักงาน Leader เพื่อจัดกะ')||'').trim();if(!id)return;const button=document.getElementById('leaderLoginBtn');if(button){button.disabled=true;button.textContent='กำลังตรวจสอบ...'}try{const master=await loadMaster(),emp=findEmployee(master.employees,id);if(!emp)throw Error('ไม่พบรหัสพนักงานนี้ใน Employee Master');if(!isLeader(emp.position))throw Error('รหัสนี้ไม่มีสิทธิ์ Leader สำหรับจัดกะ');if(!String(emp.section||'').trim())throw Error('Leader คนนี้ยังไม่ได้กำหนด Section');sessionStorage.removeItem('ppms_admin');sessionStorage.setItem('ppms_leader_id',String(emp.id));sessionStorage.setItem('shiftRosterSection',String(emp.section));location.reload()}catch(error){alert(error.message||String(error));if(button){button.disabled=false;button.textContent='Leader Login / จัดกะ'}}}
+function dateKey(date=new Date()){return new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Bangkok',year:'numeric',month:'2-digit',day:'2-digit'}).format(date)}
+function addDays(key,days){const [y,m,d]=key.split('-').map(Number),date=new Date(Date.UTC(y,m-1,d+days,5));return date.toISOString().slice(0,10)}
+function cycleStart(){const anchor='2026-08-10',[ay,am,ad]=anchor.split('-').map(Number),today=dateKey(),[y,m,d]=today.split('-').map(Number),days=Math.floor((Date.UTC(y,m-1,d)-Date.UTC(ay,am-1,ad))/86400000);return addDays(anchor,Math.floor(days/14)*14)}
+function rounds(){const start=cycleStart();return Array.from({length:4},(_,index)=>({no:index+1,start:addDays(start,index*14),end:addDays(start,index*14+13)}))}
+function ruleId(section,employeeId,round){return[section,'employee',employeeId,round.start,round.end].map(value=>encodeURIComponent(String(value))).join('__')}
+function activeRule(schedules,section,employeeId,round){return Object.values(schedules||{}).filter(rule=>rule&&!rule.deleted&&sectionKey(rule.section)===sectionKey(section)&&rule.scope==='employee'&&employeeKey(rule.employeeId)===employeeKey(employeeId)&&String(rule.startDate)<=round.end&&String(rule.endDate)>=round.start).sort((a,b)=>String(b.updatedAt||'').localeCompare(String(a.updatedAt||'')))[0]||null}
+function openModal(html){const modal=document.getElementById('modal'),body=document.getElementById('modalBody');if(!modal||!body)throw Error('ไม่พบหน้าต่างจัดกะ');body.innerHTML=html;modal.classList.remove('hidden');body.querySelectorAll('[data-leader-close]').forEach(button=>button.onclick=()=>modal.classList.add('hidden'))}
+async function openLeaderRoster(){
+ const leaderId=String(sessionStorage.getItem('ppms_leader_id')||'').trim();if(!leaderId)throw Error('กรุณา Login ด้วยรหัส Leader');
+ const master=await loadMaster(),leader=findEmployee(master.employees,leaderId);if(!leader||!isLeader(leader.position))throw Error('ไม่พบสิทธิ์ Leader กรุณา Logout แล้ว Login ใหม่');
+ const section=String(leader.section||''),list=master.employees.filter(item=>sectionKey(item.section)===sectionKey(section)).sort((a,b)=>String(a.id).localeCompare(String(b.id),undefined,{numeric:true})),plan=rounds();if(!list.length)throw Error('ไม่พบพนักงานใน '+section);
+ const heads=plan.map(round=>'<th>รอบ '+round.no+'<br><small>'+esc(round.start)+' → '+esc(round.end)+'</small></th>').join('');
+ const rows=list.map((emp,index)=>'<tr><td><b>'+esc(emp.id)+'</b><br>'+esc(emp.name||emp.thaiName||'')+'<br><small>'+esc(emp.position||'')+'</small></td>'+plan.map((round,roundIndex)=>{const value=activeRule(master.schedules,section,emp.id,round)?.shift||'';return'<td><select name="s_'+index+'_'+roundIndex+'"><option value="">ใช้ Default</option><option value="day" '+(value==='day'?'selected':'')+'>☀️ Day</option><option value="night" '+(value==='night'?'selected':'')+'>🌙 Night</option></select></td>'}).join('')+'</tr>').join('');
+ openModal('<button type="button" class="close" data-leader-close>×</button><h2>จัดกะพนักงาน • '+esc(section)+'</h2><p class="modal-note">โหลดจาก Firebase โดยตรง • พบพนักงาน <b>'+list.length+' คน</b></p><form id="leaderRosterDirect"><div class="shift-round-actions">'+plan.map((round,index)=>'<div><b>รอบ '+round.no+'</b> <button type="button" class="secondary" data-set-round="'+index+'" data-shift="day">ทุกคน Day</button> <button type="button" class="secondary" data-set-round="'+index+'" data-shift="night">ทุกคน Night</button> <button type="button" class="secondary" data-set-round="'+index+'" data-shift="">ล้าง</button></div>').join('')+'</div><div class="table-wrap shift-plan-scroll"><table class="shift-plan-table"><thead><tr><th>พนักงาน</th>'+heads+'</tr></thead><tbody>'+rows+'</tbody></table></div><div class="actions"><button type="submit">บันทึกกะและยืนยัน Firebase</button><button type="button" class="secondary" data-leader-close>ยกเลิก</button></div></form>');
+ const form=document.getElementById('leaderRosterDirect');form.querySelectorAll('[data-set-round]').forEach(button=>button.onclick=()=>{const column=button.dataset.setRound;form.querySelectorAll('select[name$="_'+column+'"]').forEach(select=>select.value=button.dataset.shift)});
+ form.onsubmit=async event=>{event.preventDefault();const submit=form.querySelector('[type="submit"]');submit.disabled=true;submit.textContent='กำลังบันทึกและตรวจสอบ...';try{const latest=(await master.db.ref('ppms/shiftSchedules').once('value')).val()||{},now=new Date().toISOString();for(const [id,rule]of Object.entries(latest)){if(!rule||rule.deleted||sectionKey(rule.section)!==sectionKey(section)||rule.scope!=='employee')continue;if(plan.some(round=>String(rule.startDate)<=round.end&&String(rule.endDate)>=round.start))latest[id]={...rule,deleted:true,updatedAt:now}}list.forEach((emp,index)=>plan.forEach((round,roundIndex)=>{const shift=String(form.elements['s_'+index+'_'+roundIndex]?.value||'');if(!['day','night'].includes(shift))return;const id=ruleId(section,emp.id,round);latest[id]={id,section,scope:'employee',employeeId:String(emp.id),startDate:round.start,endDate:round.end,roundNo:round.no,shift,createdAt:latest[id]?.createdAt||now,updatedAt:now,deleted:false,createdByLeader:String(leader.id)}}));await master.db.ref('ppms/shiftSchedules').set(latest);const verified=(await master.db.ref('ppms/shiftSchedules').once('value')).val()||{},failed=list.some((emp,index)=>plan.some((round,roundIndex)=>{const selected=String(form.elements['s_'+index+'_'+roundIndex]?.value||'');return selected&&activeRule(verified,section,emp.id,round)?.shift!==selected}));if(failed)throw Error('Firebase รับข้อมูลกะไม่ครบ กรุณากดบันทึกอีกครั้ง');localStorage.setItem('ppms_v3_shift_schedules',JSON.stringify(verified));localStorage.setItem('ppms_v3_shift_cloud_dirty','0');document.getElementById('modal').classList.add('hidden');alert('บันทึกกะ '+section+' สำเร็จ • Firebase ยืนยันแล้ว • '+list.length+' คน')}catch(error){submit.disabled=false;submit.textContent='บันทึกกะและยืนยัน Firebase';alert('บันทึกกะไม่สำเร็จ: '+(error.message||String(error)))}};
 }
-function employeeKey(value){return String(value||'').normalize('NFKC').replace(/[\u200B-\u200D\uFEFF]/g,'').trim().toUpperCase().replace(/[\s._\-/]+/g,'')}
-function numericTail(value){const match=employeeKey(value).match(/(\d+)$/);return match?String(Number(match[1])):''}
-function sectionKey(value){return String(value||'').normalize('NFKC').trim().toLowerCase().replace(/\b(section|department|dept)\b/g,'').replace(/[\s._\-/]+/g,'')}
-function findEmployee(list,value){
- const key=employeeKey(value);let found=list.find(item=>employeeKey(item?.id)===key);if(found)return found;
- const tail=numericTail(value);if(!tail)return null;
- const matches=list.filter(item=>numericTail(item?.id)===tail);
- return matches.length===1?matches[0]:null;
-}
-function currentLeader(){
- const id=String(sessionStorage.getItem('ppms_leader_id')||'').trim();
- const emp=findEmployee(Array.isArray(employees)?employees:[],id);
- return emp&&isLeader(emp.position)?emp:null;
-}
-async function loadLeaderEmployee(id){
- if(!window.firebase)throw Error('โหลด Firebase ไม่สำเร็จ กรุณาตรวจสอบอินเทอร์เน็ต');
- if(!firebase.apps.length)firebase.initializeApp(window.PPMS_FIREBASE_CONFIG||{});
- const db=firebase.database();
- let snap=await db.ref('ppms/employees').once('value'),list=employeeList(snap.val()),emp=findEmployee(list,id);
- if(!emp){snap=await db.ref('ppms').once('value');list=employeeList(snap.val());emp=findEmployee(list,id)}
- if(!emp)return null;
- try{
-  const deletedSnap=await db.ref('ppms/deletedEmployeeIds').once('value');
-  const decoded=typeof firebaseDecodeData==='function'?firebaseDecodeData(deletedSnap.val()):deletedSnap.val();
-  const rows=Array.isArray(decoded)?decoded:Object.values(decoded||{}),cleaned=rows.filter(value=>employeeKey(value)!==employeeKey(emp.id));
-  if(cleaned.length!==rows.length)await db.ref('ppms/deletedEmployeeIds').set(typeof firebaseEncodeData==='function'?firebaseEncodeData(cleaned):cleaned);
- }catch(error){console.warn('Leader deletion marker cleanup failed',error)}
- return emp;
-}
-async function refreshLeaderEmployeeMaster(){
- const requestedLeaderId=String(sessionStorage.getItem('ppms_leader_id')||'').trim();if(!requestedLeaderId||!window.firebase)return false;
- try{
-  if(!firebase.apps.length)firebase.initializeApp(window.PPMS_FIREBASE_CONFIG||{});
-  const db=firebase.database();
-  let employeeSnap=null,lastError=null;
-  for(let attempt=1;attempt<=3&&!employeeSnap;attempt++){
-   try{employeeSnap=await db.ref('ppms/employees').once('value')}catch(error){lastError=error;if(attempt<3)await new Promise(resolve=>setTimeout(resolve,600*attempt))}
-  }
-  if(!employeeSnap)throw lastError||Error('โหลด Employee Master ไม่สำเร็จ');
-  const list=employeeList(employeeSnap.val()),leader=findEmployee(list,requestedLeaderId);if(!leader)return false;
-  const canonicalLeaderId=String(leader.id||requestedLeaderId);
-  sessionStorage.setItem('ppms_leader_id',canonicalLeaderId);
-  try{leaderId=canonicalLeaderId}catch(_){}
-  let cleaned=typeof deletedEmployeeIds!=='undefined'?[...deletedEmployeeIds].map(String):[];
-  try{
-   const deletedSnap=await db.ref('ppms/deletedEmployeeIds').once('value');
-   const decoded=typeof firebaseDecodeData==='function'?firebaseDecodeData(deletedSnap.val()):deletedSnap.val();
-   const deleted=Array.isArray(decoded)?decoded:Object.values(decoded||{}),activeKeys=new Set(list.map(item=>employeeKey(item?.id)));
-   cleaned=deleted.filter(id=>!activeKeys.has(employeeKey(id)));
-   if(cleaned.length!==deleted.length)await db.ref('ppms/deletedEmployeeIds').set(typeof firebaseEncodeData==='function'?firebaseEncodeData(cleaned):cleaned);
-  }catch(error){console.warn('Leader deletion marker refresh skipped',error)}
-  const leaderSection=String(leader.section||''),leaderSectionKey=sectionKey(leaderSection);
-  const fresh=list.map(item=>{
-   const normalizedSection=sectionKey(item?.section)===leaderSectionKey?leaderSection:item?.section;
-   const leaderRow=employeeKey(item?.id)===employeeKey(canonicalLeaderId);
-   const position=leaderRow&&isLeader(item?.position)&&!/\bleader\b/i.test(String(item.position||''))?String(item.position||'')+' Leader':item?.position;
-   return {...item,section:normalizedSection,position};
-  });
-  employees=fresh;
-  if(typeof deletedEmployeeIds!=='undefined')deletedEmployeeIds=new Set(cleaned.map(String));
-  localStorage.setItem('ppms_v3_employees',JSON.stringify(employees));
-  localStorage.setItem('ppms_v3_deleted_employee_ids',JSON.stringify(cleaned));
-  if(typeof render==='function')render();
-  if(document.querySelector('#shiftRosterForm')&&typeof shiftManagementModal==='function')shiftManagementModal(leaderSection,typeof currentShiftCycleStart==='function'?currentShiftCycleStart():'');
-  return true;
- }catch(error){
-  console.warn('Leader employee master refresh failed',error);
-  return Boolean(currentLeader());
- }
-}
-async function leaderLogin(){
- const id=String(prompt('กรอกรหัสพนักงาน Leader เพื่อจัดกะ')||'').trim();if(!id)return;
- const button=document.getElementById('leaderLoginBtn');
- if(button){button.disabled=true;button.textContent='กำลังตรวจสอบ...'}
- try{
-  const emp=await loadLeaderEmployee(id);
-  if(!emp)throw Error('ไม่พบรหัสพนักงานนี้ กรุณาตรวจสอบรหัสแล้วลองอีกครั้ง');
-  if(!isLeader(emp.position))throw Error('รหัสนี้ไม่มีสิทธิ์ Leader สำหรับจัดกะ');
-  if(!String(emp.section||'').trim())throw Error('Leader คนนี้ยังไม่ได้กำหนด Section กรุณาให้ Admin แก้ไขข้อมูลพนักงานก่อน');
-  sessionStorage.removeItem('ppms_admin');
-  sessionStorage.setItem('ppms_leader_id',String(emp.id));
-  sessionStorage.setItem('shiftRosterSection',String(emp.section));
-  location.reload();
- }catch(err){
-  alert(err?.message||'เข้าสู่ระบบ Leader ไม่สำเร็จ');
-  if(button){button.disabled=false;button.textContent='Leader Login / จัดกะ'}
- }
-}
-
-if(typeof publishShiftSchedulesAuthoritative==='function'){
- const originalPublishShiftSchedules=publishShiftSchedulesAuthoritative;
- publishShiftSchedulesAuthoritative=async function(source,reason){
-  let lastError=null;
-  for(let attempt=1;attempt<=3;attempt++){
-   try{
-    if(typeof ensureCloudReady==='function'&&!(await ensureCloudReady(15000)))throw Error('Firebase ยังไม่พร้อม');
-    await originalPublishShiftSchedules.call(this,source,reason);
-    const db=cloudDb||firebase.database(),snap=await db.ref('ppms/shiftSchedules').once('value');
-    const remote=typeof firebaseDecodeData==='function'?firebaseDecodeData(snap.val()):snap.val(),expected=source&&typeof source==='object'?source:{};
-    const missing=Object.entries(expected).find(([id,rule])=>{
-      const saved=remote?.[id];
-      return !saved||String(saved.updatedAt||'')!==String(rule.updatedAt||'')||String(saved.shift||'')!==String(rule.shift||'')||Boolean(saved.deleted)!==Boolean(rule.deleted);
-    });
-    if(missing)throw Error('Firebase อ่านกลับแล้วข้อมูลกะยังไม่ครบ');
-    return true;
-   }catch(error){
-    lastError=error;
-    if(attempt<3)await new Promise(resolve=>setTimeout(resolve,800*attempt));
-   }
-  }
-  localStorage.setItem('ppms_v3_shift_cloud_dirty','1');
-  throw lastError||Error('ยืนยันข้อมูลกะจาก Firebase ไม่สำเร็จ');
- };
-}
-document.addEventListener('click',event=>{
- const button=event.target.closest?.('#leaderLoginBtn');
- if(button){event.preventDefault();event.stopImmediatePropagation();leaderLogin();return}
- const open=event.target.closest?.('[data-action="leaderOpenShift"]');if(!open)return;
- event.preventDefault();event.stopImmediatePropagation();
- open.disabled=true;
- refreshLeaderEmployeeMaster().then(ok=>{
-  const leader=currentLeader()||(typeof leaderEmployee==='function'?leaderEmployee():null);
-  if(!leader)throw Error('ไม่พบข้อมูล Leader กรุณา Logout แล้ว Login ใหม่');
-  shiftManagementModal(leader.section,typeof currentShiftCycleStart==='function'?currentShiftCycleStart():'');
- }).catch(error=>alert(error.message||String(error))).finally(()=>{open.disabled=false});
-},true);
-document.addEventListener('DOMContentLoaded',()=>setTimeout(refreshLeaderEmployeeMaster,500));
-window.addEventListener('pageshow',()=>setTimeout(refreshLeaderEmployeeMaster,500));
+document.addEventListener('click',event=>{const login=event.target.closest?.('#leaderLoginBtn');if(login){event.preventDefault();event.stopImmediatePropagation();leaderLogin();return}const open=event.target.closest?.('[data-action="leaderOpenShift"]');if(!open)return;event.preventDefault();event.stopImmediatePropagation();open.disabled=true;openLeaderRoster().catch(error=>alert(error.message||String(error))).finally(()=>{open.disabled=false})},true);
 })();
