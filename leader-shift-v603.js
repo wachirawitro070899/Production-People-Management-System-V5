@@ -10,6 +10,7 @@ function employeeList(value){
 }
 function employeeKey(value){return String(value||'').normalize('NFKC').replace(/[\u200B-\u200D\uFEFF]/g,'').trim().toUpperCase().replace(/[\s._\-/]+/g,'')}
 function numericTail(value){const match=employeeKey(value).match(/(\d+)$/);return match?String(Number(match[1])):''}
+function sectionKey(value){return String(value||'').normalize('NFKC').trim().toLowerCase().replace(/\b(section|department|dept)\b/g,'').replace(/[\s._\-/]+/g,'')}
 function findEmployee(list,value){
  const key=employeeKey(value);let found=list.find(item=>employeeKey(item?.id)===key);if(found)return found;
  const tail=numericTail(value);if(!tail)return null;
@@ -30,6 +31,32 @@ async function loadLeaderEmployee(id){
   if(cleaned.length!==rows.length)await db.ref('ppms/deletedEmployeeIds').set(typeof firebaseEncodeData==='function'?firebaseEncodeData(cleaned):cleaned);
  }catch(error){console.warn('Leader deletion marker cleanup failed',error)}
  return emp;
+}
+async function refreshLeaderEmployeeMaster(){
+ const leaderId=String(sessionStorage.getItem('ppms_leader_id')||'').trim();if(!leaderId||!window.firebase)return false;
+ try{
+  if(!firebase.apps.length)firebase.initializeApp(window.PPMS_FIREBASE_CONFIG||{});
+  const db=firebase.database(),[employeeSnap,deletedSnap]=await Promise.all([
+   db.ref('ppms/employees').once('value'),db.ref('ppms/deletedEmployeeIds').once('value')
+  ]);
+  const list=employeeList(employeeSnap.val()),leader=findEmployee(list,leaderId);if(!leader)return false;
+  const decoded=typeof firebaseDecodeData==='function'?firebaseDecodeData(deletedSnap.val()):deletedSnap.val();
+  const deleted=Array.isArray(decoded)?decoded:Object.values(decoded||{}),activeKeys=new Set(list.map(item=>employeeKey(item?.id)));
+  const cleaned=deleted.filter(id=>!activeKeys.has(employeeKey(id)));
+  if(cleaned.length!==deleted.length)await db.ref('ppms/deletedEmployeeIds').set(typeof firebaseEncodeData==='function'?firebaseEncodeData(cleaned):cleaned);
+  const leaderSection=String(leader.section||''),leaderSectionKey=sectionKey(leaderSection);
+  const fresh=list.map(item=>sectionKey(item?.section)===leaderSectionKey?{...item,section:leaderSection}:{...item});
+  employees=fresh;
+  if(typeof deletedEmployeeIds!=='undefined')deletedEmployeeIds=new Set(cleaned.map(String));
+  localStorage.setItem('ppms_v3_employees',JSON.stringify(employees));
+  localStorage.setItem('ppms_v3_deleted_employee_ids',JSON.stringify(cleaned));
+  if(typeof render==='function')render();
+  if(document.querySelector('#shiftRosterForm')&&typeof shiftManagementModal==='function')shiftManagementModal(leaderSection,typeof currentShiftCycleStart==='function'?currentShiftCycleStart():'');
+  return true;
+ }catch(error){
+  console.warn('Leader employee master refresh failed',error);
+  return false;
+ }
 }
 async function leaderLogin(){
  const id=String(prompt('กรอกรหัสพนักงาน Leader เพื่อจัดกะ')||'').trim();if(!id)return;
@@ -76,7 +103,17 @@ if(typeof publishShiftSchedulesAuthoritative==='function'){
  };
 }
 document.addEventListener('click',event=>{
- const button=event.target.closest?.('#leaderLoginBtn');if(!button)return;
- event.preventDefault();event.stopImmediatePropagation();leaderLogin();
+ const button=event.target.closest?.('#leaderLoginBtn');
+ if(button){event.preventDefault();event.stopImmediatePropagation();leaderLogin();return}
+ const open=event.target.closest?.('[data-action="leaderOpenShift"]');if(!open)return;
+ event.preventDefault();event.stopImmediatePropagation();
+ open.disabled=true;
+ refreshLeaderEmployeeMaster().then(ok=>{
+  const leader=typeof leaderEmployee==='function'?leaderEmployee():null;
+  if(!ok||!leader)throw Error('โหลดรายชื่อพนักงานของ Section ไม่สำเร็จ กรุณาตรวจอินเทอร์เน็ต');
+  shiftManagementModal(leader.section,typeof currentShiftCycleStart==='function'?currentShiftCycleStart():'');
+ }).catch(error=>alert(error.message||String(error))).finally(()=>{open.disabled=false});
 },true);
+document.addEventListener('DOMContentLoaded',()=>setTimeout(refreshLeaderEmployeeMaster,500));
+window.addEventListener('pageshow',()=>setTimeout(refreshLeaderEmployeeMaster,500));
 })();
