@@ -7,6 +7,14 @@
 .sorting-person-card{display:flex!important;flex-direction:column!important;align-items:center!important;justify-content:flex-start!important}.sorting-card-photo{display:flex;justify-content:center;align-items:center;flex:0 0 auto}.sorting-card-name{display:flex!important;align-items:center;justify-content:center;text-align:center;width:100%;overflow:hidden;overflow-wrap:anywhere}.sorting-card-id,.sorting-card-position{display:block;width:100%;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.sorting-card-position{margin-top:auto!important}
 @media print{body.print-section-org .section-org-report{display:block!important}body.print-section-org .org-document-header{break-after:avoid-page}body.print-section-org .org-document-approval{break-before:avoid-page}}
 @media print{
+ body.print-section-org .section-org-report .org-attendance-badge,
+ body.print-section-org .section-org-report .org-exam-light,
+ body.print-section-org .section-org-report .org-attendance-legend,
+ body.print-section-org .section-org-report .org-exam-legend{display:none!important}
+ body.print-section-org .section-org-report .person{padding-top:8px!important;box-shadow:none!important}
+ body.print-section-org .section-org-report .section-exam-person{border-color:inherit!important;background:inherit!important}
+}
+@media print{
  @page{size:A4 landscape;margin:7mm}
  body.print-section-org{background:#fff!important;width:auto!important}
  body.print-section-org main{width:100%!important;max-width:none!important;margin:0!important;padding:0!important}
