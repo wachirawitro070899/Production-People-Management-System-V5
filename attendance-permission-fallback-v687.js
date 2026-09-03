@@ -1,34 +1,9 @@
 /* V687: keep check-in working when the separated device path is denied. */
 (()=>{
-  const authReady=window.PPMS_FIREBASE_AUTH_READY||(window.PPMS_FIREBASE_AUTH_READY=new Promise((resolve,reject)=>{
-    const start=()=>{
-      try{
-        if(!firebase.apps.length)firebase.initializeApp(window.PPMS_FIREBASE_CONFIG);
-        const auth=firebase.auth();
-        auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL)
-          .then(()=>auth.currentUser||auth.signInAnonymously())
-          .then(()=>auth.currentUser?resolve(auth.currentUser):reject(Error('Firebase ยังไม่ยืนยันตัวตน')))
-          .catch(reject);
-      }catch(error){reject(error)}
-    };
-    if(window.firebase&&firebase.auth)return start();
-    const sdk=document.createElement('script');
-    sdk.src='https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js';
-    sdk.onload=start;sdk.onerror=()=>reject(Error('โหลดระบบล็อกอิน Firebase ไม่สำเร็จ'));
-    document.head.appendChild(sdk);
-  }));
-  authReady.catch(error=>console.error('V688 Firebase authentication failed',error));
-
-  if(typeof syncAttendanceRecordCloud==='function'){
-    const primarySync=syncAttendanceRecordCloud;
-    syncAttendanceRecordCloud=async function(){await authReady;return primarySync.apply(this,arguments)};
-  }
-
   const denied=error=>/PERMISSION_DENIED|Permission denied/i.test(String(error?.code||'')+' '+String(error?.message||error||''));
   if(typeof assertAndBindAttendanceDeviceCloud!=='function')return;
   const primaryBind=assertAndBindAttendanceDeviceCloud;
   assertAndBindAttendanceDeviceCloud=async function(emp){
-    await authReady;
     try{return await primaryBind.apply(this,arguments)}
     catch(error){
       if(!denied(error))throw error;
