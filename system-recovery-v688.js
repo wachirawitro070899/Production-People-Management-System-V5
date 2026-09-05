@@ -17,7 +17,9 @@ async function recover(){
    typeof retryPendingAttendanceCloud==='function'&&retryPendingAttendanceCloud()
   ]);
   if(typeof setCloudStatus==='function')setCloudStatus('เชื่อมต่อแล้ว • Attendance และแผนกะพร้อมใช้งาน');
-  if(typeof queueRemoteRender==='function')queueRemoteRender();return true;
+  const busy=typeof userInteractionBusy==='function'&&userInteractionBusy();
+  const modalOpen=!document.getElementById('modal')?.classList.contains('hidden');
+  if(!busy&&!modalOpen&&typeof queueRemoteRender==='function')queueRemoteRender();return true;
  }catch(error){console.warn('V688 realtime recovery pending',error);return false}finally{starting=false}
 }
 window.ppmsRecoverRealtimeFeatures=recover;
