@@ -2,7 +2,9 @@
 (()=>{'use strict';
 let starting=false;
 async function recover(){
- if(starting||!window.firebase||!window.PPMS_FIREBASE_CONFIG)return false;starting=true;
+ if(starting||!window.firebase||!window.PPMS_FIREBASE_CONFIG)return false;
+ if(cloudReady&&cloudDb&&window.__ppmsAttendanceCanonicalBound)return true;
+ starting=true;
  try{
   const ready=typeof ensureAttendanceCloudReady==='function'&&await ensureAttendanceCloudReady(15000);if(!ready||!cloudDb)return false;
   if(typeof bindAttendanceCanonical==='function')bindAttendanceCanonical();
@@ -25,5 +27,5 @@ async function recover(){
 window.ppmsRecoverRealtimeFeatures=recover;
 window.addEventListener('online',()=>setTimeout(recover,300));
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')recover()});
-setTimeout(recover,500);setInterval(recover,20000);
+setTimeout(recover,500);setInterval(recover,60000);
 })();
