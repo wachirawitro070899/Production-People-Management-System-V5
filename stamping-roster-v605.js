@@ -61,5 +61,6 @@ function hideLegacyPool(){
     if(legacy)legacy.style.display='none';
   });
 }
-new MutationObserver(()=>{dedupe();hideLegacyPool();mount()}).observe(document.body,{childList:true,subtree:true});hideLegacyPool();mount();
+let mountTimer=0;
+new MutationObserver(()=>{if(document.getElementById('stampingV606Board'))return;clearTimeout(mountTimer);mountTimer=setTimeout(()=>{hideLegacyPool();mount()},120)}).observe(document.getElementById('app')||document.body,{childList:true,subtree:false});hideLegacyPool();mount();
 })();
