@@ -81,5 +81,5 @@
     if(!enabled())return setTimeout(connect,1500);
     try{if(!firebase.apps.length)firebase.initializeApp(window.PPMS_FIREBASE_CONFIG);const db=firebase.database();db.ref(ROOT).limitToLast(20).on('child_added',s=>showAlert(s.val(),s.key));let plans={};db.ref(PLANS_ROOT).on('value',snap=>{plans={};snap.forEach(x=>plans[x.key]=x.val())});setInterval(()=>Object.entries(plans).forEach(([id,p])=>{const at=Number(p?.scheduledAt||0);if(at&&Date.now()>=at&&Date.now()<=Number(p.expiresAt||at+8*3600000))showAlert({...p,createdAt:at},'plan-'+id)}),15000);}catch(e){console.warn('PPMS alert connection failed',e);setTimeout(connect,3000)}
   }
-  document.addEventListener('DOMContentLoaded',()=>{addStyle();refreshButtons();connect();setInterval(refreshButtons,2000)});
+  document.addEventListener('DOMContentLoaded',()=>{addStyle();refreshButtons();connect();setInterval(refreshButtons,10000)});
 })();
