@@ -3,7 +3,7 @@
 const SEED=Array.isArray(window.EMPLOYEE_SEED)?window.EMPLOYEE_SEED:[];
 const KEY='ppms_v3_employees', ATTENDANCE_KEY='ppms_v3_attendance', ATTENDANCE_SETTINGS_KEY='ppms_v3_attendance_settings', ATTENDANCE_DEVICES_KEY='ppms_v3_attendance_devices', ATTENDANCE_DELETED_DATES_KEY='ppms_v3_attendance_deleted_dates', ATTENDANCE_DELETED_RECORDS_KEY='ppms_v3_attendance_deleted_records', SHIFT_SCHEDULE_KEY='ppms_v3_shift_schedules', SHIFT_CLOUD_DIRTY_KEY='ppms_v3_shift_cloud_dirty', HOLIDAY_KEY='ppms_v3_holidays', SKILL_OVERRIDE_KEY='ppms_v3_skill_overrides', EVAL_KEY='ppms_v3_evaluations', TRAIN_KEY='ppms_v3_training', EXAM_RESULT_KEY='ppms_v3_exam_results', EXAM_DELETED_KEY='ppms_v3_exam_deleted_keys', EXAM_BANK_KEY='ppms_v3_exam_bank', EXAM_BANK_PENDING_KEY='ppms_v3_exam_bank_pending', SHARED_KEY='ppms_v3_shared_data_version', DELETED_KEY='ppms_v3_deleted_employee_ids', CLOUD_DIRTY_KEY='ppms_v3_cloud_dirty', LOCAL_UPDATED_KEY='ppms_v3_local_updated_at';
 const SHARED_VERSION=String(window.EMPLOYEE_DATA_VERSION||'legacy');
-const APP_DATA_VERSION='V708-Attendance-Shift-Leave-Recovery';
+const APP_DATA_VERSION='V709-Go-Live-Stability';
 const ATTENDANCE_CLOUD_ROOT='ppmsAttendance';
 const ATTENDANCE_LIVE_ROOT='ppmsAttendanceLive'; // legacy live mirror
 const ATTENDANCE_INBOX_ROOT='ppms/attendanceInbox'; // compatibility path
@@ -1467,7 +1467,8 @@ async function refreshAttendanceDeviceBindingsFromCloud(){
  if(!hasFirebaseConfig()||!window.firebase)return false;
  try{
   if(!firebase.apps.length)firebase.initializeApp(window.PPMS_FIREBASE_CONFIG);
-  const db=cloudDb||firebase.database(),snap=await db.ref(ATTENDANCE_CLOUD_ROOT+'/devices').once('value');
+  const db=cloudDb||firebase.database();let snap;
+  try{snap=await db.ref(ATTENDANCE_CLOUD_ROOT+'/devices').once('value')}catch(primaryError){console.warn('V708 primary device path unavailable; using compatibility path',primaryError);snap=await db.ref('ppms/attendanceDevices').once('value')}
   attendanceDevices=firebaseDecodeData(snap.val())||{};
   localStorage.setItem(ATTENDANCE_DEVICES_KEY,JSON.stringify(attendanceDevices));
   return true;
@@ -1476,11 +1477,11 @@ async function refreshAttendanceDeviceBindingsFromCloud(){
 async function assertAndBindAttendanceDeviceCloud(emp){
  const empId=String(emp.id),token=deviceToken();
  if(!cloudDb){const ready=await ensureAttendanceCloudReady(12000);if(!ready)throw Error('ยังเชื่อมต่อ Firebase ไม่ได้ จึงยังตรวจสอบเครื่องไม่ได้ • กรุณาตรวจอินเทอร์เน็ตแล้วกดเช็คชื่อใหม่')}
- let devices={};
+ let devices={...(attendanceDevices||{})};
  try{devices=firebaseDecodeData((await cloudDb.ref(ATTENDANCE_CLOUD_ROOT+'/devices').once('value')).val())||{}}catch(err){console.warn('V566 device map read unavailable',err)}
  const other=Object.entries(devices).find(([id,v])=>String(id)!==empId&&v&&String(v.token||'')===token);
  if(other)throw Error(`เครื่องนี้ผูกกับรหัสพนักงาน ${other[0]} แล้ว • หากเป็นข้อมูลเก่าให้ Admin กด Reset Device`);
- const empRef=cloudDb.ref(ATTENDANCE_CLOUD_ROOT+'/devices/'+firebaseEncodeKey(empId));
+ let empRef=cloudDb.ref(ATTENDANCE_CLOUD_ROOT+'/devices/'+firebaseEncodeKey(empId));
  let own=null;try{own=firebaseDecodeData((await empRef.once('value')).val())}catch(_){own=devices[empId]||null}
  // LINE's in-app browser can rotate/clear browser storage on the same phone.
  // Refresh this employee's token automatically instead of blocking the whole
@@ -1488,7 +1489,7 @@ async function assertAndBindAttendanceDeviceCloud(emp){
  const now=new Date().toISOString(),migrating=!!(own&&String(own.token||'')!==token),next={...(own||{}),token,label:deviceLabel(),registeredAt:own?.registeredAt||now,lastSeenAt:now,lockVersion:'V575'};
  if(migrating){next.previousToken=String(own.token||'');next.tokenMigratedAt=now;next.tokenMigrationReason='line-inapp-token-refresh';next.tokenRefreshCount=Number(own?.tokenRefreshCount||0)+1}
  // Direct SET avoids transaction contention when many employees arrive at the same time.
- await empRef.set(firebaseEncodeData(next));
+ try{await empRef.set(firebaseEncodeData(next))}catch(primaryError){console.warn('V708 primary device write unavailable; using compatibility path',primaryError);empRef=cloudDb.ref('ppms/attendanceDevices/'+firebaseEncodeKey(empId));await empRef.set(firebaseEncodeData(next))}
  const verify=firebaseDecodeData((await empRef.once('value')).val());
  if(!verify||String(verify.token||'')!==token)throw Error('Firebase ยังไม่ยืนยันการลงทะเบียนเครื่อง • กรุณากดเช็คชื่อใหม่');
  attendanceDevices[empId]=verify;localStorage.setItem(ATTENDANCE_DEVICES_KEY,JSON.stringify(attendanceDevices));
