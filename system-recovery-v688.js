@@ -3,25 +3,12 @@
 let starting=false;
 async function recover(){
  if(starting||!window.firebase||!window.PPMS_FIREBASE_CONFIG)return false;
- if(cloudReady&&cloudDb&&window.__ppmsAttendanceCanonicalBound)return true;
+ const runtime=window.PPMS_RUNTIME;if(!runtime||typeof runtime.recoverRealtime!=='function')return false;
+ const health=typeof runtime.health==='function'?runtime.health():{};
+ if(health.cloudReady&&health.attendanceCloudReady&&window.__ppmsAttendanceCanonicalBound)return true;
  starting=true;
  try{
-  const ready=typeof ensureAttendanceCloudReady==='function'&&await ensureAttendanceCloudReady(15000);if(!ready||!cloudDb)return false;
-  if(typeof bindAttendanceCanonical==='function')bindAttendanceCanonical();
-  if(typeof bindAttendanceInboxToday==='function')bindAttendanceInboxToday();
-  if(typeof bindAttendanceLiveMirror==='function')bindAttendanceLiveMirror();
-  if(typeof bindAttendanceDurableKeyedToday==='function')bindAttendanceDurableKeyedToday();
-  await Promise.allSettled([
-   typeof mergeTodayAttendanceCanonical==='function'&&mergeTodayAttendanceCanonical(),
-   typeof mergeTodayAttendanceInbox==='function'&&mergeTodayAttendanceInbox(),
-   typeof mergeTodayAttendanceLiveMirror==='function'&&mergeTodayAttendanceLiveMirror(),
-   typeof mergeTodayAttendanceDurableKeyed==='function'&&mergeTodayAttendanceDurableKeyed(),
-   typeof retryPendingAttendanceCloud==='function'&&retryPendingAttendanceCloud()
-  ]);
-  if(typeof setCloudStatus==='function')setCloudStatus('เชื่อมต่อแล้ว • Attendance และแผนกะพร้อมใช้งาน');
-  const busy=typeof userInteractionBusy==='function'&&userInteractionBusy();
-  const modalOpen=!document.getElementById('modal')?.classList.contains('hidden');
-  if(!busy&&!modalOpen&&typeof queueRemoteRender==='function')queueRemoteRender();return true;
+  return await runtime.recoverRealtime();
  }catch(error){console.warn('V688 realtime recovery pending',error);return false}finally{starting=false}
 }
 window.ppmsRecoverRealtimeFeatures=recover;
