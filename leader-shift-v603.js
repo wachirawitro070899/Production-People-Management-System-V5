@@ -51,10 +51,10 @@ document.addEventListener('submit',async event=>{
  }catch(error){submit.disabled=false;submit.textContent='บันทึกกะและยืนยัน Firebase';alert('บันทึกกะไม่สำเร็จ: '+(error.message||String(error)))}
 },true);
 function leaderEmployeeManagerButton(){
- const loginButton=document.getElementById('leaderLoginBtn');if(loginButton&&!loginButton.disabled)loginButton.textContent='Leader Login';
+ const loginButton=document.getElementById('leaderLoginBtn');if(loginButton&&!loginButton.disabled&&loginButton.textContent!=='Leader Login')loginButton.textContent='Leader Login';
  const shiftButton=document.querySelector('[data-action="leaderOpenShift"]');
  if(!shiftButton||!sessionStorage.getItem('ppms_leader_id'))return;
- shiftButton.textContent='จัดกะ / เพิ่ม-ลบพนักงาน';
+ if(shiftButton.textContent!=='จัดกะ / เพิ่ม-ลบพนักงาน')shiftButton.textContent='จัดกะ / เพิ่ม-ลบพนักงาน';
 }
 async function openLeaderEmployeeManager(){
  const master=await loadMaster(),leader=findEmployee(master.employees,sessionStorage.getItem('ppms_leader_id'));
