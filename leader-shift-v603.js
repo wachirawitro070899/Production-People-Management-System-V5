@@ -65,6 +65,38 @@ async function openLeaderEmployeeManager(){
  const form=document.getElementById('leaderAddEmployee');form.onsubmit=async event=>{event.preventDefault();const data=Object.fromEntries(new FormData(form)),id=String(data.id||'').trim(),name=String(data.name||'').trim();if(!id||!name)return alert('กรุณากรอกรหัสและชื่อพนักงาน');const submit=form.querySelector('[type="submit"]');submit.disabled=true;try{const ref=master.db.ref('ppms/employees'),snap=await ref.once('value'),raw=snap.val(),employees=employeesFrom(decodeFirebase(raw||{}));if(findEmployee(employees,id))throw Error('รหัสพนักงานนี้มีอยู่แล้ว');const employee={id,name,thaiName:'',phone:'',section,position:String(data.position||'Operator'),contractType:String(data.contractType||'Permanent'),startDate:String(data.startDate||dateKey()),currentSkillLevel:1,skillLevels:{},createdAt:new Date().toISOString(),createdByLeader:String(leader.id)};employees.push(employee);await ref.set(employees);await master.db.ref('ppms/deletedEmployeeIds').transaction(value=>(Array.isArray(value)?value:Object.values(value||{})).filter(item=>employeeKey(item)!==employeeKey(id)));alert('เพิ่มพนักงาน '+id+' ใน '+section+' เรียบร้อย');await openLeaderEmployeeManager()}catch(error){submit.disabled=false;alert('เพิ่มพนักงานไม่สำเร็จ: '+(error.message||String(error)))}};
  document.querySelectorAll('[data-leader-remove]').forEach(button=>button.onclick=async()=>{const id=String(button.dataset.leaderRemove||''),employee=list.find(item=>employeeKey(item.id)===employeeKey(id));if(!employee)return alert('ไม่พบพนักงาน');if(sectionKey(employee.section)!==sectionKey(section))return alert('ไม่สามารถลบพนักงานต่างแผนก');if(!confirm('ยืนยันว่า '+id+' • '+(employee.name||'')+' ลาออก?\n\nรายชื่อจะถูกนำออ แต่ประวัติ Attendance / สอบ / NG จะยังคงเก็บไว้'))return;button.disabled=true;try{const now=new Date().toISOString(),safeId=encodeURIComponent(id).replace(/\./g,'%2E');await master.db.ref('ppms/formerEmployees/'+safeId).set({...employee,resignedAt:now,resignedByLeader:String(leader.id),archiveReason:'resigned'});const ref=master.db.ref('ppms/employees'),current=employeesFrom(decodeFirebase((await ref.once('value')).val()||{}));await ref.set(current.filter(item=>employeeKey(item.id)!==employeeKey(id)));await master.db.ref('ppms/deletedEmployeeIds').transaction(value=>{const ids=Array.isArray(value)?value:Object.values(value||{});return ids.some(item=>employeeKey(item)===employeeKey(id))?ids:[...ids,id]});alert('นำ '+id+' ออจากรายชื่อปัจจุบันและเก็บประวัติแล้ว');await openLeaderEmployeeManager()}catch(error){button.disabled=false;alert('นำพนักงานออไม่สำเร็จ: '+(error.message||String(error)))}});
 }
+// V720: save the new employee and clear an old resigned marker in one Firebase
+// transaction, so the main app cannot filter the new row out between two writes.
+document.addEventListener('submit',async event=>{
+ const form=event.target;if(form?.id!=='leaderAddEmployee')return;
+ event.preventDefault();event.stopImmediatePropagation();
+ const data=Object.fromEntries(new FormData(form)),id=String(data.id||'').trim(),name=String(data.name||'').trim();
+ if(!id||!name)return alert('กรุณากรอกรหัสและชื่อพนักงาน');
+ const submit=form.querySelector('[type="submit"]');submit.disabled=true;submit.textContent='กำลังบันทึก...';
+ try{
+  const master=await loadMaster(),leader=findEmployee(master.employees,sessionStorage.getItem('ppms_leader_id'));
+  if(!leader||!isLeader(leader.position))throw Error('กรุณา Login ด้วยรหัส Leader ใหม่');
+  const section=String(leader.section||''),employee={id,name,thaiName:'',phone:'',section,position:String(data.position||'Operator'),contractType:String(data.contractType||'Permanent'),startDate:String(data.startDate||dateKey()),currentSkillLevel:1,skillLevels:{},createdAt:new Date().toISOString(),updatedAt:new Date().toISOString(),createdByLeader:String(leader.id)};
+  let duplicate=false;
+  await master.db.ref('ppms').transaction(raw=>{
+   const root=raw&&typeof raw==='object'?{...raw}:{},list=employeesFrom(decodeFirebase(root.employees||[]));
+   if(findEmployee(list,id)){duplicate=true;return}
+   root.employees=[...list,employee];
+   const deleted=Array.isArray(root.deletedEmployeeIds)?root.deletedEmployeeIds:Object.values(root.deletedEmployeeIds||{});
+   root.deletedEmployeeIds=deleted.filter(item=>employeeKey(item)!==employeeKey(id));
+   root.meta={...(root.meta||{}),updatedAt:new Date().toISOString(),employeeMaster:'firebase',employeeMasterVersion:'V720',lastLeaderEmployeeAdd:id};
+   return root;
+  });
+  if(duplicate)throw Error('รหัสพนักงานนี้มีอยู่แล้ว');
+  const verified=employeesFrom(decodeFirebase((await master.db.ref('ppms/employees').once('value')).val()||{}));
+  if(!findEmployee(verified,id))throw Error('Firebase ยังไม่พบรายชื่อที่เพิ่ม กรุณาลองใหม่');
+  localStorage.setItem('ppms_v3_employees',JSON.stringify(verified));
+  const deletedRaw=(await master.db.ref('ppms/deletedEmployeeIds').once('value')).val();
+  localStorage.setItem('ppms_v3_deleted_employee_ids',JSON.stringify(Array.isArray(deletedRaw)?deletedRaw:Object.values(deletedRaw||{})));
+  alert('เพิ่มพนักงาน '+id+' ใน '+section+' สำเร็จ และแสดงในระบบแล้ว');
+  await openLeaderEmployeeManager();
+ }catch(error){submit.disabled=false;submit.textContent='เพิ่มพนักงาน';alert('เพิ่มพนักงานไม่สำเร็จ: '+(error.message||String(error)))}
+},true);
 document.addEventListener('click',event=>{const button=event.target.closest?.('[data-action="leaderEmployees"]');if(!button)return;event.preventDefault();event.stopImmediatePropagation();openLeaderEmployeeManager().catch(error=>alert(error.message||String(error)))},true);
 new MutationObserver(leaderEmployeeManagerButton).observe(document.getElementById('app'),{childList:true,subtree:true});leaderEmployeeManagerButton();
 })();
