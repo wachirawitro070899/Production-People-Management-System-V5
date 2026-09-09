@@ -1617,16 +1617,25 @@ async function getAttendanceEmployeeReady(){
 }
 function askRequiredReason(title,initial=''){const reason=String(prompt(title,initial)||'').trim();if(!reason){alert('ต้องระบุสาเหตุ จึงจะบันทึกได้');return''}return reason}
 function gpsErrorMessage(e){return e?.code===1?'กรุณาอนุญาตการเข้าถึงตำแหน่ง (Location)':e?.code===2?'ไม่สามารถหาตำแหน่ง GPS ได้':'GPS ใช้เวลานานเกินไป กรุณาลองใหม่'}
-function getBestPosition({duration=12000,minSamples=3,targetAccuracy=25}={}){return new Promise((resolve,reject)=>{
+function getBestPosition({duration=25000,minSamples=1,targetAccuracy=25}={}){return new Promise((resolve,reject)=>{
  if(!navigator.geolocation)return reject(Error('อุปกรณ์นี้ไม่รองรับ GPS'));
- let best=null,samples=0,watchId=null,done=false,lastError=null;
- const finish=()=>{if(done)return;done=true;if(watchId!==null)navigator.geolocation.clearWatch(watchId);clearTimeout(timer);if(best)return resolve(best);reject(Error(gpsErrorMessage(lastError)))};
- const timer=setTimeout(finish,duration);
- watchId=navigator.geolocation.watchPosition(pos=>{
-  samples++;const a=Number(pos?.coords?.accuracy||9999);
+ let best=null,samples=0,watchId=null,done=false,lastError=null,softTimer=null;
+ const finish=()=>{if(done)return;done=true;if(watchId!==null)navigator.geolocation.clearWatch(watchId);clearTimeout(timer);clearTimeout(softTimer);if(best)return resolve(best);reject(Error(gpsErrorMessage(lastError)))};
+ const accept=pos=>{
+  if(done||!pos?.coords)return;
+  samples++;const a=Number(pos.coords.accuracy||9999);
   if(!best||a<Number(best.coords.accuracy||9999))best=pos;
-  if(samples>=minSamples&&a<=targetAccuracy)finish();
- },err=>{lastError=err;if(err?.code===1)finish()},{enableHighAccuracy:true,timeout:duration,maximumAge:0});
+  if(a<=targetAccuracy&&samples>=minSamples)return finish();
+  // Some Android/Samsung browsers emit only one GPS sample. Keep a short
+  // improvement window, then use the best real fix instead of timing out.
+  if(!softTimer)softTimer=setTimeout(finish,4000);
+ };
+ const fail=err=>{lastError=err;if(err?.code===1)finish()};
+ const timer=setTimeout(finish,duration);
+ // A recent OS location avoids a cold-start timeout; the distance and accuracy
+ // checks below still protect the factory geofence.
+ navigator.geolocation.getCurrentPosition(accept,fail,{enableHighAccuracy:false,timeout:8000,maximumAge:30000});
+ watchId=navigator.geolocation.watchPosition(accept,fail,{enableHighAccuracy:true,timeout:duration,maximumAge:30000});
 })}
 function validateAttendanceNoticeDate(dateStr,retroDays,leaveType=''){const today=thaiDateKey(),chosen=new Date(String(dateStr)+'T00:00:00+07:00'),todayDate=new Date(today+'T00:00:00+07:00'),diff=Math.floor((todayDate-chosen)/86400000);if(leaveType==='personal'&&diff>retroDays)throw Error(`ลากิจย้อนหลังเกิน ${retroDays} วัน ระบบคงเป็นขาดงาน -10`);if(diff<0){if(leaveType!=='personal')throw Error('ลาป่วยไม่สามารถเลือกวันที่ในอนาคตได้');if(diff < -7)throw Error('ลากิจล่วงหน้าได้ไม่เกิน 7 วัน')}return diff}
 function thaiDateOffset(days){const d=new Date(thaiDateKey()+'T12:00:00+07:00');d.setDate(d.getDate()+Number(days||0));return thaiDateKey(d)}
@@ -1684,7 +1693,7 @@ async function stampAttendance(type){
  let lateReason='';
  if(nowMin>lateMin){lateReason=askRequiredReason(`เลยเวลาเช็คชื่อปกติ ${sh.lateReasonAfter} น. กรุณาระบุสาเหตุการเข้าสาย`,existing?.lateNotice?.reason||'');if(!lateReason)return}
  if(btn)btn.textContent='กำลังตรวจ GPS...';
-  const c=attendanceConfig(),pos=await getBestPosition({duration:12000,minSamples:3,targetAccuracy:25}),lat=pos.coords.latitude,lng=pos.coords.longitude,accuracy=Number(pos.coords.accuracy||9999),distance=distanceMeters(lat,lng,c.lat,c.lng);
+  const c=attendanceConfig(),pos=await getBestPosition({duration:25000,minSamples:1,targetAccuracy:25}),lat=pos.coords.latitude,lng=pos.coords.longitude,accuracy=Number(pos.coords.accuracy||9999),distance=distanceMeters(lat,lng,c.lat,c.lng);
   if(accuracy>c.maxAccuracy)throw Error(`GPS ยังไม่นิ่ง (ความแม่นยำ ±${Math.round(accuracy)} ม.) กรุณาเปิด Precise Location/ตำแหน่งที่แม่นยำ ออกไปบริเวณที่รับสัญญาณได้ดี แล้วลองเช็คชื่อใหม่`);
   if(distance>c.radius)throw Error(`อยู่นอกพื้นที่โรงงาน ${Math.round(distance)} ม. (อนุญาตไม่เกิน ${c.radius} ม. • GPS ±${Math.round(accuracy)} ม.)`);
   await assertAndBindAttendanceDeviceCloud(emp);
