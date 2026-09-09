@@ -48,7 +48,7 @@
     const el=document.createElement('div');el.className='ppms-alert-overlay';
     el.innerHTML=`<div class="ppms-alert-card"><div class="ppms-alert-icon">${data.type==='audit'?'📋':'👥'}</div><h2>${data.type==='audit'?'แจ้งเตือน: มี Audit':'แจ้งเตือน: มีผู้เยี่ยมชม'}</h2><p>${esc(data.message||'กรุณาจัดเตรียมพื้นที่และปฏิบัติตามมาตรฐาน')}</p><small>${esc(shiftLabel(activeShift))} • อ้างอิงกะที่จัดในระบบ${code?' • '+esc(code):''} • ${new Date(created).toLocaleString('th-TH')}</small><div style="margin-top:18px"><button type="button">รับทราบ</button></div></div>`;
     el.querySelector('button').onclick=()=>el.remove();document.body.appendChild(el);
-    if(document.hidden&&Notification.permission==='granted'){
+    if(document.hidden&&'Notification' in window&&Notification.permission==='granted'){
       const n=new Notification(data.type==='audit'?'มี Audit เข้าพื้นที่':'มีผู้เยี่ยมชมเข้าพื้นที่',{body:data.message||'กรุณาจัดเตรียมพื้นที่และปฏิบัติตามมาตรฐาน',tag:'ppms-'+id,requireInteraction:true});
       n.onclick=()=>{window.focus();n.close()};
     }
