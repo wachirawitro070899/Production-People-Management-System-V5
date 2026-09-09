@@ -1435,9 +1435,10 @@ function attendanceModeLabel(){return attendanceIsLive()?'ใช้งานจ�
 function defaultEmployeeShiftKey(emp){return String(emp?.attendanceShift||'day')==='night'?'night':'day'}
 function activeShiftRulesFor(emp,date){
  const d=String(date||thaiDateKey()),section=String(emp?.section||''),empId=String(emp?.id||''),team=String(emp?.stampingShift||'');
- const rules=Object.values(shiftSchedules||{}).filter(r=>r&&!r.deleted&&String(r.section||'')===section);
+ const sectionKey=value=>String(value||'').normalize('NFKC').trim().toLowerCase().replace(/\b(section|department|dept)\b/g,'').replace(/[\s._\-/]+/g,'');
+ const rules=Object.values(shiftSchedules||{}).filter(r=>r&&!r.deleted&&sectionKey(r.section)===sectionKey(section));
  const inExactDate=r=>String(r.startDate||'')<=d&&String(r.endDate||'')>=d;
- const subjectMatch=r=>r.scope==='employee'?String(r.employeeId||'')===empId:r.scope==='team'?team&&String(r.team||'')===team:false;
+ const subjectMatch=r=>r.scope==='employee'?attendanceEmployeeKey(r.employeeId)===attendanceEmployeeKey(empId):r.scope==='team'?team&&attendanceEmployeeKey(r.team)===attendanceEmployeeKey(team):false;
  const priority=r=>r.scope==='employee'?2:1;
  const exact=rules.filter(r=>subjectMatch(r)&&inExactDate(r)).sort((a,b)=>priority(b)-priority(a)||String(b.updatedAt||'').localeCompare(String(a.updatedAt||'')));
  if(exact.length)return exact;
