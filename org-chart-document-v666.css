@@ -170,11 +170,11 @@
   flex:1 1 auto!important;border:1px solid #9fb4c8!important;border-radius:3mm!important;padding:3mm!important;background:#fff!important
  }
  body.org-stamping .stamping-print-page .level{align-items:center!important;margin:1.5mm 0!important}
- body body.org-stamping .stamping-print-page .level h4{
+ body.org-stamping .stamping-print-page .level h4{
   align-self:center!important;margin:0 0 1.5mm!important;text-align:center!important;color:#071d35!important;font-size:10px!important
  }
  body.org-stamping .stamping-print-page .people,
- body body.org-stamping .stamping-print-page .level-operator .people{
+ body.org-stamping .stamping-print-page .level-operator .people{
   display:flex!important;justify-content:center!important;align-items:flex-start!important;flex-wrap:wrap!important;gap:2mm!important;width:100%!important;max-width:none!important
  }
  body.org-stamping .stamping-print-page .person,
