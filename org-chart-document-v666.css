@@ -159,3 +159,43 @@
  body.org-stamping .stamping-print-page .person-editable:after,
  body.org-stamping .stamping-print-page .person-editable::after{display:none!important;content:none!important}
 }
+
+
+/* V721: Stamping print cards and hierarchy now visually match the Welding template. */
+@media print{
+ body.org-stamping .stamping-print-page>.stamping-standard-hierarchy{
+  border:0!important;border-radius:0!important;border-top:0!important;padding:0!important;background:#fff!important
+ }
+ body.org-stamping .stamping-print-page>.stamping-standard-hierarchy>.hierarchy{
+  flex:1 1 auto!important;border:1px solid #9fb4c8!important;border-radius:3mm!important;padding:3mm!important;background:#fff!important
+ }
+ body.org-stamping .stamping-print-page .level{align-items:center!important;margin:1.5mm 0!important}
+ body body.org-stamping .stamping-print-page .level h4{
+  align-self:center!important;margin:0 0 1.5mm!important;text-align:center!important;color:#071d35!important;font-size:10px!important
+ }
+ body.org-stamping .stamping-print-page .people,
+ body body.org-stamping .stamping-print-page .level-operator .people{
+  display:flex!important;justify-content:center!important;align-items:flex-start!important;flex-wrap:wrap!important;gap:2mm!important;width:100%!important;max-width:none!important
+ }
+ body.org-stamping .stamping-print-page .person,
+ body.org-stamping .stamping-print-page .level-operator .person,
+ body.org-stamping .stamping-print-page .level:not(.level-operator) .person{
+  flex:0 0 30mm!important;width:30mm!important;min-width:30mm!important;height:36mm!important;min-height:36mm!important;
+  padding:1.5mm!important;background:#fff!important;border:1px solid #173c63!important;border-radius:3mm!important;color:#071d35!important;box-shadow:none!important
+ }
+ body.org-stamping .stamping-print-page .person.manager,
+ body.org-stamping .stamping-print-page .person.engineer,
+ body.org-stamping .stamping-print-page .person.supervisor,
+ body.org-stamping .stamping-print-page .person.leader,
+ body.org-stamping .stamping-print-page .person.technician,
+ body.org-stamping .stamping-print-page .person.operator,
+ body.org-stamping .stamping-print-page .person.other{background:#fff!important;border-color:#173c63!important}
+ body.org-stamping .stamping-print-page .person img,
+ body.org-stamping .stamping-print-page .person .avatar{
+  width:14mm!important;height:14mm!important;min-width:14mm!important;border:0!important
+ }
+ body.org-stamping .stamping-print-page .stamping-section-banner{display:none!important}
+ body.org-stamping.org-paper-a3 .stamping-print-page .person{
+  flex-basis:38mm!important;width:38mm!important;min-width:38mm!important;height:50mm!important;min-height:50mm!important;padding:2mm!important
+ }
+}
