@@ -147,3 +147,15 @@
  body.org-stamping.org-paper-a3.print-section-org .stamping-print-page.unified-section-page .person,body.org-sorting.org-paper-a3.print-section-org .sorting-print-page.unified-section-page .person{width:38mm!important;height:50mm!important;min-height:50mm!important;padding:2mm!important}
  body.org-stamping.org-paper-a3.print-section-org .stamping-print-page.unified-section-page .person img,body.org-stamping.org-paper-a3.print-section-org .stamping-print-page.unified-section-page .person .avatar,body.org-sorting.org-paper-a3.print-section-org .sorting-print-page.unified-section-page .person img,body.org-sorting.org-paper-a3.print-section-org .sorting-print-page.unified-section-page .person .avatar{width:20mm!important;height:20mm!important;min-width:20mm!important}
 }
+
+
+/* V720: Stamping uses the same complete document shell as every section, including native Ctrl/Cmd+P. */
+@media print{
+ body.org-stamping .section-org-report>:not(.stamping-print-page){display:none!important}
+ body.org-stamping .stamping-print-page{display:flex!important;flex-direction:column;width:100%!important;min-height:190mm!important;height:196mm!important;overflow:visible!important;break-inside:avoid-page!important}
+ body.org-stamping .stamping-print-page>.org-document-header{display:grid!important;flex:0 0 auto;margin:0 0 3mm!important}
+ body.org-stamping .stamping-print-page>.stamping-standard-hierarchy{display:flex!important;flex-direction:column;flex:1 1 auto;zoom:1!important;width:100%!important;min-height:0!important;margin:0!important;padding:2mm!important;break-before:auto!important;break-inside:auto!important;border:1px solid #9fb4c8!important;border-top:4px solid #155ca0!important;border-radius:3mm!important;overflow:visible!important}
+ body.org-stamping .stamping-print-page>.org-document-approval{display:grid!important;flex:0 0 auto;margin-top:2mm!important}
+ body.org-stamping .stamping-print-page .person-editable:after,
+ body.org-stamping .stamping-print-page .person-editable::after{display:none!important;content:none!important}
+}
