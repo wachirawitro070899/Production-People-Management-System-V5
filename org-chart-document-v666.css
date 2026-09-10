@@ -199,3 +199,73 @@
   flex-basis:38mm!important;width:38mm!important;min-width:38mm!important;height:50mm!important;min-height:50mm!important;padding:2mm!important
  }
 }
+
+
+/* V722: collision-free A4 Stamping document layout. */
+@media print{
+ body.org-stamping .stamping-print-page{
+  display:block!important;height:auto!important;min-height:0!important;overflow:visible!important
+ }
+ body.org-stamping .stamping-print-page>.org-document-header{height:auto!important;break-after:avoid!important}
+ body.org-stamping .stamping-print-page>.stamping-standard-hierarchy{
+  display:block!important;height:auto!important;min-height:0!important;overflow:visible!important
+ }
+ body.org-stamping .stamping-print-page>.stamping-standard-hierarchy>.hierarchy{
+  display:block!important;height:auto!important;min-height:0!important;overflow:visible!important;padding:2.5mm!important
+ }
+ body.org-stamping .stamping-print-page .level{display:block!important;margin:1mm 0 1.5mm!important;break-inside:avoid!important}
+ body.org-stamping .stamping-print-page .level h4{
+  display:block!important;text-align:center!important;margin:0 0 1mm!important;font-size:9px!important;line-height:1.2!important
+ }
+ body.org-stamping .stamping-print-page .level-operator .people{
+  display:grid!important;grid-template-columns:repeat(9,minmax(0,1fr))!important;gap:1.5mm!important;width:100%!important;max-width:none!important
+ }
+ body.org-stamping .stamping-print-page .level:not(.level-operator) .people{
+  display:flex!important;justify-content:center!important;flex-wrap:wrap!important;gap:1.5mm!important
+ }
+ body.org-stamping .stamping-print-page .person,
+ body.org-stamping .stamping-print-page .level-operator .person,
+ body.org-stamping .stamping-print-page .level:not(.level-operator) .person{
+  box-sizing:border-box!important;width:100%!important;min-width:0!important;max-width:29mm!important;
+  height:33mm!important;min-height:33mm!important;max-height:33mm!important;padding:1.2mm!important;
+  display:flex!important;flex-direction:column!important;align-items:center!important;justify-content:flex-start!important;
+  overflow:hidden!important;transform:none!important
+ }
+ body.org-stamping .stamping-print-page .level:not(.level-operator) .person{
+  flex:0 0 29mm!important;width:29mm!important;min-width:29mm!important
+ }
+ body.org-stamping .stamping-print-page .person img,
+ body.org-stamping .stamping-print-page .person .avatar{
+  display:block!important;flex:0 0 11mm!important;width:11mm!important;height:11mm!important;min-width:11mm!important;
+  max-width:11mm!important;max-height:11mm!important;margin:0 auto .6mm!important;object-fit:cover!important;object-position:center top!important
+ }
+ body.org-stamping .stamping-print-page .stamp-assignee-photo,
+ body.org-stamping .stamping-print-page .stamping-card-photo{
+  display:block!important;flex:0 0 11.6mm!important;width:100%!important;height:11.6mm!important;min-height:11.6mm!important;overflow:hidden!important
+ }
+ body.org-stamping .stamping-print-page .stamp-assignee-info,
+ body.org-stamping .stamping-print-page .stamping-card-info{
+  display:flex!important;flex:1 1 auto!important;min-height:0!important;width:100%!important;flex-direction:column!important;align-items:center!important;overflow:hidden!important
+ }
+ body.org-stamping .stamping-print-page .stamping-card-name,
+ body.org-stamping .stamping-print-page .person>b,
+ body.org-stamping .stamping-print-page .person>strong{
+  flex:0 0 6mm!important;width:100%!important;height:6mm!important;min-height:6mm!important;max-height:6mm!important;
+  padding:0!important;margin:0!important;font-size:7px!important;line-height:1.1!important;overflow:hidden!important
+ }
+ body.org-stamping .stamping-print-page .stamping-card-id,
+ body.org-stamping .stamping-print-page .stamping-card-position,
+ body.org-stamping .stamping-print-page .person small{
+  width:100%!important;height:2.7mm!important;min-height:2.7mm!important;line-height:2.7mm!important;
+  margin:0!important;padding:0!important;font-size:6.5px!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important
+ }
+ body.org-stamping .stamping-print-page>.org-document-approval{
+  position:static!important;clear:both!important;margin-top:2mm!important;break-inside:avoid!important;break-before:avoid!important
+ }
+ body.org-stamping .stamping-print-page>.org-document-approval>div{min-height:18mm!important}
+ body.org-stamping.org-paper-a3 .stamping-print-page .level-operator .people{grid-template-columns:repeat(10,minmax(0,1fr))!important;gap:2.5mm!important}
+ body.org-stamping.org-paper-a3 .stamping-print-page .person{max-width:38mm!important;height:45mm!important;min-height:45mm!important;max-height:45mm!important}
+ body.org-stamping.org-paper-a3 .stamping-print-page .level:not(.level-operator) .person{flex-basis:38mm!important;width:38mm!important;min-width:38mm!important}
+ body.org-stamping.org-paper-a3 .stamping-print-page .person img,
+ body.org-stamping.org-paper-a3 .stamping-print-page .person .avatar{width:17mm!important;height:17mm!important;min-width:17mm!important;max-width:17mm!important;max-height:17mm!important;flex-basis:17mm!important}
+}
