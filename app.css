@@ -983,3 +983,9 @@ input[id*="exam"][id*="Emp"], input[id*="Exam"][id*="Emp"] {
     overflow:visible!important;
   }
 }
+
+/* V719: edit controls are screen-only and must never appear in printed org charts. */
+@media print{
+ .person-editable:after,.person-editable::after{display:none!important;content:none!important}
+ .person-editable{cursor:default!important}
+}
