@@ -16,7 +16,7 @@ function weldingCard(id,node,item,rank,position){
 }
 function stampingHierarchy(report,footer){
  let extra=report.querySelector('.stamping-standard-hierarchy');
- if(!/^stamping\s*section$/i.test(section())){extra?.remove();return}
+ if(!/stamping/i.test(section())){extra?.remove();return}
  const unique=new Map();report.querySelectorAll('[data-edit]').forEach(node=>{const id=String(node.dataset.edit||'').trim();if(id&&!node.closest('.stamping-standard-hierarchy')&&!unique.has(id))unique.set(id,node)});
  const meta=employeeMeta(),groups=new Map();for(const [id,node]of unique){const [rank,label]=rankOf(node);if(!groups.has(rank))groups.set(rank,{label,items:[]});groups.get(rank).items.push({id,node,meta:meta.get(employeeId(id))||null})}for(const group of groups.values())group.items.sort((a,b)=>employmentRank(a.meta)-employmentRank(b.meta)||startTime(a.meta)-startTime(b.meta)||String(a.id).localeCompare(String(b.id),undefined,{numeric:true}));
  const order=['manager','engineer','supervisor','leader','technician','operator','other'];
@@ -26,7 +26,7 @@ function stampingHierarchy(report,footer){
  if(extra.innerHTML!==html)extra.innerHTML=html;
 }
 function stampingPrintPage(report,header,footer){
- let page=report.querySelector('.stamping-print-page');if(!/^stamping\s*section$/i.test(section())){page?.remove();return}
+ let page=report.querySelector('.stamping-print-page');if(!/stamping/i.test(section())){page?.remove();return}
  const chart=report.querySelector('.stamping-standard-hierarchy');if(!chart)return;const html=`${header.outerHTML}${chart.outerHTML}${footer.outerHTML}`;
  if(!page){page=document.createElement('section');page.className='stamping-print-page unified-section-page';report.append(page)}if(page.innerHTML!==html)page.innerHTML=html;
 }
@@ -45,7 +45,7 @@ function render(){
  const report=document.querySelector('.section-org-report');
  if(!report)return;
  const sec=section();if(!sec)return;
- document.body.classList.toggle('org-stamping',/^stamping\s*section$/i.test(sec));document.body.classList.toggle('org-sorting',/^sorting\s*section$/i.test(sec));
+ document.body.classList.toggle('org-stamping',/stamping/i.test(sec));document.body.classList.toggle('org-sorting',/^sorting\s*section$/i.test(sec));
  document.querySelectorAll('.top-action-toolbar button[data-action="printSettings"]').forEach(button=>button.remove());
  const toolbar=document.querySelector('.top-action-toolbar');if(toolbar)toolbar.remove();
  let header=report.querySelector('.org-document-header');
