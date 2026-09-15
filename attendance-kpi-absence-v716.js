@@ -1,4 +1,4 @@
-/* V729: always create the automatic-absence ledger for KPI.
+/* V730: always create the automatic-absence ledger for KPI.
    A temporary Firebase connection failure must not prevent Absent -10 from
    appearing. Pending rows remain queued and sync when Firebase reconnects. */
 (()=>{
@@ -8,6 +8,8 @@
  // A cleanup made earlier today must not disable today's real attendance for
  // the rest of the shift. Historical trial dates remain protected.
  attendanceIsTrialDate=function(date,section=''){
+  const start=String(attendanceConfig()?.kpiStartDate||'');
+  if(typeof attendanceIsLive==='function'&&attendanceIsLive()&&String(date||'')>=start)return false;
   if(String(date||'')===thaiDateKey())return false;
   return primaryAttendanceIsTrialDate.apply(this,arguments);
  };
@@ -21,6 +23,14 @@
   if(hasFirebaseConfig()&&!attendanceCloudReady)attendanceCloudReady=true;
   try{return primaryReconcileAutomaticAbsences.apply(this,arguments)}
   finally{attendanceCloudReady=previousReady}
+ };
+ currentAbsentEmployees=function(){
+  const date=thaiDateKey(),now=new Date();
+  return employees.filter(emp=>{
+   if(isHoliday(date)||attendanceIsTrialDate(date,emp.section)||attendanceIsAbsenceExcluded(emp.id,date)||!employeeEligibleOnDate(emp,date)||!absenceDeadlinePassed(emp,date,now))return false;
+   const rec=attendanceFor(emp.id,date);
+   return !(rec?.checkIn||rec?.exception?.type==='leave');
+  });
  };
  const reconcileNow=()=>{
   const changed=reconcileAutomaticAbsences(thaiYear());
