@@ -1,4 +1,4 @@
-/* V731: create only the current shift's automatic-absence ledger for KPI.
+/* V733: provisional Absent -10 at work-start +30 minutes.
    A temporary Firebase connection failure must not prevent Absent -10 from
    appearing. Pending rows remain queued and sync when Firebase reconnects. */
 (()=>{
@@ -11,9 +11,13 @@
   if(String(date||'')===thaiDateKey())return false;
   return primaryAttendanceIsTrialDate.apply(this,arguments);
  };
- // Finalize both shifts 25 minutes after their normal check-in window.
+ const absenceCutoffFor=(emp,workDate)=>{
+  const sh=shiftConfig(emp,workDate),start=timeMinutes(sh.workStart),cutoff=(start+30)%(24*60);
+  return `${String(Math.floor(cutoff/60)).padStart(2,'0')}:${String(cutoff%60).padStart(2,'0')}`;
+ };
+ // Mark Absent exactly 30 minutes after each shift starts.
  absenceDeadlinePassed=function(emp,workDate,now=new Date()){
-  const sh=shiftConfig(emp,workDate),cutoff=sh.key==='night'?'20:30':'08:30';
+  const cutoff=absenceCutoffFor(emp,workDate);
   return now>=new Date(`${workDate}T${cutoff}:00+07:00`);
  };
  reconcileAutomaticAbsences=function(){
@@ -22,7 +26,7 @@
    if(isHoliday(date)||attendanceIsAbsenceExcluded(emp.id,date)||!employeeEligibleOnDate(emp,date)||!absenceDeadlinePassed(emp,date,now))continue;
    let rec=attendanceFor(emp.id,date);if(rec?.checkIn||rec?.exception?.type==='leave'||rec?.exception?.type==='absent')continue;
    rec=rec||{employeeId:String(emp.id),date,section:emp.section,name:emp.name,createdAt:nowIso};
-   rec.shift=employeeShiftKey(emp,date);rec.exception={type:'absent',reason:rec.shift==='night'?'ไม่มีเช็คชื่อถึงเวลา 20:30 น.':'ไม่มีเช็คชื่อถึงเวลา 08:30 น.',auto:true,finalizedAt:nowIso};rec.autoAbsent=true;touchAttendance(rec);if(!attendance.includes(rec))attendance.push(rec);created.push(rec);
+   rec.shift=employeeShiftKey(emp,date);const cutoff=absenceCutoffFor(emp,date);rec.exception={type:'absent',reason:`ไม่มีเช็คชื่อภายใน ${cutoff} น.`,auto:true,provisionalUntilCheckIn:true,finalizedAt:nowIso,deadline:new Date(`${date}T${cutoff}:00+07:00`).toISOString()};rec.autoAbsent=true;touchAttendance(rec);if(!attendance.includes(rec))attendance.push(rec);created.push(rec);
   }
   if(created.length){localStorage.setItem(ATTENDANCE_KEY,JSON.stringify(attendance));created.forEach(rec=>syncAttendanceRecordCloud(rec).catch(()=>{rec.pendingCloudSync=true;localStorage.setItem(ATTENDANCE_KEY,JSON.stringify(attendance))}))}
   return created.length;
