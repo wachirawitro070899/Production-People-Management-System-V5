@@ -1,4 +1,4 @@
-/* V734: reconcile recent missing workdays and apply provisional Absent -10.
+/* V735: enforce recent live-period absence deductions after old trial cleanup.
    A temporary Firebase connection failure must not prevent Absent -10 from
    appearing. Pending rows remain queued and sync when Firebase reconnects. */
 (()=>{
@@ -8,7 +8,8 @@
  // the rest of the shift. Historical trial dates remain protected.
  attendanceIsTrialDate=function(date,section=''){
   const start=String(attendanceConfig()?.kpiStartDate||'');
-  if(String(date||'')===thaiDateKey())return false;
+  const recentStart=dateKeyOffsetFrom(thaiDateKey(),-7),d=String(date||'');
+  if(d>=start&&d>=recentStart&&d<=thaiDateKey())return false;
   return primaryAttendanceIsTrialDate.apply(this,arguments);
  };
  const absenceCutoffFor=(emp,workDate)=>{
