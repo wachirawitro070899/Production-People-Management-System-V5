@@ -1618,7 +1618,7 @@ async function getAttendanceEmployeeReady(){
 }
 function askRequiredReason(title,initial=''){const reason=String(prompt(title,initial)||'').trim();if(!reason){alert('ต้องระบุสาเหตุ จึงจะบันทึกได้');return''}return reason}
 function gpsErrorMessage(e){return e?.code===1?'กรุณาอนุญาตการเข้าถึงตำแหน่ง (Location)':e?.code===2?'ไม่สามารถหาตำแหน่ง GPS ได้':'GPS ใช้เวลานานเกินไป กรุณาลองใหม่'}
-function getBestPosition({duration=12000,minSamples=1,targetAccuracy=50}={}){return new Promise((resolve,reject)=>{
+function getBestPosition({duration=7000,minSamples=1,targetAccuracy=80}={}){return new Promise((resolve,reject)=>{
  if(!navigator.geolocation)return reject(Error('อุปกรณ์นี้ไม่รองรับ GPS'));
  let best=null,samples=0,watchId=null,done=false,lastError=null,softTimer=null;
  const finish=()=>{if(done)return;done=true;if(watchId!==null)navigator.geolocation.clearWatch(watchId);clearTimeout(timer);clearTimeout(softTimer);if(best)return resolve(best);reject(Error(gpsErrorMessage(lastError)))};
@@ -1635,8 +1635,8 @@ function getBestPosition({duration=12000,minSamples=1,targetAccuracy=50}={}){ret
  const timer=setTimeout(finish,duration);
  // A recent OS location avoids a cold-start timeout; the distance and accuracy
  // checks below still protect the factory geofence.
- navigator.geolocation.getCurrentPosition(accept,fail,{enableHighAccuracy:false,timeout:6000,maximumAge:120000});
- watchId=navigator.geolocation.watchPosition(accept,fail,{enableHighAccuracy:true,timeout:Math.min(duration,10000),maximumAge:30000});
+ navigator.geolocation.getCurrentPosition(accept,fail,{enableHighAccuracy:false,timeout:4500,maximumAge:600000});
+ watchId=navigator.geolocation.watchPosition(accept,fail,{enableHighAccuracy:true,timeout:Math.min(duration,6500),maximumAge:120000});
 })}
 function validateAttendanceNoticeDate(dateStr,retroDays,leaveType=''){const today=thaiDateKey(),chosen=new Date(String(dateStr)+'T00:00:00+07:00'),todayDate=new Date(today+'T00:00:00+07:00'),diff=Math.floor((todayDate-chosen)/86400000);if(leaveType==='personal'&&diff>retroDays)throw Error(`ลากิจย้อนหลังเกิน ${retroDays} วัน ระบบคงเป็นขาดงาน -10`);if(diff<0){if(leaveType!=='personal')throw Error('ลาป่วยไม่สามารถเลือกวันที่ในอนาคตได้');if(diff < -7)throw Error('ลากิจล่วงหน้าได้ไม่เกิน 7 วัน')}return diff}
 function thaiDateOffset(days){const d=new Date(thaiDateKey()+'T12:00:00+07:00');d.setDate(d.getDate()+Number(days||0));return thaiDateKey(d)}
@@ -1693,10 +1693,15 @@ async function stampAttendance(type){
  }
  let lateReason='';
  if(nowMin>lateMin){lateReason=askRequiredReason(`เลยเวลาเช็คชื่อปกติ ${sh.lateReasonAfter} น. กรุณาระบุสาเหตุการเข้าสาย`,existing?.lateNotice?.reason||'');if(!lateReason)return}
- if(btn)btn.textContent='กำลังตรวจ GPS...';
-  const c=attendanceConfig(),pos=await getBestPosition({duration:12000,minSamples:1,targetAccuracy:50}),lat=pos.coords.latitude,lng=pos.coords.longitude,accuracy=Number(pos.coords.accuracy||9999),distance=distanceMeters(lat,lng,c.lat,c.lng);
-  if(accuracy>c.maxAccuracy)throw Error(`GPS ยังไม่นิ่ง (ความแม่นยำ ±${Math.round(accuracy)} ม.) กรุณาเปิด Precise Location/ตำแหน่งที่แม่นยำ ออกไปบริเวณที่รับสัญญาณได้ดี แล้วลองเช็คชื่อใหม่`);
-  if(distance>c.radius)throw Error(`อยู่นอกพื้นที่โรงงาน ${Math.round(distance)} ม. (อนุญาตไม่เกิน ${c.radius} ม. • GPS ±${Math.round(accuracy)} ม.)`);
+ if(btn)btn.textContent='กำลังตรวจ GPS (ไม่เกิน 7 วินาที)...';
+  const c=attendanceConfig();let pos=null,lat=null,lng=null,accuracy=null,distance=null,gpsPendingReason='';
+  try{
+   pos=await getBestPosition({duration:7000,minSamples:1,targetAccuracy:80});lat=pos.coords.latitude;lng=pos.coords.longitude;accuracy=Number(pos.coords.accuracy||9999);distance=distanceMeters(lat,lng,c.lat,c.lng);
+   if(distance>c.radius+Math.min(accuracy,250))throw Error(`อยู่นอกพื้นที่โรงงาน ${Math.round(distance)} ม. (อนุญาตไม่เกิน ${c.radius} ม. • GPS ±${Math.round(accuracy)} ม.)`);
+   if(accuracy>c.maxAccuracy)gpsPendingReason=`GPS คลาดเคลื่อน ±${Math.round(accuracy)} ม. ระบบบันทึกเวลาแล้วและทำเครื่องหมายรอตรวจสอบ`;
+  }catch(gpsErr){
+   const reason=gpsErr?.message||String(gpsErr);if(/นอกพื้นที่โรงงาน/.test(reason))throw gpsErr;gpsPendingReason=reason;
+  }
   await assertAndBindAttendanceDeviceCloud(emp);
   const rec=ensureAttendanceRecord(emp,date),stamp=new Date().toISOString();
   // V563: the Firebase listener can restore a pending local timestamp while GPS/device checks are awaiting.
@@ -1708,14 +1713,14 @@ async function stampAttendance(type){
    sessionStorage.setItem('attendanceEmp',String(emp.id));render();
    return alert(`เช็คชื่อสำเร็จ • ข้อมูลกลางยืนยันแล้ว • ${emp.name} • ${sh.name} • ${thaiTime(new Date(rec.checkIn))}`);
   }
-  rec.shift=sh.key;rec.checkIn=stamp;rec.checkInLocation={lat,lng,accuracy:Math.round(accuracy),distance:Math.round(distance)};rec.autoAbsent=false;rec.pendingCloudSync=true;
+  rec.shift=sh.key;rec.checkIn=stamp;rec.checkInLocation=pos?{lat,lng,accuracy:Math.round(accuracy),distance:Math.round(distance),reviewRequired:!!gpsPendingReason}:{unavailable:true,reviewRequired:true,reason:gpsPendingReason};rec.gpsReviewRequired=!!gpsPendingReason;rec.autoAbsent=false;rec.pendingCloudSync=true;
   if(rec.exception?.type==='absent'&&rec.exception?.auto)delete rec.exception;
   if(lateReason)rec.lateReason={reason:lateReason,submittedAt:stamp,requiredAfter:sh.lateReasonAfter};
   touchAttendance(rec);persistAttendanceLocalOnly('attendance-checkin-pending');if(!cloudDb){const ready=await ensureAttendanceCloudReady(12000);if(!ready)throw Error('บันทึกเวลาไว้ในเครื่องแล้ว แต่ Firebase ยังไม่เชื่อมต่อ • ระบบจะส่งซ้ำอัตโนมัติเมื่อเชื่อมต่อได้')}await syncAttendanceRecordCloudWithRetry(rec,{attempts:6,delayMs:1000,onAttempt:(i,n)=>{if(btn)btn.textContent=`กำลังส่ง Firebase (${i}/${n})...`}});
   // V570: success message is allowed only after the central record has been read back and verified.
   if(rec.pendingCloudSync===true||!rec.cloudVerifiedAt)throw Error('ยังไม่ได้รับการยืนยันจากข้อมูลกลาง • กรุณากดเช็คชื่อซ้ำ');
   sessionStorage.setItem('attendanceEmp',String(emp.id));render();
-  alert(`เช็คชื่อสำเร็จ • ข้อมูลกลางยืนยันแล้ว • ${emp.name} • ${sh.name} • ${thaiTime(new Date(rec.checkIn||stamp))}${nowMin>lateMin?' • บันทึกเป็นมาสาย':''}`)
+  alert(`เช็คชื่อสำเร็จ • ข้อมูลกลางยืนยันแล้ว • ${emp.name} • ${sh.name} • ${thaiTime(new Date(rec.checkIn||stamp))}${nowMin>lateMin?' • บันทึกเป็นมาสาย':''}${gpsPendingReason?' • GPS รอตรวจสอบ (ไม่ถูกนับเป็นขาดงาน)':''}`)
  }catch(err){const msg=err.message||String(err);const localEmp=String(sessionStorage.getItem('attendanceEmp')||attendanceEmployeeInput().id||''),pending=attendance.find(r=>r&&r.checkIn&&sameAttendanceEmployeeId(r.employeeId,localEmp)&&r.pendingCloudSync===true);if(pending){alert('บันทึกเวลาไว้ในเครื่องแล้ว แต่ Firebase ยังไม่ยืนยัน • ระบบจะส่งซ้ำอัตโนมัติ ไม่ต้องกดเช็คชื่อซ้ำ • '+msg);setTimeout(()=>autoRecoverTodayAttendanceFromDevice(),700);setTimeout(()=>autoRecoverTodayAttendanceFromDevice(),3000);setTimeout(()=>autoRecoverTodayAttendanceFromDevice(),8000)}else alert(msg)}finally{if(btn){btn.disabled=false;if(oldHtml!=null)btn.innerHTML=oldHtml}}
 }
 async function submitAdvanceLateNotice(){const emp=await getAttendanceEmployeeReady();if(!emp)return;const today=thaiDateKey(),sh=shiftConfig(emp,today),now=currentThaiMinutes(),cutoff=timeMinutes(sh.advanceLateCutoff);if(now>cutoff)return alert(`เลยเวลาแจ้งเข้าสายล่วงหน้าของ ${sh.name} แล้ว • ต้องแจ้งไม่เกิน ${sh.advanceLateCutoff} น. ของวันนั้น\nหากมาเช็คชื่อหลัง ${sh.lateReasonAfter} น. ระบบจะบังคับให้พิมพ์สาเหตุการเข้าสายตอนเช็คชื่อ`);modal(`<h2>แจ้งเข้าสายล่วงหน้า</h2><p class="modal-note"><b>${esc(emp.id)} · ${esc(emp.name)}</b> • ${esc(sh.name)}<br>แจ้งได้เฉพาะวันนี้และต้องไม่เกิน <b>${esc(sh.advanceLateCutoff)} น.</b> • กรุณาพิมพ์สาเหตุจริง</p><form id="attendanceLateForm"><div class="form-grid"><label>วันที่<input name="date" type="date" value="${today}" readonly></label><label>กะ<input value="${esc(sh.name)}" readonly></label></div><label>สาเหตุการเข้าสาย *<textarea name="reason" rows="5" maxlength="300" placeholder="พิมพ์สาเหตุการเข้าสายให้ชัดเจน เช่น รถเสีย รถติดฉุกเฉิน" required></textarea></label><div class="actions"><button type="submit">บันทึกแจ้งเข้าสายล่วงหน้า</button><button type="button" class="secondary" data-action="close">ยกเลิก</button></div></form>`);setTimeout(()=>{const f=document.querySelector('#attendanceLateForm');if(!f)return;f.onsubmit=async e=>{e.preventDefault();const reason=String(new FormData(f).get('reason')||'').trim();if(!reason)return alert('กรุณาพิมพ์สาเหตุการเข้าสาย');if(currentThaiMinutes()>timeMinutes(sh.advanceLateCutoff))return alert(`เลยเวลา ${sh.advanceLateCutoff} น. แล้ว ไม่สามารถแจ้งเข้าสายล่วงหน้าได้`);const rec=ensureAttendanceRecord(emp,today);rec.shift=sh.key;rec.lateNotice={reason,submittedAt:new Date().toISOString(),submittedBefore:sh.advanceLateCutoff,advance:true};touchAttendance(rec);save();try{await syncAttendanceRecordCloud(rec)}catch(err){return alert('บันทึกในเครื่องแล้ว แต่ส่งขึ้นเว็บไม่สำเร็จ: '+err.message)}closeModal();render();alert('บันทึกแจ้งเข้าสายล่วงหน้าและส่งขึ้นเว็บเรียบร้อย')}} ,0)}
