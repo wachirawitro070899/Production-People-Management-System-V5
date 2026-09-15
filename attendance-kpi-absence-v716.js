@@ -1,4 +1,4 @@
-/* V735: enforce recent live-period absence deductions after old trial cleanup.
+/* V736: enforce recent live-period absence deductions after old trial cleanup.
    A temporary Firebase connection failure must not prevent Absent -10 from
    appearing. Pending rows remain queued and sync when Firebase reconnects. */
 (()=>{
