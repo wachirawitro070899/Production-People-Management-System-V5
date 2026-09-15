@@ -1,4 +1,4 @@
-/* V733: provisional Absent -10 at work-start +30 minutes.
+/* V734: reconcile recent missing workdays and apply provisional Absent -10.
    A temporary Firebase connection failure must not prevent Absent -10 from
    appearing. Pending rows remain queued and sync when Firebase reconnects. */
 (()=>{
@@ -20,15 +20,20 @@
   const cutoff=absenceCutoffFor(emp,workDate);
   return now>=new Date(`${workDate}T${cutoff}:00+07:00`);
  };
+ const queueAbsenceSync=records=>{
+  window.__ppmsAbsenceSyncQueue=[...(window.__ppmsAbsenceSyncQueue||[]),...records];
+  if(window.__ppmsAbsenceSyncRunning)return;window.__ppmsAbsenceSyncRunning=true;
+  const next=()=>{const rec=window.__ppmsAbsenceSyncQueue.shift();if(!rec){window.__ppmsAbsenceSyncRunning=false;return}syncAttendanceRecordCloud(rec).catch(()=>{rec.pendingCloudSync=true;localStorage.setItem(ATTENDANCE_KEY,JSON.stringify(attendance))}).finally(()=>setTimeout(next,100))};next();
+ };
  reconcileAutomaticAbsences=function(){
-  const date=thaiDateKey(),now=new Date(),nowIso=now.toISOString(),created=[];
-  for(const emp of employees){
-   if(isHoliday(date)||attendanceIsAbsenceExcluded(emp.id,date)||!employeeEligibleOnDate(emp,date)||!absenceDeadlinePassed(emp,date,now))continue;
+  const today=thaiDateKey(),start=dateKeyOffsetFrom(today,-7),now=new Date(),nowIso=now.toISOString(),created=[];
+  for(const date of thaiDateRange(start,today))for(const emp of employees){
+   if(isHoliday(date)||attendanceIsTrialDate(date,emp.section)||attendanceIsAbsenceExcluded(emp.id,date)||!employeeEligibleOnDate(emp,date)||!absenceDeadlinePassed(emp,date,now))continue;
    let rec=attendanceFor(emp.id,date);if(rec?.checkIn||rec?.exception?.type==='leave'||rec?.exception?.type==='absent')continue;
    rec=rec||{employeeId:String(emp.id),date,section:emp.section,name:emp.name,createdAt:nowIso};
    rec.shift=employeeShiftKey(emp,date);const cutoff=absenceCutoffFor(emp,date);rec.exception={type:'absent',reason:`ไม่มีเช็คชื่อภายใน ${cutoff} น.`,auto:true,provisionalUntilCheckIn:true,finalizedAt:nowIso,deadline:new Date(`${date}T${cutoff}:00+07:00`).toISOString()};rec.autoAbsent=true;touchAttendance(rec);if(!attendance.includes(rec))attendance.push(rec);created.push(rec);
   }
-  if(created.length){localStorage.setItem(ATTENDANCE_KEY,JSON.stringify(attendance));created.forEach(rec=>syncAttendanceRecordCloud(rec).catch(()=>{rec.pendingCloudSync=true;localStorage.setItem(ATTENDANCE_KEY,JSON.stringify(attendance))}))}
+  if(created.length){localStorage.setItem(ATTENDANCE_KEY,JSON.stringify(attendance));queueAbsenceSync(created)}
   return created.length;
  };
  currentAbsentEmployees=function(){
@@ -47,10 +52,5 @@
  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')setTimeout(reconcileNow,200)});
  window.addEventListener('online',()=>setTimeout(reconcileNow,200));
  setInterval(reconcileNow,60000);
- // Remove only the accidental historical backfill created today by V730. It
- // was too large for Firebase; legitimate older records remain untouched.
- const today=thaiDateKey(),before=attendance.length;
- attendance=attendance.filter(rec=>!(rec?.autoAbsent===true&&String(rec.date||'')<today&&String(rec.createdAt||'').slice(0,10)===today));
- if(attendance.length!==before){localStorage.setItem(ATTENDANCE_KEY,JSON.stringify(attendance));localStorage.setItem(CLOUD_DIRTY_KEY,'0')}
  setTimeout(reconcileNow,1000);
 })();
