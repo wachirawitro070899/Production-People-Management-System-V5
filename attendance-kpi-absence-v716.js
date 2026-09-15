@@ -1,15 +1,13 @@
-/* V730: always create the automatic-absence ledger for KPI.
+/* V731: create only the current shift's automatic-absence ledger for KPI.
    A temporary Firebase connection failure must not prevent Absent -10 from
    appearing. Pending rows remain queued and sync when Firebase reconnects. */
 (()=>{
  if(typeof reconcileAutomaticAbsences!=='function')return;
- const primaryReconcileAutomaticAbsences=reconcileAutomaticAbsences;
  const primaryAttendanceIsTrialDate=attendanceIsTrialDate;
  // A cleanup made earlier today must not disable today's real attendance for
  // the rest of the shift. Historical trial dates remain protected.
  attendanceIsTrialDate=function(date,section=''){
   const start=String(attendanceConfig()?.kpiStartDate||'');
-  if(typeof attendanceIsLive==='function'&&attendanceIsLive()&&String(date||'')>=start)return false;
   if(String(date||'')===thaiDateKey())return false;
   return primaryAttendanceIsTrialDate.apply(this,arguments);
  };
@@ -18,11 +16,16 @@
   const sh=shiftConfig(emp,workDate),cutoff=sh.key==='night'?'20:30':'08:30';
   return now>=new Date(`${workDate}T${cutoff}:00+07:00`);
  };
- reconcileAutomaticAbsences=function(year){
-  const previousReady=attendanceCloudReady;
-  if(hasFirebaseConfig()&&!attendanceCloudReady)attendanceCloudReady=true;
-  try{return primaryReconcileAutomaticAbsences.apply(this,arguments)}
-  finally{attendanceCloudReady=previousReady}
+ reconcileAutomaticAbsences=function(){
+  const date=thaiDateKey(),now=new Date(),nowIso=now.toISOString(),created=[];
+  for(const emp of employees){
+   if(isHoliday(date)||attendanceIsAbsenceExcluded(emp.id,date)||!employeeEligibleOnDate(emp,date)||!absenceDeadlinePassed(emp,date,now))continue;
+   let rec=attendanceFor(emp.id,date);if(rec?.checkIn||rec?.exception?.type==='leave'||rec?.exception?.type==='absent')continue;
+   rec=rec||{employeeId:String(emp.id),date,section:emp.section,name:emp.name,createdAt:nowIso};
+   rec.shift=employeeShiftKey(emp,date);rec.exception={type:'absent',reason:rec.shift==='night'?'ไม่มีเช็คชื่อถึงเวลา 20:30 น.':'ไม่มีเช็คชื่อถึงเวลา 08:30 น.',auto:true,finalizedAt:nowIso};rec.autoAbsent=true;touchAttendance(rec);if(!attendance.includes(rec))attendance.push(rec);created.push(rec);
+  }
+  if(created.length){localStorage.setItem(ATTENDANCE_KEY,JSON.stringify(attendance));created.forEach(rec=>syncAttendanceRecordCloud(rec).catch(()=>{rec.pendingCloudSync=true;localStorage.setItem(ATTENDANCE_KEY,JSON.stringify(attendance))}))}
+  return created.length;
  };
  currentAbsentEmployees=function(){
   const date=thaiDateKey(),now=new Date();
@@ -34,12 +37,16 @@
  };
  const reconcileNow=()=>{
   const changed=reconcileAutomaticAbsences(thaiYear());
-  if(changed&&typeof syncPendingCloudData==='function')setTimeout(()=>syncPendingCloudData(),100);
   if(changed&&current==='attendanceAdmin'&&isAdmin)setTimeout(()=>render(),0);
   return changed;
  };
  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')setTimeout(reconcileNow,200)});
  window.addEventListener('online',()=>setTimeout(reconcileNow,200));
  setInterval(reconcileNow,60000);
+ // Remove only the accidental historical backfill created today by V730. It
+ // was too large for Firebase; legitimate older records remain untouched.
+ const today=thaiDateKey(),before=attendance.length;
+ attendance=attendance.filter(rec=>!(rec?.autoAbsent===true&&String(rec.date||'')<today&&String(rec.createdAt||'').slice(0,10)===today));
+ if(attendance.length!==before){localStorage.setItem(ATTENDANCE_KEY,JSON.stringify(attendance));localStorage.setItem(CLOUD_DIRTY_KEY,'0')}
  setTimeout(reconcileNow,1000);
 })();

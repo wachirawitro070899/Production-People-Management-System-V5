@@ -64,7 +64,4 @@
   if(exceptionType==='late')return'มาสาย -'+points;
   return points?'-'+points:'0';
  };
- // Count valid Attendance records for the whole selected year. A stale or
- // accidentally reset Go-Live date must not make existing deductions zero.
- kpiPeriodStart=function(year){const y=Number(year);return Number.isFinite(y)?String(y)+'-01-01':null};
 })();
