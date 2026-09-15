@@ -44,10 +44,18 @@ document.addEventListener('submit',async event=>{
   if(!leader||!isLeader(leader.position))throw Error('สิทธิ์ Leader หมดอายุ กรุณา Login ใหม่');
   const section=String(leader.section||''),list=master.employees.filter(item=>sectionKey(item.section)===sectionKey(section)).sort((a,b)=>String(a.id).localeCompare(String(b.id),undefined,{numeric:true})),plan=rounds(),ref=master.db.ref('ppms/shiftSchedules'),latest=decodeFirebase((await ref.once('value')).val()||{}),changes=[],now=new Date().toISOString();
   list.forEach((emp,index)=>plan.forEach((round,roundIndex)=>{const select=form.elements['s_'+index+'_'+roundIndex],shift=String(select?.value||''),original=String(select?.dataset.originalShift||'');if(shift===original)return;const generatedId=ruleId(section,emp.id,round),previous=activeRule(latest,section,emp.id,round),id=shift?generatedId:String(previous?.id||generatedId);changes.push({id,emp,round,shift,rule:shift?{id,section,scope:'employee',employeeId:String(emp.id),startDate:round.start,endDate:round.end,roundNo:round.no,shift,createdAt:latest[id]?.createdAt||now,updatedAt:now,deleted:false,createdByLeader:String(leader.id),writeVersion:'V725'}:{...(previous||{id,section,scope:'employee',employeeId:String(emp.id),startDate:round.start,endDate:round.end,roundNo:round.no,createdAt:now}),id,deleted:true,updatedAt:now,createdByLeader:String(leader.id),writeVersion:'V725'}})}));
-  if(!changes.length)throw Error('ยังไม่มีการเปลี่ยนแปลงกะ');
-  for(let start=0;start<changes.length;start+=20){const batch=changes.slice(start,start+20),results=await Promise.allSettled(batch.map(change=>ref.child(change.id).set(change.rule)));const failedWrites=results.filter(result=>result.status==='rejected');if(failedWrites.length)throw Error('Firebase บันทึกไม่ครบ '+failedWrites.length+' รายการ กรุณาลองอีกครั้ง')}
-  const verified=decodeFirebase((await ref.once('value')).val()||{}),failed=changes.some(change=>{const saved=activeRule(verified,section,change.emp.id,change.round);return change.shift?String(saved?.shift||'')!==change.shift:Boolean(saved)});
-  if(failed)throw Error('Firebase รับข้อมูลกะไม่ครบ');
+  if(!changes.length){document.getElementById('modal').classList.add('hidden');return alert('ข้อมูลกะเป็นปัจจุบันแล้ว • ไม่มีรายการที่ต้องแก้ไข')}
+  const limited=(promise,ms=10000)=>Promise.race([promise,new Promise((_,reject)=>setTimeout(()=>reject(Error('Firebase ใช้เวลานานเกินไป กรุณาตรวจอินเทอร์เน็ตแล้วลองใหม่')),ms))]);
+  // One atomic multi-location update is substantially faster and safer than
+  // dozens of sequential mobile writes. It also cannot leave half a roster saved.
+  const updates={};changes.forEach(change=>{updates[change.id]=change.rule});
+  await limited(ref.update(updates),12000);
+  // Verify only the changed nodes. Downloading every Section's roster caused
+  // Leader saves to appear stuck on slower phones.
+  const verifiedRows=await limited(Promise.all(changes.map(change=>ref.child(change.id).once('value'))),10000);
+  const failed=changes.some((change,index)=>{const saved=decodeFirebase(verifiedRows[index].val());return change.shift?(!saved||saved.deleted||String(saved.shift||'')!==change.shift):!saved?.deleted});
+  if(failed)throw Error('Firebase รับข้อมูลกะไม่ครบ กรุณากดบันทึกอีกครั้ง');
+  const verified={...latest};changes.forEach(change=>{verified[change.id]=change.rule});
   try{localStorage.setItem('ppms_v3_shift_schedules',JSON.stringify(verified));localStorage.setItem('ppms_v3_shift_cloud_dirty','0')}catch(error){console.warn('Leader roster cache skipped',error)}document.getElementById('modal').classList.add('hidden');alert('บันทึกกะ '+section+' สำเร็จ • Firebase ยืนยันแล้ว • '+changes.length+' รายการ');
  }catch(error){submit.disabled=false;submit.textContent='บันทึกกะและยืนยัน Firebase';alert('บันทึกกะไม่สำเร็จ: '+(error.message||String(error)))}
 },true);
