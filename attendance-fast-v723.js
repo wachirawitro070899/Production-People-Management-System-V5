@@ -4,10 +4,13 @@
  const decode=snap=>firebaseDecodeData(snap?.val?.());
  const denied=error=>/PERMISSION_DENIED|Permission denied/i.test(String(error?.code||'')+' '+String(error?.message||error||''));
  const persistAttendance=rec=>{
-  const rows=window.PPMS_RUNTIME?.attendanceRows?.();
-  if(!Array.isArray(rows))throw Error('ระบบ Attendance ยังไม่พร้อม กรุณาปิดหน้าเว็บแล้วเปิดใหม่');
-  // Resolve Attendance through the runtime API. Mobile Safari can fail to
-  // resolve a top-level lexical binding from a later external script.
+  // Keep this compatibility script independent from app.js top-level lexical
+  // state. Mobile Safari may isolate that binding between external scripts.
+  let rows=[];
+  try{rows=JSON.parse(localStorage.getItem(ATTENDANCE_KEY)||'[]')}catch(_){}
+  if(!Array.isArray(rows))rows=[];
+  const index=rows.findIndex(row=>String(row?.employeeId||'')===String(rec?.employeeId||'')&&String(row?.date||'')===String(rec?.date||''));
+  if(index>=0)rows[index]={...rows[index],...rec};else rows.unshift({...rec});
   localStorage.setItem(ATTENDANCE_KEY,JSON.stringify(rows));
   return rec;
  };
