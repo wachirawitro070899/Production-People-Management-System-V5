@@ -3,6 +3,14 @@
  const wait=(promise,ms,label)=>Promise.race([promise,new Promise((_,reject)=>setTimeout(()=>reject(Error(label+' ใช้เวลานานเกินไป')),ms))]);
  const decode=snap=>firebaseDecodeData(snap?.val?.());
  const denied=error=>/PERMISSION_DENIED|Permission denied/i.test(String(error?.code||'')+' '+String(error?.message||error||''));
+ const persistAttendance=rec=>{
+  const rows=window.PPMS_RUNTIME?.attendanceRows?.();
+  if(!Array.isArray(rows))throw Error('ระบบ Attendance ยังไม่พร้อม กรุณาปิดหน้าเว็บแล้วเปิดใหม่');
+  // Resolve Attendance through the runtime API. Mobile Safari can fail to
+  // resolve a top-level lexical binding from a later external script.
+  localStorage.setItem(ATTENDANCE_KEY,JSON.stringify(rows));
+  return rec;
+ };
 
  refreshAttendanceDeviceBindingsFromCloud=async function(){
   if(!hasFirebaseConfig()||!window.firebase)return false;
@@ -59,10 +67,10 @@
   const attempt=async([name,ref])=>{await wait(ref.set(firebaseEncodeData(upload)),5000,name);const row=decode(await wait(ref.once('value'),3000,name+' ตรวจสอบ'));if(!(row?.checkIn||row?.exception?.type||row?.lateNotice)||!sameAttendanceEmployeeId(row.employeeId,upload.employeeId)||String(row.date||'')!==String(upload.date))throw Error(name+' ยืนยันข้อมูลไม่ตรง');return{name,ref,row}};
   let confirmed;
   try{confirmed=await Promise.any(primary.map(attempt))}
-  catch(_){rec.pendingCloudSync=true;if(rec.exception?.type||rec.lateNotice)rec.pendingNoticeSync=true;localStorage.setItem(ATTENDANCE_KEY,JSON.stringify(attendance));throw Error('Firebase ยังไม่ยืนยันข้อมูลภายใน 8 วินาที ระบบเก็บเวลาไว้ในเครื่องและจะส่งซ้ำอัตโนมัติ')}
+  catch(_){rec.pendingCloudSync=true;if(rec.exception?.type||rec.lateNotice)rec.pendingNoticeSync=true;persistAttendance(rec);throw Error('Firebase ยังไม่ยืนยันข้อมูลภายใน 8 วินาที ระบบเก็บเวลาไว้ในเครื่องและจะส่งซ้ำอัตโนมัติ')}
   const canonical=mergeAttendanceRecords([confirmed.row],[rec])[0]||confirmed.row;
   Object.assign(rec,canonical,{pendingCloudSync:false,pendingNoticeSync:false,cloudVerifiedAt:new Date().toISOString(),cloudSyncedAt:upload.cloudSyncedAt,canonicalVerified:true,cloudSource:'attendance-fast-v723',cloudVerifiedPaths:[confirmed.name]});
-  localStorage.setItem(ATTENDANCE_KEY,JSON.stringify(attendance));setCloudStatus('Attendance ยืนยันแล้ว • '+confirmed.name);
+  persistAttendance(rec);setCloudStatus('Attendance ยืนยันแล้ว • '+confirmed.name);
   const mirrors=[cloudDb.ref(ATTENDANCE_INBOX_ROOT+'/'+dayKey+'/'+empKey),cloudDb.ref(ATTENDANCE_LIVE_ROOT+'/'+dayKey+'/'+empKey),...primary.filter(([,ref])=>ref.toString()!==confirmed.ref.toString()).map(([,ref])=>ref)];
   mirrors.forEach(ref=>ref.set(firebaseEncodeData(canonical)).catch(()=>{}));if(typeof archiveAttendanceRecordCloud==='function')archiveAttendanceRecordCloud(canonical,cloudDb).catch(()=>{});return true;
  };
