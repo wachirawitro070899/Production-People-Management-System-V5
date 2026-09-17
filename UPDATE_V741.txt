@@ -1,0 +1,10 @@
+V741 Reliable Login, Shift and Attendance
+
+- Restored the bounded Attendance delivery layer to the production page.
+- Device validation now has a Firebase compatibility-path fallback and finite timeouts.
+- Check-in writes use two independent canonical paths; the first verified write succeeds.
+- Leave and late notices are accepted locally and retried automatically after transient failures.
+- The authoritative shift roster is refreshed before check-in.
+- KPI deduction and automatic absence use one canonical policy.
+- Leader roster keeps the V725 atomic changed-cell update and direct Firebase verification.
+- No employee, shift, attendance, leave, KPI, examination or device history is cleared.
