@@ -732,6 +732,11 @@ body.print-matrix .matrix-print-logo{padding:.35mm;box-sizing:border-box;}
 @media(max-width:700px){.org-attendance-legend{font-size:11px}.org-attendance-badge{right:28px}.org-attendance-badge small{display:none}}
 @media print{.org-attendance-badge{position:static;margin:0 auto 4px;max-width:110px}.org-live-person{padding-top:8px!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}.org-attendance-badge i{animation:none}}
 
+/* V749 - show the complete JR mark without cropping or zooming */
+header .logo{width:82px!important;height:68px!important;min-width:82px!important;overflow:visible!important;padding:0!important}
+header .logo img{width:78px!important;height:66px!important;max-width:100%!important;max-height:100%!important;object-fit:contain!important;object-position:center!important;transform:none!important}
+@media(max-width:800px){header .logo{width:66px!important;height:58px!important;min-width:66px!important}header .logo img{width:64px!important;height:56px!important;transform:none!important}}
+
 /* Section Organization Chart - quarterly examination status lights */
 .section-exam-person{position:relative}
 .org-exam-light{position:absolute;left:5px;top:5px;z-index:6;display:flex;align-items:center;gap:3px;padding:3px 5px;border-radius:999px;background:rgba(255,255,255,.96);box-shadow:0 2px 8px rgba(16,36,61,.22);font-size:9px;font-weight:800;line-height:1;color:#334155;pointer-events:none}
