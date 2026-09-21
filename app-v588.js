@@ -1359,7 +1359,10 @@ function examHistoryPage(){if(!isAdmin)return examPage();setTimeout(()=>repairHi
  return head('Examination History',`${filtered.length} รายการ`,`<button data-action="examCsv">ดาวน์โหลด Excel/CSV</button><button data-action="print">พิมพ์ / PDF</button>`)+`<div class="panel no-print exam-history-filter"><label>ค้นหา<input id="examHistoryQuery" value="${esc(sessionStorage.getItem('examHistoryQuery')||'')}" placeholder="รหัส ชื่อ Section"></label><label>Section<select id="examHistorySection"><option value="ALL">ทั้งหมด</option>${sections.map(s=>`<option value="${esc(s)}" ${s===sectionFilter?'selected':''}>${esc(s)}</option>`).join('')}</select></label><label>Quarter<select id="examHistoryQuarter"><option value="ALL">ทั้งหมด</option>${['Q1','Q2','Q3','Q4'].map(q=>`<option ${q===quarterFilter?'selected':''}>${q}</option>`).join('')}</select></label><button data-action="clearExamHistoryFilter" class="secondary">ล้างตัวกรอง</button></div><div class="table-wrap"><table><thead><tr><th>No.</th><th>รูป</th><th>วันเวลา</th><th>รหัส</th><th>ชื่อ</th><th>Section</th><th>Quarter</th><th>Level</th><th>ชุด</th><th>ถูก</th><th>คะแนน</th><th>ผล / จัดการ</th></tr></thead><tbody>${rows||'<tr><td colspan="12">ยังไม่มีประวัติการสอบ</td></tr>'}</tbody></table></div>`;
 }
 
-function matrixPage(gap=false){
+/* V756: Employee NG functions inside app scope. */\nระบบจะคำนวณใบเหลือง/ใบแดงใหม่อัตโนมัติ'))return;
+ e.ngHistory=employeeNgHistory(e).filter((r,i)=>String(r.id||r.createdAt||i)!==String(recordId));e.updatedAt=new Date().toISOString();save();const ready=await ensureCloudReady(12000);if(ready)await syncEmployeeCloudNow(e,e.id);render();status('ลบประวัติ NG และคำนวณรอบใหม่แล้ว','ok')
+}
+\n\nfunction matrixPage(gap=false){
  const selected=sessionStorage.getItem('matrixSec')||sections[0];
  const sortingMatrixGroup=sessionStorage.getItem('matrixSortingGroup')||'Sorting 1';
  const skills=skillsFor(selected);
