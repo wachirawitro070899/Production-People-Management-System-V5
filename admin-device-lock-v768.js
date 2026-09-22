@@ -3,6 +3,7 @@
   'use strict';
   const DEVICE_KEY='ppms_v768_admin_device_id';
   const VERIFIED_KEY='ppms_device_lock_verified';
+  const OWNER_KEY='ppms_v771_admin_device_owner';
   const ACCOUNT_PATH='ppms/adminAccounts';
   const LOCK_PATH='ppms/adminDeviceLocks';
 
@@ -53,20 +54,24 @@
     return `${LOCK_PATH}/${username.replace(/[^a-z0-9_-]/gi,'_')}`;
   }
 
-  async function claimOwnerDevice(account,currentDevice){
+  async function claimOwnerDevice(account,currentDevice,ownerName){
     const path=lockPath(String(account.username).toLowerCase());
     const read=await rest(path,{headers:{'X-Firebase-ETag':'true'}});
     if(!read.ok)throw Error('ตรวจสอบสิทธิ์เครื่องไม่ได้ กรุณาลองอีกครั้ง');
     const existing=await read.json();
     const existingId=existing?.deviceId||account.allowedDeviceId||'';
     if(existingId&&existingId!==currentDevice)throw Error('บัญชี Admin ถูกล็อกไว้กับเครื่องเจ้าของแล้ว เครื่องนี้ไม่มีสิทธิ์เข้าใช้งาน');
-    if(existingId===currentDevice)return true;
-    const saved=await rest(path,{method:'PUT',headers:{'Content-Type':'application/json','if-match':read.headers.get('etag')||'*'},body:JSON.stringify({deviceId:currentDevice,boundAt:new Date().toISOString()})});
-    if(saved.status===412)return claimOwnerDevice(account,currentDevice);
+    if(existingId===currentDevice){
+      await rest(path,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({ownerName,lastLoginAt:new Date().toISOString()})});
+      return {...existing,deviceId:currentDevice,ownerName};
+    }
+    const saved=await rest(path,{method:'PUT',headers:{'Content-Type':'application/json','if-match':read.headers.get('etag')||'*'},body:JSON.stringify({deviceId:currentDevice,ownerName,boundAt:new Date().toISOString(),lastLoginAt:new Date().toISOString()})});
+    if(saved.status===412)return claimOwnerDevice(account,currentDevice,ownerName);
     if(!saved.ok)throw Error('บันทึกเครื่องเจ้าของไม่ได้ กรุณาลองอีกครั้ง');
-    const ownerId=(await saved.json())?.deviceId||'';
+    const savedData=await saved.json();
+    const ownerId=savedData?.deviceId||'';
     if(ownerId!==currentDevice)throw Error('บัญชี Admin ถูกล็อกไว้กับเครื่องเจ้าของแล้ว เครื่องนี้ไม่มีสิทธิ์เข้าใช้งาน');
-    return true;
+    return savedData;
   }
 
   function showLogin(){
@@ -78,6 +83,7 @@
       <form id="adminDeviceLoginForm">
         <label>Username<input name="username" autocomplete="username" required autofocus></label>
         <label>Password<input type="password" name="password" autocomplete="current-password" required></label>
+        <label>เจ้าของเครื่อง / Device Owner<input name="ownerName" value="${String(localStorage.getItem(OWNER_KEY)||'Wachirawit Rongjit').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;')}" required></label>
         <div id="adminDeviceLoginMessage" class="login-message"></div>
         <div class="actions"><button type="submit">Login / เข้าสู่ระบบ</button><button type="button" class="secondary" data-action="close">ยกเลิก</button></div>
       </form>`;
@@ -90,18 +96,22 @@
       const data=new FormData(form);
       const username=String(data.get('username')||'').trim().toLowerCase();
       const password=String(data.get('password')||'');
+      const ownerName=String(data.get('ownerName')||'').trim();
       button.disabled=true;button.textContent='กำลังตรวจสอบเครื่อง...';message.textContent='';
       try{
         const list=await accounts();
         const passwordHash=await hash(username,password);
         const account=list.find(x=>String(x.username).toLowerCase()===username&&x.active!==false&&x.passwordHash===passwordHash);
         if(!account)throw Error('Username หรือ Password ไม่ถูกต้อง');
+        if(!ownerName)throw Error('กรุณาระบุชื่อเจ้าของเครื่อง');
         const currentDevice=deviceId();
-        await claimOwnerDevice(account,currentDevice);
+        await claimOwnerDevice(account,currentDevice,ownerName);
+        localStorage.setItem(OWNER_KEY,ownerName);
         localStorage.setItem('ppms_v3_admin_accounts',JSON.stringify(list));
         sessionStorage.setItem('ppms_admin','1');
         sessionStorage.setItem('ppms_admin_user',account.username);
         sessionStorage.setItem(VERIFIED_KEY,currentDevice);
+        sessionStorage.setItem('ppms_admin_device_owner',ownerName);
         sessionStorage.removeItem('ppms_leader_id');
         location.reload();
       }catch(error){
@@ -134,6 +144,8 @@
       const lock=await response.json();
       const ownerId=lock?.deviceId||account.allowedDeviceId||'';
       if(ownerId!==currentDevice)throw Error('device mismatch');
+      const ownerName=String(lock?.ownerName||localStorage.getItem(OWNER_KEY)||'').trim();
+      if(ownerName){localStorage.setItem(OWNER_KEY,ownerName);sessionStorage.setItem('ppms_admin_device_owner',ownerName)}
     }catch(error){
       sessionStorage.removeItem('ppms_admin');
       sessionStorage.removeItem('ppms_admin_user');
@@ -143,4 +155,13 @@
   }
 
   verifyExistingSession();
+
+  function showDeviceOwner(){
+    if(sessionStorage.getItem('ppms_admin')!=='1')return;
+    const owner=String(sessionStorage.getItem('ppms_admin_device_owner')||localStorage.getItem(OWNER_KEY)||'').trim();
+    const badge=document.getElementById('modeBadge');
+    if(owner&&badge&&!badge.textContent.includes(owner))badge.textContent=`Admin • เครื่องของ ${owner}`;
+  }
+  showDeviceOwner();
+  new MutationObserver(showDeviceOwner).observe(document.body,{childList:true,subtree:true});
 })();
