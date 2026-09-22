@@ -20,6 +20,13 @@
     if(!attendance||!organization)return;
     attendance.textContent='Attendance System / ระบบเช็คชื่อ';
     organization.textContent='Division Organization Chart';
+    [attendance,organization].forEach(button=>{
+      button.onclick=event=>{
+        event.preventDefault();event.stopPropagation();
+        const handler=nav.onclick;
+        if(typeof handler==='function')handler({target:button});
+      };
+    });
     const attendanceLabel=document.createElement('span');
     attendanceLabel.className='nav-system-label';attendanceLabel.textContent='Attendance';
     nav.insertBefore(attendanceLabel,attendance);
