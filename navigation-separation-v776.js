@@ -1,4 +1,4 @@
-/* V780 - Separate clean organization chart with position colors. */
+/* V781 - Clean chart combines all shifts; status chart keeps shift separation. */
 (()=>{
   'use strict';
   const CLEAN_PAGE='organizationClean';
@@ -60,6 +60,22 @@
     const subtitle=document.querySelector('#app>.page-head p, #app>.page-head small');
     if(title)title.textContent='Production Division Organization Chart';
     if(subtitle)subtitle.textContent='โครงสร้างองค์กร · Organization only';
+    document.querySelectorAll('.division-section').forEach(section=>{
+      const orderedLevels=[];
+      ['supervisor','leader','engineer','technician','operator','other'].forEach(rank=>{
+        const levels=[...section.querySelectorAll(`.rank-level-${rank}`)];
+        if(!levels.length)return;
+        const primary=levels.shift();
+        const people=primary.querySelector('.people');
+        primary.remove();
+        levels.forEach(level=>{
+          level.querySelectorAll('.person').forEach(person=>people?.appendChild(person));
+        });
+        orderedLevels.push(primary);
+      });
+      section.querySelectorAll('.org-fixed-leadership,.org-shift-group').forEach(group=>group.remove());
+      orderedLevels.forEach(level=>section.appendChild(level));
+    });
     if(!document.querySelector('.org-position-legend')){
       const legend=document.createElement('div');
       legend.className='org-position-legend';
