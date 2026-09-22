@@ -1,6 +1,18 @@
-/* V643: build explicit balanced Skill Matrix pages before printing */
+/* V767: build explicit balanced Skill Matrix pages and restore the embedded company logo */
 (()=>{
   const PAGE_CLASS='matrix-explicit-print-pages';
+
+  function hydrateCompanyLogos(root=document){
+    const source=document.querySelector('header .logo img');
+    if(!source?.src)return;
+    root.querySelectorAll?.('.matrix-report .report-logo,.matrix-report .matrix-print-logo,.matrix-report .matrix-table-head-logo').forEach(holder=>{
+      if(holder.querySelector('img'))return;
+      const img=document.createElement('img');
+      img.src=source.src;
+      img.alt='Jinrong Electronic Technology logo';
+      holder.replaceChildren(img);
+    });
+  }
 
   function cleanup(){
     document.querySelectorAll('.'+PAGE_CLASS).forEach(node=>node.remove());
@@ -60,6 +72,7 @@
 
   function prepare(){
     cleanup();
+    hydrateCompanyLogos();
     if(!document.body.classList.contains('print-matrix'))return;
 
     const report=document.querySelector('.matrix-report');
@@ -81,6 +94,7 @@
 
   const style=document.createElement('style');
   style.textContent=`
+    .matrix-table-head-logo img{display:block;width:100%;height:100%;object-fit:contain;border-radius:50%}
     .${PAGE_CLASS}{display:none}
     @media print{
       body.matrix-explicit-print-active .matrix-report{display:none!important}
@@ -159,6 +173,9 @@
       }
     }`;
   document.head.appendChild(style);
+
+  hydrateCompanyLogos();
+  new MutationObserver(()=>hydrateCompanyLogos()).observe(document.getElementById('app')||document.body,{childList:true,subtree:true});
 
   window.addEventListener('beforeprint',prepare);
   window.addEventListener('afterprint',cleanup);
