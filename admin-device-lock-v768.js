@@ -191,7 +191,39 @@
       wrap.appendChild(button);
     });
   }
+  function enhancePasswordResetForms(root=document){
+    root.querySelectorAll?.('#resetAdminPasswordForm').forEach(form=>{
+      form.id='resetAdminPasswordFormV775';
+      form.onsubmit=async event=>{
+        event.preventDefault();event.stopPropagation();
+        const button=form.querySelector('button[type="submit"]');
+        const data=new FormData(form);
+        const username=String(form.dataset.username||'').trim().toLowerCase();
+        const password=String(data.get('password')||'');
+        const confirmPassword=String(data.get('confirmPassword')||'');
+        if(password.length<4)return alert('Password ต้องมีอย่างน้อย 4 ตัว');
+        if(password!==confirmPassword)return alert('ยืนยัน Password ไม่ตรงกัน');
+        button.disabled=true;button.textContent='กำลังบันทึก...';
+        try{
+          const list=await accounts();
+          const index=list.findIndex(x=>String(x.username).toLowerCase()===username);
+          if(index<0)throw Error('ไม่พบบัญชี Admin นี้');
+          list[index].passwordHash=await hash(username,password);
+          list[index].updatedAt=new Date().toISOString();
+          const response=await rest(`${ACCOUNT_PATH}/${index}`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({passwordHash:list[index].passwordHash,updatedAt:list[index].updatedAt})});
+          if(!response.ok)throw Error('Firebase ไม่อนุญาตให้บันทึก Password');
+          localStorage.setItem('ppms_v3_admin_accounts',JSON.stringify(list));
+          document.getElementById('modal')?.classList.add('hidden');
+          alert('เปลี่ยน Password เรียบร้อยแล้ว');
+        }catch(error){
+          alert('เปลี่ยน Password ไม่สำเร็จ: '+(error.message||error));
+          button.disabled=false;button.textContent='บันทึก Password';
+        }
+      };
+    });
+  }
   showDeviceOwner();
   enhancePasswordFields();
-  new MutationObserver(()=>{showDeviceOwner();enhancePasswordFields()}).observe(document.body,{childList:true,subtree:true});
+  enhancePasswordResetForms();
+  new MutationObserver(()=>{showDeviceOwner();enhancePasswordFields();enhancePasswordResetForms()}).observe(document.body,{childList:true,subtree:true});
 })();
