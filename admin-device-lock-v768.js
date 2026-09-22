@@ -82,12 +82,21 @@
       <p class="modal-note">บัญชี Admin ใช้ได้เฉพาะเครื่องเจ้าของ 1 เครื่อง</p>
       <form id="adminDeviceLoginForm">
         <label>Username<input name="username" autocomplete="username" required autofocus></label>
-        <label>Password<input type="password" name="password" autocomplete="current-password" required></label>
+        <label>Password<div style="display:flex;gap:6px;align-items:center"><input id="adminDevicePassword" type="password" name="password" autocomplete="current-password" required style="flex:1"><button id="toggleAdminPassword" type="button" class="secondary" aria-label="แสดงรหัสผ่าน" title="แสดงรหัสผ่าน" style="min-width:48px;padding:10px">👁</button></div></label>
         <label>เจ้าของเครื่อง / Device Owner<input name="ownerName" value="${String(localStorage.getItem(OWNER_KEY)||'Wachirawit Rongjit').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;')}" required></label>
         <div id="adminDeviceLoginMessage" class="login-message"></div>
         <div class="actions"><button type="submit">Login / เข้าสู่ระบบ</button><button type="button" class="secondary" data-action="close">ยกเลิก</button></div>
       </form>`;
     modal.classList.remove('hidden');
+    const passwordInput=document.getElementById('adminDevicePassword');
+    const passwordToggle=document.getElementById('toggleAdminPassword');
+    if(passwordInput&&passwordToggle)passwordToggle.onclick=()=>{
+      const showing=passwordInput.type==='text';
+      passwordInput.type=showing?'password':'text';
+      passwordToggle.textContent=showing?'👁':'🙈';
+      passwordToggle.setAttribute('aria-label',showing?'แสดงรหัสผ่าน':'ซ่อนรหัสผ่าน');
+      passwordToggle.title=showing?'แสดงรหัสผ่าน':'ซ่อนรหัสผ่าน';
+    };
     const form=document.getElementById('adminDeviceLoginForm');
     form.onsubmit=async event=>{
       event.preventDefault();
