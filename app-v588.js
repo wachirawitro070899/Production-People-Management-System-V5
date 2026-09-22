@@ -1227,7 +1227,11 @@ function orgActiveShiftKey(){const m=currentThaiMinutes();return m>=420&&m<1140?
 function orgShiftLabel(key){return key==='night'?'กะดึก / Night Shift':'กะเช้า / Day Shift'}
 function orgSectionDescriptors(){
  const out=[];
- sections.forEach(section=>{
+ const scope=organizationScope(),master=organizationMaster(),key=scope.division+'::'+scope.plant;
+ const configured=Array.isArray(master.sectionMap?.[key])?master.sectionMap[key]:[];
+ const employeeSections=[...new Set(employees.map(e=>String(e.section||'').trim()).filter(Boolean))];
+ const visibleSections=scope.division==='Production Division'?sections:[...new Set([...configured,...employeeSections])];
+ visibleSections.forEach(section=>{
   if(section==='Sorting Section'){
    out.push({section,title:'Sorting 1',sortingGroup:'Sorting 1'});
    out.push({section,title:'Sorting 2',sortingGroup:'Sorting 2'});
