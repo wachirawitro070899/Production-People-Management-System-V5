@@ -83,7 +83,6 @@
       <form id="adminDeviceLoginForm">
         <label>Username<input name="username" autocomplete="username" required autofocus></label>
         <label>Password<div style="display:flex;gap:6px;align-items:center"><input id="adminDevicePassword" data-password-toggle-ready="1" type="password" name="password" autocomplete="current-password" required style="flex:1"><button id="toggleAdminPassword" type="button" class="secondary" aria-label="แสดงรหัสผ่าน" title="แสดงรหัสผ่าน" style="min-width:48px;padding:10px">👁</button></div></label>
-        <label>เจ้าของเครื่อง / Device Owner<input name="ownerName" value="${String(localStorage.getItem(OWNER_KEY)||'Wachirawit Rongjit').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;')}" required></label>
         <div id="adminDeviceLoginMessage" class="login-message"></div>
         <div class="actions"><button type="submit">Login / เข้าสู่ระบบ</button><button type="button" class="secondary" data-action="close">ยกเลิก</button></div>
       </form>`;
@@ -105,14 +104,13 @@
       const data=new FormData(form);
       const username=String(data.get('username')||'').trim().toLowerCase();
       const password=String(data.get('password')||'');
-      const ownerName=String(data.get('ownerName')||'').trim();
+      const ownerName=String(localStorage.getItem(OWNER_KEY)||'Wachirawit Rongjit').trim();
       button.disabled=true;button.textContent='กำลังตรวจสอบเครื่อง...';message.textContent='';
       try{
         const list=await accounts();
         const passwordHash=await hash(username,password);
         const account=list.find(x=>String(x.username).toLowerCase()===username&&x.active!==false&&x.passwordHash===passwordHash);
         if(!account)throw Error('Username หรือ Password ไม่ถูกต้อง');
-        if(!ownerName)throw Error('กรุณาระบุชื่อเจ้าของเครื่อง');
         const currentDevice=deviceId();
         await claimOwnerDevice(account,currentDevice,ownerName);
         localStorage.setItem(OWNER_KEY,ownerName);
