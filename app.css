@@ -1062,3 +1062,6 @@ input[id*="exam"][id*="Emp"], input[id*="Exam"][id*="Emp"] {
  body.print-matrix .matrix-table-head-inner span{display:block!important;color:#fff!important;font-size:7.5pt!important;font-weight:500!important}
  body.print-matrix .matrix-table-head-doc{display:block!important;color:#fff!important;border:.3mm solid rgba(255,255,255,.75)!important;border-radius:1mm!important;padding:1.5mm 2mm!important;font-size:6.5pt!important;line-height:1.45!important}
 }
+
+/* V766: username/password Admin account management */
+#adminLoginForm{display:grid;gap:12px}.login-message{min-height:20px;color:#b42318;font-weight:700}.account-create-panel{max-width:760px}.account-status{display:inline-block;padding:4px 9px;border-radius:999px;font-weight:800;font-size:11px}.account-status.active{background:#dcfce7;color:#166534}.account-status.disabled{background:#fee2e2;color:#991b1b}
