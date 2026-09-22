@@ -8,11 +8,11 @@
   new Promise((_,reject)=>{timer=setTimeout(()=>reject(timeoutError(label,ms)),ms)})
  ])};
  let sample;
- try{sample=firebase.database().ref()}catch(_){return}
+ try{if(!firebase.apps.length){if(!window.PPMS_FIREBASE_CONFIG)return;firebase.initializeApp(window.PPMS_FIREBASE_CONFIG)}sample=firebase.database().ref()}catch(_){return}
  const proto=Object.getPrototypeOf(sample);
  if(!proto||proto.__ppmsAttendanceTimeoutV753)return;
  const attendancePath=ref=>{
-  try{return /(?:ppmsAttendance|attendanceRecords|attendanceDevices|shiftSchedules|\/employees)(?:\/|$)/i.test(String(ref.toString()))}
+  try{return /(?:ppmsAttendance|ppmsArchive|attendanceRecords|attendanceDevices|shiftSchedules|\/employees)(?:\/|$)/i.test(String(ref.toString()))}
   catch(_){return false}
  };
  const wrap=(name,ms,label)=>{
@@ -33,3 +33,4 @@
  Object.defineProperty(proto,'__ppmsAttendanceTimeoutV753',{value:true});
  window.PPMS_ATTENDANCE_TIMEOUT_VERSION='V753';
 })();
+
