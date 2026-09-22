@@ -1001,3 +1001,21 @@ input[id*="exam"][id*="Emp"], input[id*="Exam"][id*="Emp"] {
 }
 /* V727 employee-facing leave delivery status */
 .employee-leave-status-panel{margin-top:12px}.employee-leave-status-panel h3{margin:0 0 10px}.attendance-leave-status{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px;margin-top:8px;border:1px solid #bbf7d0;border-radius:14px;background:#f0fdf4;color:#166534}.attendance-leave-status.pending{border-color:#fde68a;background:#fffbeb;color:#92400e}.attendance-leave-status div{min-width:0}.attendance-leave-status small{display:block;margin-top:3px;overflow-wrap:anywhere}.attendance-leave-status>span{flex:0 0 auto;padding:4px 9px;border-radius:999px;background:#dcfce7;font-weight:700;font-size:.82rem}.attendance-leave-status.pending>span{background:#fef3c7}@media(max-width:520px){.attendance-leave-status{align-items:flex-start;flex-direction:column}.attendance-leave-status>span{align-self:flex-start}}
+
+/* V763: complete Skill Matrix document header and approval footer */
+.matrix-document-head{grid-template-columns:72px 1fr minmax(180px,auto)}
+.matrix-document-head>div:nth-child(2)>small{display:block;font-size:10px;letter-spacing:.45px;margin-bottom:3px}
+.matrix-document-head .doc-box{text-align:left;line-height:1.55;background:#ffffff12}
+.matrix-approval{border-top:1px solid #9fb4c8;background:#fff;padding:18px 24px 14px}
+.matrix-approval>div{border:1px solid #9fb4c8;border-radius:6px;padding:10px 12px 7px;min-height:82px;display:flex;flex-direction:column;justify-content:space-between}
+.matrix-approval b{color:#173c63;font-size:12px}
+.matrix-approval span{display:block;height:34px;border-bottom:1px solid #52677a;margin:0 12px}
+.matrix-approval small{color:#617486}
+@media(max-width:800px){.matrix-document-head{grid-template-columns:55px 1fr}.matrix-document-head .doc-box{grid-column:1/-1}.matrix-approval{grid-template-columns:1fr}}
+@media print{
+ body.print-matrix .matrix-approval{display:grid!important;grid-template-columns:repeat(3,1fr)!important;padding:5mm 7mm 3mm!important;border-top:.3mm solid #777!important}
+ body.print-matrix .matrix-approval>div{min-height:20mm!important;padding:2mm 3mm!important;border:.3mm solid #777!important}
+ body.print-matrix .matrix-approval span{height:9mm!important}
+ body.print-matrix .matrix-approval b{font-size:7pt!important}
+ body.print-matrix .matrix-approval small{font-size:6pt!important}
+}
