@@ -1,4 +1,4 @@
-/* V779 - Separate attendance-aware and clean organization chart pages. */
+/* V780 - Separate clean organization chart with position colors. */
 (()=>{
   'use strict';
   const CLEAN_PAGE='organizationClean';
@@ -28,6 +28,17 @@
     body.org-clean-view .org-shift-active,
     body.org-clean-view .org-shift-secondary{background:transparent!important;border-top:0!important;opacity:1!important}
     body.org-clean-view .org-shift-secondary .person{transform:none!important}
+    body.org-clean-view .person.manager{border-color:#174f82!important;background:#edf6ff!important;box-shadow:inset 0 5px 0 #174f82,0 3px 10px rgba(18,51,84,.08)!important}
+    body.org-clean-view .person.engineer{border-color:#2563eb!important;background:#eff6ff!important;box-shadow:inset 0 5px 0 #2563eb,0 3px 10px rgba(18,51,84,.08)!important}
+    body.org-clean-view .person.supervisor{border-color:#7c3aed!important;background:#f5f3ff!important;box-shadow:inset 0 5px 0 #7c3aed,0 3px 10px rgba(18,51,84,.08)!important}
+    body.org-clean-view .person.leader{border-color:#ea580c!important;background:#fff7ed!important;box-shadow:inset 0 5px 0 #ea580c,0 3px 10px rgba(18,51,84,.08)!important}
+    body.org-clean-view .person.technician{border-color:#0891b2!important;background:#ecfeff!important;box-shadow:inset 0 5px 0 #0891b2,0 3px 10px rgba(18,51,84,.08)!important}
+    body.org-clean-view .person.operator{border-color:#16a34a!important;background:#f0fdf4!important;box-shadow:inset 0 5px 0 #16a34a,0 3px 10px rgba(18,51,84,.08)!important}
+    body.org-clean-view .person.other{border-color:#64748b!important;background:#f8fafc!important;box-shadow:inset 0 5px 0 #64748b,0 3px 10px rgba(18,51,84,.08)!important}
+    .org-position-legend{display:flex;flex-wrap:wrap;justify-content:center;gap:8px 14px;margin:0 0 14px;padding:10px 14px;background:#fff;border:1px solid #d7e3ef;border-radius:12px;box-shadow:0 3px 14px #16436d10;font-size:11px;font-weight:700}
+    .org-position-legend span{display:flex;align-items:center;gap:6px}.org-position-legend i{width:12px;height:12px;border-radius:3px;display:inline-block}
+    .org-position-legend .manager{background:#174f82}.org-position-legend .engineer{background:#2563eb}.org-position-legend .supervisor{background:#7c3aed}.org-position-legend .leader{background:#ea580c}.org-position-legend .technician{background:#0891b2}.org-position-legend .operator{background:#16a34a}.org-position-legend .other{background:#64748b}
+    @media print{.org-position-legend{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
   `;
   document.head.appendChild(style);
 
@@ -49,6 +60,12 @@
     const subtitle=document.querySelector('#app>.page-head p, #app>.page-head small');
     if(title)title.textContent='Production Division Organization Chart';
     if(subtitle)subtitle.textContent='โครงสร้างองค์กร · Organization only';
+    if(!document.querySelector('.org-position-legend')){
+      const legend=document.createElement('div');
+      legend.className='org-position-legend';
+      legend.innerHTML='<span><i class="manager"></i>Manager</span><span><i class="engineer"></i>Engineer</span><span><i class="supervisor"></i>Supervisor</span><span><i class="leader"></i>Leader</span><span><i class="technician"></i>Technician</span><span><i class="operator"></i>Operator</span><span><i class="other"></i>Other</span>';
+      document.querySelector('#app>.cards')?.insertAdjacentElement('beforebegin',legend);
+    }
     addCleanButton();
     document.querySelector('#nav button[data-page="dashboard"]')?.classList.remove('active');
     document.querySelector(`#nav button[data-page="${CLEAN_PAGE}"]`)?.classList.add('active');
