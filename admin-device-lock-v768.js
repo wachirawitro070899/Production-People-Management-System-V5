@@ -4,6 +4,7 @@
   const DEVICE_KEY='ppms_v768_admin_device_id';
   const VERIFIED_KEY='ppms_device_lock_verified';
   const ACCOUNT_PATH='ppms/adminAccounts';
+  const LOCK_PATH='ppms/adminDeviceLocks';
 
   function deviceId(){
     let id=localStorage.getItem(DEVICE_KEY);
@@ -38,6 +39,22 @@
     return list;
   }
 
+  function lockRef(username){
+    return db().ref(LOCK_PATH).child(username.replace(/[^a-z0-9_-]/gi,'_'));
+  }
+
+  async function claimOwnerDevice(account,currentDevice){
+    const ref=lockRef(String(account.username).toLowerCase());
+    const existing=(await ref.once('value')).val();
+    const existingId=existing?.deviceId||account.allowedDeviceId||'';
+    if(existingId&&existingId!==currentDevice)throw Error('บัญชี Admin ถูกล็อกไว้กับเครื่องเจ้าของแล้ว เครื่องนี้ไม่มีสิทธิ์เข้าใช้งาน');
+    if(existingId===currentDevice)return true;
+    const result=await ref.transaction(value=>value||{deviceId:currentDevice,boundAt:new Date().toISOString()});
+    const ownerId=result.snapshot.val()?.deviceId||'';
+    if(ownerId!==currentDevice)throw Error('บัญชี Admin ถูกล็อกไว้กับเครื่องเจ้าของแล้ว เครื่องนี้ไม่มีสิทธิ์เข้าใช้งาน');
+    return true;
+  }
+
   function showLogin(){
     const modal=document.getElementById('modal');
     const body=document.getElementById('modalBody');
@@ -66,13 +83,7 @@
         const account=list.find(x=>String(x.username).toLowerCase()===username&&x.active!==false&&x.passwordHash===passwordHash);
         if(!account)throw Error('Username หรือ Password ไม่ถูกต้อง');
         const currentDevice=deviceId();
-        if(account.allowedDeviceId&&account.allowedDeviceId!==currentDevice)throw Error('บัญชี Admin ถูกล็อกไว้กับเครื่องเจ้าของแล้ว เครื่องนี้ไม่มีสิทธิ์เข้าใช้งาน');
-        if(!account.allowedDeviceId){
-          account.allowedDeviceId=currentDevice;
-          account.deviceBoundAt=new Date().toISOString();
-          account.updatedAt=new Date().toISOString();
-          await db().ref(ACCOUNT_PATH).set(list);
-        }
+        await claimOwnerDevice(account,currentDevice);
         localStorage.setItem('ppms_v3_admin_accounts',JSON.stringify(list));
         sessionStorage.setItem('ppms_admin','1');
         sessionStorage.setItem('ppms_admin_user',account.username);
@@ -103,7 +114,10 @@
     try{
       const username=String(sessionStorage.getItem('ppms_admin_user')||'admin').toLowerCase();
       const account=(await accounts()).find(x=>String(x.username).toLowerCase()===username);
-      if(!account||account.active===false||account.allowedDeviceId!==currentDevice)throw Error('device mismatch');
+      if(!account||account.active===false)throw Error('account disabled');
+      const lock=(await lockRef(username).once('value')).val();
+      const ownerId=lock?.deviceId||account.allowedDeviceId||'';
+      if(ownerId!==currentDevice)throw Error('device mismatch');
     }catch(error){
       sessionStorage.removeItem('ppms_admin');
       sessionStorage.removeItem('ppms_admin_user');
