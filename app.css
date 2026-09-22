@@ -1048,3 +1048,17 @@ input[id*="exam"][id*="Emp"], input[id*="Exam"][id*="Emp"] {
  body.print-matrix .matrix-document-head small{display:block!important;color:#fff!important;visibility:visible!important}
  body.print-matrix .matrix-document-head .doc-box{display:block!important;color:#fff!important;border:.3mm solid rgba(255,255,255,.75)!important;background:transparent!important;font-size:6.5pt!important}
 }
+
+/* V765: print header is part of THEAD so the browser cannot drop it */
+.matrix-table-print-head{display:none}
+@media print{
+ body.print-matrix .matrix-report>.matrix-document-head{display:none!important}
+ body.print-matrix .matrix-table-print-head{display:table-row!important}
+ body.print-matrix .matrix-table-print-head>th{display:table-cell!important;padding:0!important;border:0!important;background:#174f88!important;color:#fff!important;-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
+ body.print-matrix .matrix-table-head-inner{display:grid!important;grid-template-columns:13mm 1fr 44mm!important;align-items:center!important;gap:3mm!important;min-height:18mm!important;padding:3mm 4mm!important;text-align:left!important}
+ body.print-matrix .matrix-table-head-logo{display:grid!important;place-items:center!important;width:11mm!important;height:11mm!important;border-radius:50%!important;background:#fff!important;color:#174f88!important;font-size:10pt!important;font-weight:900!important}
+ body.print-matrix .matrix-table-head-inner small{display:block!important;color:#fff!important;font-size:6pt!important;font-weight:600!important;letter-spacing:.2pt!important}
+ body.print-matrix .matrix-table-head-inner strong{display:block!important;color:#fff!important;font-size:13pt!important;line-height:1.2!important;margin:.7mm 0!important}
+ body.print-matrix .matrix-table-head-inner span{display:block!important;color:#fff!important;font-size:7.5pt!important;font-weight:500!important}
+ body.print-matrix .matrix-table-head-doc{display:block!important;color:#fff!important;border:.3mm solid rgba(255,255,255,.75)!important;border-radius:1mm!important;padding:1.5mm 2mm!important;font-size:6.5pt!important;line-height:1.45!important}
+}
