@@ -1019,3 +1019,32 @@ input[id*="exam"][id*="Emp"], input[id*="Exam"][id*="Emp"] {
  body.print-matrix .matrix-approval b{font-size:7pt!important}
  body.print-matrix .matrix-approval small{font-size:6pt!important}
 }
+
+/* V764: keep the document header visible in Chrome print preview */
+@media print{
+ body.print-matrix .matrix-report>.matrix-document-head{
+  display:grid!important;
+  visibility:visible!important;
+  opacity:1!important;
+  height:auto!important;
+  min-height:18mm!important;
+  grid-template-columns:13mm 1fr 44mm!important;
+  align-items:center!important;
+  gap:3mm!important;
+  padding:3mm 4mm!important;
+  margin:0!important;
+  color:#fff!important;
+  background:#174f88!important;
+  border:0!important;
+  break-after:avoid-page!important;
+  page-break-after:avoid!important;
+  -webkit-print-color-adjust:exact!important;
+  print-color-adjust:exact!important;
+ }
+ body.print-matrix .matrix-document-head>*{display:block!important;visibility:visible!important;opacity:1!important}
+ body.print-matrix .matrix-document-head .report-logo{display:grid!important;width:11mm!important;height:11mm!important;color:#174f88!important;background:#fff!important;border:1mm solid #fff!important}
+ body.print-matrix .matrix-document-head h2{display:block!important;color:#fff!important;font-size:13pt!important;margin:0!important}
+ body.print-matrix .matrix-document-head p,
+ body.print-matrix .matrix-document-head small{display:block!important;color:#fff!important;visibility:visible!important}
+ body.print-matrix .matrix-document-head .doc-box{display:block!important;color:#fff!important;border:.3mm solid rgba(255,255,255,.75)!important;background:transparent!important;font-size:6.5pt!important}
+}
