@@ -1,8 +1,9 @@
-/* V781 - Clean chart combines all shifts; status chart keeps shift separation. */
+/* V782 - Keep clean chart merged after asynchronous employee data refresh. */
 (()=>{
   'use strict';
   const CLEAN_PAGE='organizationClean';
   let openingClean=false;
+  let cleanRefreshQueued=false;
   const style=document.createElement('style');
   style.textContent=`
     #nav button[data-page="attendanceAdmin"]{background:#137a52;color:#fff;border-color:#0f6845;box-shadow:0 2px 7px #0f684533;margin-right:14px}
@@ -61,6 +62,7 @@
     if(title)title.textContent='Production Division Organization Chart';
     if(subtitle)subtitle.textContent='โครงสร้างองค์กร · Organization only';
     document.querySelectorAll('.division-section').forEach(section=>{
+      if(section.dataset.cleanMerged==='1')return;
       const orderedLevels=[];
       ['supervisor','leader','engineer','technician','operator','other'].forEach(rank=>{
         const levels=[...section.querySelectorAll(`.rank-level-${rank}`)];
@@ -75,6 +77,7 @@
       });
       section.querySelectorAll('.org-fixed-leadership,.org-shift-group').forEach(group=>group.remove());
       orderedLevels.forEach(level=>section.appendChild(level));
+      section.dataset.cleanMerged='1';
     });
     if(!document.querySelector('.org-position-legend')){
       const legend=document.createElement('div');
@@ -104,4 +107,17 @@
   },true);
 
   addCleanButton();
+
+  const app=document.querySelector('#app');
+  if(app){
+    new MutationObserver(()=>{
+      if(!document.body.classList.contains('org-clean-view')||cleanRefreshQueued)return;
+      if(!app.querySelector('.division-section:not([data-clean-merged="1"])'))return;
+      cleanRefreshQueued=true;
+      requestAnimationFrame(()=>{
+        cleanRefreshQueued=false;
+        if(document.body.classList.contains('org-clean-view'))decorateCleanPage();
+      });
+    }).observe(app,{childList:true,subtree:true});
+  }
 })();
