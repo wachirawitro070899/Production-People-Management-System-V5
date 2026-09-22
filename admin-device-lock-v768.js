@@ -82,7 +82,7 @@
       <p class="modal-note">บัญชี Admin ใช้ได้เฉพาะเครื่องเจ้าของ 1 เครื่อง</p>
       <form id="adminDeviceLoginForm">
         <label>Username<input name="username" autocomplete="username" required autofocus></label>
-        <label>Password<div style="display:flex;gap:6px;align-items:center"><input id="adminDevicePassword" type="password" name="password" autocomplete="current-password" required style="flex:1"><button id="toggleAdminPassword" type="button" class="secondary" aria-label="แสดงรหัสผ่าน" title="แสดงรหัสผ่าน" style="min-width:48px;padding:10px">👁</button></div></label>
+        <label>Password<div style="display:flex;gap:6px;align-items:center"><input id="adminDevicePassword" data-password-toggle-ready="1" type="password" name="password" autocomplete="current-password" required style="flex:1"><button id="toggleAdminPassword" type="button" class="secondary" aria-label="แสดงรหัสผ่าน" title="แสดงรหัสผ่าน" style="min-width:48px;padding:10px">👁</button></div></label>
         <label>เจ้าของเครื่อง / Device Owner<input name="ownerName" value="${String(localStorage.getItem(OWNER_KEY)||'Wachirawit Rongjit').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;')}" required></label>
         <div id="adminDeviceLoginMessage" class="login-message"></div>
         <div class="actions"><button type="submit">Login / เข้าสู่ระบบ</button><button type="button" class="secondary" data-action="close">ยกเลิก</button></div>
@@ -171,6 +171,29 @@
     const badge=document.getElementById('modeBadge');
     if(owner&&badge&&!badge.textContent.includes(owner))badge.textContent=`Admin • เครื่องของ ${owner}`;
   }
+  function enhancePasswordFields(root=document){
+    root.querySelectorAll?.('input[type="password"]:not([data-password-toggle-ready])').forEach(input=>{
+      input.dataset.passwordToggleReady='1';
+      const wrap=document.createElement('div');
+      wrap.style.cssText='display:flex;gap:6px;align-items:center;width:100%';
+      input.parentNode.insertBefore(wrap,input);
+      wrap.appendChild(input);
+      input.style.flex='1';
+      const button=document.createElement('button');
+      button.type='button';button.className='secondary';button.textContent='👁';
+      button.title='แสดงรหัสผ่าน';button.setAttribute('aria-label','แสดงรหัสผ่าน');
+      button.style.cssText='min-width:48px;padding:10px';
+      button.onclick=()=>{
+        const showing=input.type==='text';
+        input.type=showing?'password':'text';
+        button.textContent=showing?'👁':'🙈';
+        button.title=showing?'แสดงรหัสผ่าน':'ซ่อนรหัสผ่าน';
+        button.setAttribute('aria-label',button.title);
+      };
+      wrap.appendChild(button);
+    });
+  }
   showDeviceOwner();
-  new MutationObserver(showDeviceOwner).observe(document.body,{childList:true,subtree:true});
+  enhancePasswordFields();
+  new MutationObserver(()=>{showDeviceOwner();enhancePasswordFields()}).observe(document.body,{childList:true,subtree:true});
 })();
