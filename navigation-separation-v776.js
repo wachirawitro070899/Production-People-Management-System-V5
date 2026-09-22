@@ -59,7 +59,8 @@
     document.body.classList.add('org-clean-view');
     const title=document.querySelector('#app>.page-head h2');
     const subtitle=document.querySelector('#app>.page-head p, #app>.page-head small');
-    if(title)title.textContent='Production Division Organization Chart';
+    const division=document.querySelector('#globalOrganizationDivision')?.value||'Production Division';
+    if(title)title.textContent=division+' Organization Chart';
     if(subtitle)subtitle.textContent='โครงสร้างองค์กร · Organization only';
     document.querySelectorAll('.division-section').forEach(section=>{
       if(section.dataset.cleanMerged==='1')return;
