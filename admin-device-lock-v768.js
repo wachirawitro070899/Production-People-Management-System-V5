@@ -21,9 +21,18 @@
     return [...new Uint8Array(buf)].map(x=>x.toString(16).padStart(2,'0')).join('');
   }
 
-  function db(){
-    if(!window.firebase?.apps?.length)throw Error('ยังเชื่อมต่อฐานข้อมูลไม่ได้ กรุณาตรวจอินเทอร์เน็ต');
-    return firebase.database();
+  function baseUrl(){
+    const url=String(window.PPMS_FIREBASE_CONFIG?.databaseURL||'').replace(/\/$/,'');
+    if(!url)throw Error('ไม่พบการตั้งค่าฐานข้อมูล');
+    return url;
+  }
+
+  async function rest(path,options={},timeout=7000){
+    const controller=new AbortController();
+    const timer=setTimeout(()=>controller.abort(),timeout);
+    try{return await fetch(`${baseUrl()}/${path}.json`,{...options,signal:controller.signal,cache:'no-store'})}
+    catch(error){if(error?.name==='AbortError')throw Error('การตรวจสอบใช้เวลานานเกินไป กรุณากด Login อีกครั้ง');throw error}
+    finally{clearTimeout(timer)}
   }
 
   function normalize(value){
@@ -31,26 +40,31 @@
   }
 
   async function accounts(){
-    const snap=await db().ref(ACCOUNT_PATH).once('value');
-    let list=normalize(snap.val());
+    let list=[];
+    try{const response=await rest(ACCOUNT_PATH);if(response.ok)list=normalize(await response.json())}catch(error){console.warn('Admin account REST read failed',error)}
+    if(!list.length)list=normalize(JSON.parse(localStorage.getItem('ppms_v3_admin_accounts')||'[]'));
     if(!list.length){
       list=[{username:'admin',passwordHash:await hash('admin','7533'),role:'admin',active:true,owner:true,createdAt:new Date().toISOString(),updatedAt:new Date().toISOString()}];
     }
     return list;
   }
 
-  function lockRef(username){
-    return db().ref(LOCK_PATH).child(username.replace(/[^a-z0-9_-]/gi,'_'));
+  function lockPath(username){
+    return `${LOCK_PATH}/${username.replace(/[^a-z0-9_-]/gi,'_')}`;
   }
 
   async function claimOwnerDevice(account,currentDevice){
-    const ref=lockRef(String(account.username).toLowerCase());
-    const existing=(await ref.once('value')).val();
+    const path=lockPath(String(account.username).toLowerCase());
+    const read=await rest(path,{headers:{'X-Firebase-ETag':'true'}});
+    if(!read.ok)throw Error('ตรวจสอบสิทธิ์เครื่องไม่ได้ กรุณาลองอีกครั้ง');
+    const existing=await read.json();
     const existingId=existing?.deviceId||account.allowedDeviceId||'';
     if(existingId&&existingId!==currentDevice)throw Error('บัญชี Admin ถูกล็อกไว้กับเครื่องเจ้าของแล้ว เครื่องนี้ไม่มีสิทธิ์เข้าใช้งาน');
     if(existingId===currentDevice)return true;
-    const result=await ref.transaction(value=>value||{deviceId:currentDevice,boundAt:new Date().toISOString()});
-    const ownerId=result.snapshot.val()?.deviceId||'';
+    const saved=await rest(path,{method:'PUT',headers:{'Content-Type':'application/json','if-match':read.headers.get('etag')||'*'},body:JSON.stringify({deviceId:currentDevice,boundAt:new Date().toISOString()})});
+    if(saved.status===412)return claimOwnerDevice(account,currentDevice);
+    if(!saved.ok)throw Error('บันทึกเครื่องเจ้าของไม่ได้ กรุณาลองอีกครั้ง');
+    const ownerId=(await saved.json())?.deviceId||'';
     if(ownerId!==currentDevice)throw Error('บัญชี Admin ถูกล็อกไว้กับเครื่องเจ้าของแล้ว เครื่องนี้ไม่มีสิทธิ์เข้าใช้งาน');
     return true;
   }
@@ -115,7 +129,9 @@
       const username=String(sessionStorage.getItem('ppms_admin_user')||'admin').toLowerCase();
       const account=(await accounts()).find(x=>String(x.username).toLowerCase()===username);
       if(!account||account.active===false)throw Error('account disabled');
-      const lock=(await lockRef(username).once('value')).val();
+      const response=await rest(lockPath(username));
+      if(!response.ok)throw Error('device check failed');
+      const lock=await response.json();
       const ownerId=lock?.deviceId||account.allowedDeviceId||'';
       if(ownerId!==currentDevice)throw Error('device mismatch');
     }catch(error){
