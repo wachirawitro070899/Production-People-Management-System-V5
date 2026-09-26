@@ -32,148 +32,12 @@
  };
 })();
 
-
-/* V759: Employee machine/OEE/Capacity work history under the individual Skill Card. */
+/* V761: Show OEE / Capacity KPI in each employee's daily attendance history, not the Skill Card. */
 (function(){
  'use strict';
  const API='https://machine-part-kpi.jinrong-tl-1709.chatgpt.site/api/employee-skill-history';
- const PANEL_ID='employee-work-history-panel';
- const STYLE_ID='employee-work-history-style';
- const esc=value=>String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
- const fmt=value=>Number(value||0).toLocaleString('th-TH',{maximumFractionDigits:1});
- let timer=0,debounce=0,activeCode='',requestNo=0;
-
- function addStyles(){
-  if(document.getElementById(STYLE_ID))return;
-  const style=document.createElement('style');
-  style.id=STYLE_ID;
-  style.textContent=
-   '.employee-work-history{margin:22px 0;padding:20px;background:#fff;border:1px solid #e5e7eb;border-top:4px solid #b91c1c;border-radius:14px;box-shadow:0 8px 24px rgba(15,23,42,.08)}'+
-   '.employee-work-history__head{display:flex;justify-content:space-between;gap:16px;align-items:flex-start;margin-bottom:14px}.employee-work-history h3{margin:0;color:#991b1b}.employee-work-history p{margin:5px 0 0;color:#64748b}'+
-   '.employee-work-history__refresh{border:1px solid #b91c1c;background:#fff;color:#991b1b;border-radius:9px;padding:8px 12px;cursor:pointer;font-weight:700}.employee-work-history__refresh:disabled{opacity:.55;cursor:wait}'+
-   '.employee-work-history__summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:12px 0}.employee-work-history__summary span{background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:10px;color:#475569}.employee-work-history__summary b{display:block;color:#0f172a;font-size:18px}'+
-   '.employee-work-history__table{overflow:auto;border:1px solid #e2e8f0;border-radius:10px}.employee-work-history table{width:100%;border-collapse:collapse;min-width:900px}.employee-work-history th,.employee-work-history td{padding:11px 12px;border-bottom:1px solid #e2e8f0;text-align:center;vertical-align:top}.employee-work-history th{background:#f1f5f9;color:#334155;white-space:nowrap}.employee-work-history td strong,.employee-work-history td small{display:block}.employee-work-history td small{margin-top:4px;color:#64748b}'+
-   '.employee-work-history__status{display:inline-block;padding:4px 9px;border-radius:999px;font-weight:800}.employee-work-history__status.pass{background:#dcfce7;color:#15803d}.employee-work-history__status.pending{background:#fef3c7;color:#b45309}.employee-work-history__status.fail{background:#fee2e2;color:#b91c1c}'+
-   '.employee-work-history__message{text-align:center;padding:24px;color:#64748b}.employee-work-history__message.error{color:#b91c1c}'+
-   '@media(max-width:760px){.employee-work-history{padding:14px}.employee-work-history__head{display:block}.employee-work-history__refresh{margin-top:10px}.employee-work-history__summary{grid-template-columns:repeat(2,minmax(0,1fr))}}'+
-   '@media print{.employee-work-history{display:none!important}}';
-  document.head.appendChild(style);
- }
-
- function visibleSkillCode(){
-  const app=document.getElementById('app');
-  if(!app)return '';
-  const cards=[...app.querySelectorAll('.employee-skill-card[data-employee-id]')];
-  const codes=[...new Set(cards.map(card=>String(card.getAttribute('data-employee-id')||'').trim()).filter(Boolean))];
-  return codes.length===1?codes[0]:'';
- }
-
- function panelFor(code){
-  const app=document.getElementById('app');
-  if(!app)return null;
-  let panel=document.getElementById(PANEL_ID);
-  if(panel&&panel.dataset.employeeCode!==code){panel.remove();panel=null}
-  if(panel)return panel;
-  panel=document.createElement('section');
-  panel.id=PANEL_ID;
-  panel.className='employee-work-history no-print';
-  panel.dataset.employeeCode=code;
-  panel.innerHTML='<div class="employee-work-history__message">กำลังโหลดประวัติการทำงาน...</div>';
-  app.appendChild(panel);
-  return panel;
- }
-
- function statusClass(row){
-  if(row?.passed)return 'pass';
-  return row?.status==='ต่ำกว่าเกณฑ์'?'fail':'pending';
- }
-
- function render(panel,data){
-  const rows=Array.isArray(data?.history)?data.history:[];
-  const scored=rows.filter(row=>Number.isFinite(Number(row.rate)));
-  const passed=rows.filter(row=>row.passed).length;
-  const pending=rows.filter(row=>!row.passed&&row.status!=='ต่ำกว่าเกณฑ์').length;
-  const average=scored.length?scored.reduce((sum,row)=>sum+Number(row.rate),0)/scored.length:null;
-  const body=rows.map(row=>{
-   const time=row.scannedAt?new Date(row.scannedAt).toLocaleTimeString('th-TH',{timeZone:'Asia/Bangkok',hour:'2-digit',minute:'2-digit'}):'—';
-   const parts=(row.parts||[]).join(', ')||'รอรายการ OEE';
-   const pendingParts=(row.pendingParts||[]).join(', ');
-   const result=row.rate==null?'—':fmt(row.rate)+'%';
-   return '<tr>'+
-    '<td>'+esc(row.workDate)+'<small>'+esc(row.shift)+'</small></td>'+
-    '<td><strong>'+esc(row.machine)+'</strong><small>'+esc(parts)+'</small></td>'+
-    '<td>'+esc(time)+' น.<small>สแกน '+esc(row.scanCount)+' ครั้ง</small></td>'+
-    '<td><strong>'+(row.good?fmt(row.good)+' ชิ้นดี':'—')+'</strong>'+(row.pendingGood?'<small>มี Cap '+fmt(row.verifiedGood)+' · รอตรวจ '+fmt(row.pendingGood)+'</small>':'')+'</td>'+
-    '<td><span class="employee-work-history__status '+statusClass(row)+'">'+esc(row.status)+'</span>'+(row.rate==null?'':'<small>ทำได้ '+esc(result)+' · เป้า '+fmt(row.targetPercent)+'%</small>')+(pendingParts?'<small>รอตรวจ: '+esc(pendingParts)+' · ยังไม่สรุปผ่านทั้งกะ</small>':'')+'</td>'+
-   '</tr>';
-  }).join('');
-  panel.innerHTML=
-   '<div class="employee-work-history__head"><div><h3>ประวัติการทำงานจาก OEE / Employee Work History</h3><p>รหัส '+esc(data?.employee?.code||panel.dataset.employeeCode)+' · เชื่อมจากการสแกนหน้าเครื่องและคำนวณกับ Cap ของเครื่อง–Part–Step</p></div><button type="button" class="employee-work-history__refresh">อัปเดตข้อมูล</button></div>'+
-   '<div class="employee-work-history__summary"><span><b>'+fmt(rows.length)+'</b>กะที่สแกน</span><span><b>'+fmt(passed)+'</b>ถึงเกณฑ์</span><span><b>'+fmt(pending)+'</b>รอตรวจ</span><span><b>'+(average==null?'—':fmt(average)+'%')+'</b>ค่าเฉลี่ยที่คำนวณได้</span></div>'+
-   '<div class="employee-work-history__table"><table><thead><tr><th>วัน / กะ</th><th>เครื่อง / Part</th><th>เวลาสแกน</th><th>ผลผลิต OEE</th><th>ผลเทียบ Cap</th></tr></thead><tbody>'+(body||'<tr><td colspan="5"><div class="employee-work-history__message">ยังไม่มีประวัติการสแกนเครื่องของพนักงานคนนี้</div></td></tr>')+'</tbody></table></div>';
-  panel.querySelector('.employee-work-history__refresh')?.addEventListener('click',()=>load(panel.dataset.employeeCode||'',true));
- }
-
- async function load(code,manual=false){
-  const panel=panelFor(code);
-  if(!panel)return;
-  const refresh=panel.querySelector('.employee-work-history__refresh');
-  if(refresh)refresh.disabled=true;
-  const current=++requestNo;
-  try{
-   const response=await fetch(API+'?code='+encodeURIComponent(code),{cache:'no-store',mode:'cors'});
-   const data=await response.json();
-   if(!response.ok)throw new Error(data?.error||'โหลดประวัติการทำงานไม่สำเร็จ');
-   if(current!==requestNo||panel.dataset.employeeCode!==code)return;
-   render(panel,data);
-  }catch(error){
-   if(current!==requestNo)return;
-   panel.innerHTML='<div class="employee-work-history__message error">'+esc(error?.message||'ไม่สามารถเชื่อมข้อมูลประวัติการทำงานได้')+'<br><button type="button" class="employee-work-history__refresh">ลองใหม่</button></div>';
-   panel.querySelector('.employee-work-history__refresh')?.addEventListener('click',()=>load(code,true));
-  }finally{
-   const button=panel.querySelector('.employee-work-history__refresh');
-   if(button)button.disabled=false;
-   if(manual)panel.scrollIntoView({behavior:'smooth',block:'nearest'});
-  }
- }
-
- function sync(){
-  const code=visibleSkillCode();
-  const old=document.getElementById(PANEL_ID);
-  if(!code){
-   activeCode='';
-   if(old)old.remove();
-   return;
-  }
-  if(code===activeCode&&old)return;
-  activeCode=code;
-  load(code);
- }
-
- function schedule(){
-  clearTimeout(debounce);
-  debounce=setTimeout(sync,180);
- }
-
- addStyles();
- document.addEventListener('DOMContentLoaded',()=>{
-  schedule();
-  const app=document.getElementById('app');
-  if(app)new MutationObserver(schedule).observe(app,{childList:true,subtree:true,attributes:true,attributeFilter:['data-employee-id']});
-  clearInterval(timer);
-  timer=setInterval(()=>{if(document.visibilityState==='visible'&&activeCode)load(activeCode)},60000);
- });
- window.PPMSWorkHistory={refresh:()=>activeCode&&load(activeCode,true)};
- window.PPMS_EMPLOYEE_HISTORY_VERSION='V759';
-})();
-
-
-/* V760: show machine / Part / OEE / Capacity inside each employee Attendance daily card row. */
-(function(){
- 'use strict';
- const API='https://machine-part-kpi.jinrong-tl-1709.chatgpt.site/api/employee-skill-history';
- const MARK='ppms-oee-inline';
- const STYLE_ID='ppms-attendance-oee-style';
+ const CLASS_NAME='ppms-daily-production-kpi';
+ const STYLE_ID='ppms-daily-production-kpi-style';
  let activeCode='',history=[],requestNo=0,debounce=0,timer=0;
 
  const esc=value=>String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
@@ -184,124 +48,98 @@
   const style=document.createElement('style');
   style.id=STYLE_ID;
   style.textContent=
-   '.ppms-oee-inline{margin-top:7px;padding:8px 10px;border-radius:8px;border-left:4px solid #64748b;background:#f8fafc;color:#334155;line-height:1.35;text-align:left;min-width:210px}'+
-   '.ppms-oee-inline.pass{border-left-color:#16a34a;background:#f0fdf4}.ppms-oee-inline.fail{border-left-color:#dc2626;background:#fef2f2}.ppms-oee-inline.pending{border-left-color:#d97706;background:#fffbeb}'+
-   '.ppms-oee-inline b,.ppms-oee-inline strong,.ppms-oee-inline span,.ppms-oee-inline small{display:block}.ppms-oee-inline b{color:#0f172a}.ppms-oee-inline span{margin:2px 0;color:#475569}.ppms-oee-inline strong{color:#111827}.ppms-oee-inline small{margin-top:2px;color:#64748b}'+
-   '@media(max-width:760px){.ppms-oee-inline{min-width:0;padding:7px 8px;font-size:12px}}'+
-   '@media print{.ppms-oee-inline{break-inside:avoid}}';
+   '.'+CLASS_NAME+'{margin-top:6px;padding:7px 9px;text-align:left;border-left:3px solid #d97706;border-radius:6px;background:#fffbeb;line-height:1.35;font-size:12px}'+
+   '.'+CLASS_NAME+'.pass{border-left-color:#16a34a;background:#f0fdf4}.'+CLASS_NAME+'.fail{border-left-color:#dc2626;background:#fef2f2}'+
+   '.'+CLASS_NAME+' b,.'+CLASS_NAME+' span,.'+CLASS_NAME+' small{display:block}.'+CLASS_NAME+' span{margin:2px 0}.'+CLASS_NAME+' small{color:#475569}'+
+   '@media print{.'+CLASS_NAME+'{break-inside:avoid}}';
   document.head.appendChild(style);
  }
 
- function employeeCode(){
-  const select=document.getElementById('attendanceKpiEmployee');
-  const input=document.getElementById('attendanceEmployeeId');
-  const stored=sessionStorage.getItem('attendanceKpiEmployee')||sessionStorage.getItem('attendanceEmp')||'';
-  const card=document.querySelector('.employee-skill-card[data-employee-id]');
-  return String(select?.value||stored||input?.value||card?.getAttribute('data-employee-id')||'').trim();
+ function monthlyCard(){
+  return document.querySelector('.attendance-checksheet:not(.attendance-checksheet-group) table.monthly-checksheet-table')?.closest('.attendance-checksheet')||null;
  }
 
- function headers(table){
-  return [...table.querySelectorAll('thead th')].map(th=>String(th.textContent||'').trim());
+ function employeeCode(card){
+  const selected=String(document.getElementById('attendanceKpiEmployee')?.value||'').trim();
+  if(selected)return selected;
+  const label=String(card?.querySelector('.checksheet-head p b')?.textContent||'').trim();
+  return label.split('·')[0].trim();
  }
 
- function targetTables(){
-  const app=document.getElementById('app')||document;
-  return [...app.querySelectorAll('table')].filter(table=>{
-   const hs=headers(table),joined=hs.join('|').toLowerCase();
-   const hasCheck=joined.includes('check-in')||joined.includes('check in')||joined.includes('เช็คอิน')||hs.some(x=>x==='เข้า');
-   const hasStatus=joined.includes('status')||joined.includes('สถานะ')||joined.includes('เหตุผล');
-   const hasScore=joined.includes('คะแนน')||joined.includes('หัก');
-   return hasCheck&&hasStatus&&hasScore;
-  });
+ function monthAndYear(){
+  const now=new Date();
+  return {
+   year:String(document.getElementById('attendanceYear')?.value||new Intl.DateTimeFormat('en',{timeZone:'Asia/Bangkok',year:'numeric'}).format(now)),
+   month:String(document.getElementById('attendanceMonth')?.value||new Intl.DateTimeFormat('en',{timeZone:'Asia/Bangkok',month:'numeric'}).format(now)).padStart(2,'0')
+  };
  }
 
- function rowDate(row){
-  const cells=[...row.cells];
-  const joined=cells.slice(0,3).map(td=>String(td.textContent||'').trim()).join(' ');
-  let match=joined.match(/\b(20\d{2}-\d{2}-\d{2})\b/);
-  if(match)return match[1];
-  match=joined.match(/(?:^|\s)(\d{2}-\d{2})(?:\s|$)/);
-  if(match){
-   const year=String(document.getElementById('attendanceYear')?.value||new Date().getFullYear());
-   return year+'-'+match[1];
-  }
-  const day=String(cells[0]?.textContent||'').trim();
-  if(/^\d{1,2}$/.test(day)){
-   const year=String(document.getElementById('attendanceYear')?.value||new Date().getFullYear());
-   const month=String(document.getElementById('attendanceMonth')?.value||new Date().getMonth()+1).padStart(2,'0');
-   return year+'-'+month+'-'+day.padStart(2,'0');
-  }
-  return '';
- }
-
- function destinationCell(row,table){
-  const hs=headers(table);
-  let index=hs.findIndex(x=>/เหตุผล|หมายเหตุ/i.test(x));
-  if(index<0)index=hs.findIndex(x=>/สถานะ|status/i.test(x));
-  return index>=0?row.cells[index]:null;
- }
-
- function rowClass(item){
+ function statusClass(item){
   if(item?.passed)return 'pass';
   return item?.status==='ต่ำกว่าเกณฑ์'?'fail':'pending';
  }
 
- function itemMarkup(item){
-  const parts=Array.isArray(item?.parts)&&item.parts.length?item.parts.join(', '):'รอรายการ Part จาก OEE';
+ function markup(item){
+  const parts=Array.isArray(item?.parts)&&item.parts.length?item.parts.join(', '):'รอรายการ OEE';
   const pending=Array.isArray(item?.pendingParts)&&item.pendingParts.length?item.pendingParts.join(', '):'';
-  const result=item?.rate==null
-   ? 'OEE '+fmt(item?.good)+' ชิ้นดี · ยังไม่มี Cap ครบ'
-   : 'OEE '+fmt(item?.good)+' ชิ้นดี · '+fmt(item.rate)+'%';
-  const detail=item?.rate==null
-   ? (pending?'รอตรวจ Cap: '+pending:'รอตรวจข้อมูล Cap')
-   : item.status+' · เป้า '+fmt(item.targetPercent)+'%';
-  return '<div class="'+MARK+' '+rowClass(item)+'"><b>เครื่อง '+esc(item?.machine||'—')+' · '+esc(item?.shift||'')+'</b><span>Part: '+esc(parts)+'</span><strong>'+esc(result)+'</strong><small>'+esc(detail)+'</small></div>';
+  const qty=item?.good==null?'—':fmt(item.good)+' ชิ้นดี';
+  const rate=item?.rate==null?'รอตรวจ Cap':fmt(item.rate)+'%';
+  const outcome=item?.rate==null?(pending?'รอตรวจ Cap: '+pending:'ยังคำนวณ KPI ไม่ได้'):(String(item.status||'รอตรวจ')+' · เป้า '+fmt(item.targetPercent)+'%');
+  return '<div class="'+CLASS_NAME+' '+statusClass(item)+'">'+
+   '<b>ผลผลิต '+esc(item.machine||'—')+' · '+esc(item.shift||'')+'</b>'+
+   '<span>Part: '+esc(parts)+'</span>'+
+   '<span>OEE '+esc(qty)+' · เทียบ Cap '+esc(rate)+'</span>'+
+   '<small>'+esc(outcome)+'</small></div>';
  }
 
- function renderTable(table){
-  const rows=[...table.querySelectorAll('tbody tr')];
-  for(const row of rows){
-   row.querySelectorAll('.'+MARK).forEach(node=>node.remove());
-   const date=rowDate(row);
-   if(!date)continue;
-   const matches=history.filter(item=>String(item?.workDate||'')===date);
-   if(!matches.length)continue;
-   const cell=destinationCell(row,table);
-   if(cell)cell.insertAdjacentHTML('beforeend',matches.map(itemMarkup).join(''));
+ function render(card){
+  const table=card?.querySelector('table.monthly-checksheet-table');
+  if(!table)return;
+  const {year,month}=monthAndYear();
+  for(const row of [...(table.tBodies[0]?.rows||[])]){
+   const day=String(row.cells[0]?.textContent||'').trim();
+   if(!/^\d{1,2}$/.test(day))continue;
+   const date=year+'-'+month+'-'+day.padStart(2,'0');
+   const items=history.filter(item=>String(item?.workDate||'')===date);
+   const cell=row.cells[9];
+   if(!cell)continue;
+   const wanted=items.map(markup).join('');
+   const existing=[...cell.querySelectorAll('.'+CLASS_NAME)];
+   const current=existing.map(node=>node.outerHTML).join('');
+   if(current===wanted)continue;
+   existing.forEach(node=>node.remove());
+   if(wanted)cell.insertAdjacentHTML('beforeend',wanted);
   }
  }
 
- function renderAll(){
-  const tables=targetTables();
-  if(tables.length)document.getElementById('employee-work-history-panel')?.remove();
-  tables.forEach(renderTable);
- }
-
- async function load(code){
+ async function loadHistory(code){
   const current=++requestNo;
   try{
    const response=await fetch(API+'?code='+encodeURIComponent(code),{cache:'no-store',mode:'cors'});
    const data=await response.json();
-   if(!response.ok)throw new Error(data?.error||'โหลดข้อมูล OEE ไม่สำเร็จ');
-   if(current!==requestNo||employeeCode()!==code)return;
-   history=Array.isArray(data?.history)?data.history:[];
+   if(!response.ok)throw new Error(data?.error||'โหลดผล KPI ไม่สำเร็จ');
+   const card=monthlyCard();
+   if(current!==requestNo||!card||employeeCode(card)!==code)return;
    activeCode=code;
-   renderAll();
+   history=Array.isArray(data?.history)?data.history:[];
+   render(card);
   }catch(error){
-   console.warn('PPMS Attendance OEE:',error);
+   console.warn('PPMS daily production KPI:',error);
   }
  }
 
  function sync(){
-  const code=employeeCode(),tables=targetTables();
-  if(!code||!tables.length)return;
-  if(code!==activeCode)load(code);
-  else renderAll();
+  const card=monthlyCard();
+  if(!card){activeCode='';history=[];return}
+  const code=employeeCode(card);
+  if(!code){activeCode='';history=[];return}
+  if(code!==activeCode)loadHistory(code);
+  else render(card);
  }
 
  function schedule(){
   clearTimeout(debounce);
-  debounce=setTimeout(sync,220);
+  debounce=setTimeout(sync,200);
  }
 
  addStyles();
@@ -311,11 +149,14 @@
   if(app)new MutationObserver(schedule).observe(app,{childList:true,subtree:true});
   document.addEventListener('change',event=>{
    if(['attendanceKpiEmployee','attendanceYear','attendanceMonth'].includes(event.target?.id)){
-    activeCode=''; history=[]; schedule();
+    activeCode='';history=[];schedule();
    }
   });
   clearInterval(timer);
-  timer=setInterval(()=>{if(document.visibilityState==='visible'&&employeeCode())load(employeeCode())},60000);
+  timer=setInterval(()=>{
+   const card=monthlyCard(),code=employeeCode(card);
+   if(document.visibilityState==='visible'&&card&&code)loadHistory(code);
+  },60000);
  });
- window.PPMS_ATTENDANCE_OEE_VERSION='V760';
+ window.PPMS_ATTENDANCE_OEE_VERSION='V761';
 })();
