@@ -166,3 +166,156 @@
  window.PPMSWorkHistory={refresh:()=>activeCode&&load(activeCode,true)};
  window.PPMS_EMPLOYEE_HISTORY_VERSION='V759';
 })();
+
+
+/* V760: show machine / Part / OEE / Capacity inside each employee Attendance daily card row. */
+(function(){
+ 'use strict';
+ const API='https://machine-part-kpi.jinrong-tl-1709.chatgpt.site/api/employee-skill-history';
+ const MARK='ppms-oee-inline';
+ const STYLE_ID='ppms-attendance-oee-style';
+ let activeCode='',history=[],requestNo=0,debounce=0,timer=0;
+
+ const esc=value=>String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
+ const fmt=value=>Number(value||0).toLocaleString('th-TH',{maximumFractionDigits:1});
+
+ function addStyles(){
+  if(document.getElementById(STYLE_ID))return;
+  const style=document.createElement('style');
+  style.id=STYLE_ID;
+  style.textContent=
+   '.ppms-oee-inline{margin-top:7px;padding:8px 10px;border-radius:8px;border-left:4px solid #64748b;background:#f8fafc;color:#334155;line-height:1.35;text-align:left;min-width:210px}'+
+   '.ppms-oee-inline.pass{border-left-color:#16a34a;background:#f0fdf4}.ppms-oee-inline.fail{border-left-color:#dc2626;background:#fef2f2}.ppms-oee-inline.pending{border-left-color:#d97706;background:#fffbeb}'+
+   '.ppms-oee-inline b,.ppms-oee-inline strong,.ppms-oee-inline span,.ppms-oee-inline small{display:block}.ppms-oee-inline b{color:#0f172a}.ppms-oee-inline span{margin:2px 0;color:#475569}.ppms-oee-inline strong{color:#111827}.ppms-oee-inline small{margin-top:2px;color:#64748b}'+
+   '@media(max-width:760px){.ppms-oee-inline{min-width:0;padding:7px 8px;font-size:12px}}'+
+   '@media print{.ppms-oee-inline{break-inside:avoid}}';
+  document.head.appendChild(style);
+ }
+
+ function employeeCode(){
+  const select=document.getElementById('attendanceKpiEmployee');
+  const input=document.getElementById('attendanceEmployeeId');
+  const stored=sessionStorage.getItem('attendanceKpiEmployee')||sessionStorage.getItem('attendanceEmp')||'';
+  const card=document.querySelector('.employee-skill-card[data-employee-id]');
+  return String(select?.value||stored||input?.value||card?.getAttribute('data-employee-id')||'').trim();
+ }
+
+ function headers(table){
+  return [...table.querySelectorAll('thead th')].map(th=>String(th.textContent||'').trim());
+ }
+
+ function targetTables(){
+  const app=document.getElementById('app')||document;
+  return [...app.querySelectorAll('table')].filter(table=>{
+   const hs=headers(table),joined=hs.join('|').toLowerCase();
+   const hasCheck=joined.includes('check-in')||joined.includes('check in')||joined.includes('เช็คอิน')||hs.some(x=>x==='เข้า');
+   const hasStatus=joined.includes('status')||joined.includes('สถานะ')||joined.includes('เหตุผล');
+   const hasScore=joined.includes('คะแนน')||joined.includes('หัก');
+   return hasCheck&&hasStatus&&hasScore;
+  });
+ }
+
+ function rowDate(row){
+  const cells=[...row.cells];
+  const joined=cells.slice(0,3).map(td=>String(td.textContent||'').trim()).join(' ');
+  let match=joined.match(/\b(20\d{2}-\d{2}-\d{2})\b/);
+  if(match)return match[1];
+  match=joined.match(/(?:^|\s)(\d{2}-\d{2})(?:\s|$)/);
+  if(match){
+   const year=String(document.getElementById('attendanceYear')?.value||new Date().getFullYear());
+   return year+'-'+match[1];
+  }
+  const day=String(cells[0]?.textContent||'').trim();
+  if(/^\d{1,2}$/.test(day)){
+   const year=String(document.getElementById('attendanceYear')?.value||new Date().getFullYear());
+   const month=String(document.getElementById('attendanceMonth')?.value||new Date().getMonth()+1).padStart(2,'0');
+   return year+'-'+month+'-'+day.padStart(2,'0');
+  }
+  return '';
+ }
+
+ function destinationCell(row,table){
+  const hs=headers(table);
+  let index=hs.findIndex(x=>/เหตุผล|หมายเหตุ/i.test(x));
+  if(index<0)index=hs.findIndex(x=>/สถานะ|status/i.test(x));
+  return index>=0?row.cells[index]:null;
+ }
+
+ function rowClass(item){
+  if(item?.passed)return 'pass';
+  return item?.status==='ต่ำกว่าเกณฑ์'?'fail':'pending';
+ }
+
+ function itemMarkup(item){
+  const parts=Array.isArray(item?.parts)&&item.parts.length?item.parts.join(', '):'รอรายการ Part จาก OEE';
+  const pending=Array.isArray(item?.pendingParts)&&item.pendingParts.length?item.pendingParts.join(', '):'';
+  const result=item?.rate==null
+   ? 'OEE '+fmt(item?.good)+' ชิ้นดี · ยังไม่มี Cap ครบ'
+   : 'OEE '+fmt(item?.good)+' ชิ้นดี · '+fmt(item.rate)+'%';
+  const detail=item?.rate==null
+   ? (pending?'รอตรวจ Cap: '+pending:'รอตรวจข้อมูล Cap')
+   : item.status+' · เป้า '+fmt(item.targetPercent)+'%';
+  return '<div class="'+MARK+' '+rowClass(item)+'"><b>เครื่อง '+esc(item?.machine||'—')+' · '+esc(item?.shift||'')+'</b><span>Part: '+esc(parts)+'</span><strong>'+esc(result)+'</strong><small>'+esc(detail)+'</small></div>';
+ }
+
+ function renderTable(table){
+  const rows=[...table.querySelectorAll('tbody tr')];
+  for(const row of rows){
+   row.querySelectorAll('.'+MARK).forEach(node=>node.remove());
+   const date=rowDate(row);
+   if(!date)continue;
+   const matches=history.filter(item=>String(item?.workDate||'')===date);
+   if(!matches.length)continue;
+   const cell=destinationCell(row,table);
+   if(cell)cell.insertAdjacentHTML('beforeend',matches.map(itemMarkup).join(''));
+  }
+ }
+
+ function renderAll(){
+  const tables=targetTables();
+  if(tables.length)document.getElementById('employee-work-history-panel')?.remove();
+  tables.forEach(renderTable);
+ }
+
+ async function load(code){
+  const current=++requestNo;
+  try{
+   const response=await fetch(API+'?code='+encodeURIComponent(code),{cache:'no-store',mode:'cors'});
+   const data=await response.json();
+   if(!response.ok)throw new Error(data?.error||'โหลดข้อมูล OEE ไม่สำเร็จ');
+   if(current!==requestNo||employeeCode()!==code)return;
+   history=Array.isArray(data?.history)?data.history:[];
+   activeCode=code;
+   renderAll();
+  }catch(error){
+   console.warn('PPMS Attendance OEE:',error);
+  }
+ }
+
+ function sync(){
+  const code=employeeCode(),tables=targetTables();
+  if(!code||!tables.length)return;
+  if(code!==activeCode)load(code);
+  else renderAll();
+ }
+
+ function schedule(){
+  clearTimeout(debounce);
+  debounce=setTimeout(sync,220);
+ }
+
+ addStyles();
+ document.addEventListener('DOMContentLoaded',()=>{
+  schedule();
+  const app=document.getElementById('app');
+  if(app)new MutationObserver(schedule).observe(app,{childList:true,subtree:true});
+  document.addEventListener('change',event=>{
+   if(['attendanceKpiEmployee','attendanceYear','attendanceMonth'].includes(event.target?.id)){
+    activeCode=''; history=[]; schedule();
+   }
+  });
+  clearInterval(timer);
+  timer=setInterval(()=>{if(document.visibilityState==='visible'&&employeeCode())load(employeeCode())},60000);
+ });
+ window.PPMS_ATTENDANCE_OEE_VERSION='V760';
+})();
