@@ -70,9 +70,22 @@
     if(!/^\d{4}-(0[1-9]|1[0-2])$/.test(month)){error='กรุณาเลือกเดือน';renderResults();return;}
     const token=++requestNumber,requestedMonth=month;loading=true;error='';renderResults();
     try{
-      const response=await fetch(endpoint+'?month='+encodeURIComponent(requestedMonth),{cache:'no-store',signal:AbortSignal.timeout(60000)});
-      const payload=await response.json();if(!response.ok)throw Error(payload.error||'โหลด KPI ไม่สำเร็จ');
-      if(!Array.isArray(payload.histories)||payload.month!==requestedMonth)throw Error('ข้อมูลสรุป KPI ไม่ครบ');
+      const roster=employees(), histories=[];let cursor=0,complete=0,online=true,asOf='',failed=0;
+      await Promise.all(Array.from({length:Math.min(6,roster.length)},async()=>{
+        while(cursor<roster.length){
+          const employee=roster[cursor++];if(token!==requestNumber)return;
+          try{
+            const response=await fetch(endpoint+'?code='+encodeURIComponent(employee.code),{cache:'no-store',signal:AbortSignal.timeout(60000)});
+            const payload=await response.json();if(!response.ok||!Array.isArray(payload.history))throw Error('โหลด KPI ไม่สำเร็จ');
+            histories.push({employeeCode:employee.code,history:payload.history});if(payload.online===false)online=false;
+            if(payload.asOf&&payload.asOf>asOf)asOf=payload.asOf;
+          }catch{failed++;online=false;}
+          complete++;
+          if(active&&token===requestNumber){const status=document.getElementById('sectionKpiStatus');if(status)status.textContent='กำลังดึง KPI ล่าสุด '+complete+' / '+roster.length+' คน';}
+        }
+      }));
+      const payload={month:requestedMonth,histories,online,asOf};
+      if(failed&&token===requestNumber)error='เชื่อม KPI ไม่สำเร็จ '+failed+' คน กรุณากดอัปเดตข้อมูลอีกครั้ง';
       if(token===requestNumber)data=payload;
     }catch(e){if(token===requestNumber)error=e.message||'เชื่อม KPI ไม่สำเร็จ';}
     finally{if(token===requestNumber){loading=false;renderResults();}}
@@ -105,6 +118,6 @@
   },true);
   const nav=document.getElementById('nav');if(nav)new MutationObserver(addButton).observe(nav,{childList:true});
   window.addEventListener('storage',()=>{if(active)renderResults()});
-  setInterval(()=>{if(active&&document.visibilityState==='visible'&&!loading)void load()},60000);
+  setInterval(()=>{if(active&&!loading)renderResults()},15000);
   addButton();
 })();
