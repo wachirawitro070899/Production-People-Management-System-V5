@@ -1,4 +1,4 @@
-/* V768 - Admin account may be used on one owner device only. */
+/* V804 - Restrict the owner account to its device; added users can sign in elsewhere. */
 (()=>{
   'use strict';
   const DEVICE_KEY='ppms_v768_admin_device_id';
@@ -151,7 +151,7 @@
     const body=document.getElementById('modalBody');
     if(!modal||!body)return;
     body.innerHTML=`<h2>Admin Login</h2>
-      <p class="modal-note">บัญชี Admin ใช้ได้เฉพาะเครื่องเจ้าของ 1 เครื่อง</p>
+      <p class="modal-note">Admin หลักใช้ได้เฉพาะเครื่องเจ้าของ · User ที่เพิ่มใช้จากเครื่องอื่นได้</p>
       <form id="adminDeviceLoginForm">
         <label>Username<input name="username" autocomplete="username" required autofocus></label>
         <label>Password<div style="display:flex;gap:6px;align-items:center"><input id="adminDevicePassword" data-password-toggle-ready="1" type="password" name="password" autocomplete="current-password" required style="flex:1"><button id="toggleAdminPassword" type="button" class="secondary" aria-label="แสดงรหัสผ่าน" title="แสดงรหัสผ่าน" style="min-width:48px;padding:10px">👁</button></div></label>
@@ -185,7 +185,7 @@
         const account=list.find(x=>String(x.username).toLowerCase()===username&&x.active!==false&&x.passwordHash===passwordHash);
         if(!account)throw Error('Username หรือ Password ไม่ถูกต้อง');
         const currentDevice=deviceId();
-        await claimOwnerDevice(account,currentDevice,ownerName);
+        if(account.owner===true)await claimOwnerDevice(account,currentDevice,ownerName);
         localStorage.setItem(OWNER_KEY,ownerName);
         localStorage.setItem('ppms_v3_admin_accounts',JSON.stringify(list));
         sessionStorage.setItem('ppms_admin','1');
@@ -220,6 +220,10 @@
       const list=await accounts();
       const account=list.find(x=>String(x.username).toLowerCase()===username);
       if(!account||account.active===false)throw Error('account disabled');
+      if(account.owner!==true){
+        window.PPMS_RUNTIME?.syncAdminAccounts?.(list);
+        return;
+      }
       const response=await rest(lockPath(username));
       if(!response.ok)throw Error('device check failed');
       const lock=await response.json();
