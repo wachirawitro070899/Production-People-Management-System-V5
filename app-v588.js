@@ -24,35 +24,97 @@ const CLOUD_MODE=Boolean((window.PPMS_FIREBASE_CONFIG||{}).apiKey&&(window.PPMS_
 let deletedEmployeeIds=loadDeletedIds(), employees=loadEmployees(), ngHistoryArchive={}, evaluations=loadArray(EVAL_KEY), training=loadArray(TRAIN_KEY), examResults=loadArray(EXAM_RESULT_KEY), examDeletedKeys=new Set(loadArray(EXAM_DELETED_KEY).map(String)), examQuestionBank=loadObject(EXAM_BANK_KEY), attendance=loadArray(ATTENDANCE_KEY), attendanceSettings=loadObject(ATTENDANCE_SETTINGS_KEY), attendanceDevices=loadObject(ATTENDANCE_DEVICES_KEY), shiftSchedules=loadObject(SHIFT_SCHEDULE_KEY), holidays=loadObject(HOLIDAY_KEY), adminAccounts=loadArray(ADMIN_ACCOUNT_KEY), isAdmin=sessionStorage.getItem('ppms_admin')==='1', leaderId=sessionStorage.getItem('ppms_leader_id')||'', current=sessionStorage.getItem('ppms_admin')==='1'?'dashboard':(sessionStorage.getItem('ppms_leader_id')?'leaderShift':(EXAM_LINK?'exam':'attendance'));
 async function adminPasswordHash(username,password){const raw=new TextEncoder().encode(`PPMS-V766|${String(username).trim().toLowerCase()}|${String(password)}`),buf=await crypto.subtle.digest('SHA-256',raw);return [...new Uint8Array(buf)].map(x=>x.toString(16).padStart(2,'0')).join('')}
 async function defaultAdminAccount(){return{username:'admin',passwordHash:await adminPasswordHash('admin','7533'),role:'admin',active:true,owner:true,createdAt:new Date().toISOString(),updatedAt:new Date().toISOString()}}
-function normalizeAdminAccounts(value){const list=Array.isArray(value)?value:Object.values(value||{});return list.filter(x=>x&&x.username&&x.passwordHash).map(x=>({...x,username:String(x.username).trim().toLowerCase(),role:'admin',active:x.active!==false}))}
+function normalizeAdminAccounts(value){
+ const list=Array.isArray(value)?value:Object.values(value||{});
+ const rows=value?.username&&value?.passwordHash?[value,...list]:list;
+ const unique=new Map();
+ for(const x of rows){if(!x?.username||!x?.passwordHash)continue;const username=String(x.username).trim().toLowerCase();if(!unique.has(username))unique.set(username,{...x,username,role:'admin',active:x.active!==false})}
+ return [...unique.values()];
+}
 async function refreshAdminAccounts(){let list=normalizeAdminAccounts(adminAccounts);try{const ready=await ensureCloudReady(8000);if(ready&&cloudDb){const snap=await cloudDb.ref('ppms/adminAccounts').once('value'),remote=normalizeAdminAccounts(firebaseDecodeData(snap.val()));if(remote.length)list=remote}}catch(err){console.warn('Admin account cloud load failed',err)}if(!list.length)list=[await defaultAdminAccount()];adminAccounts=list;localStorage.setItem(ADMIN_ACCOUNT_KEY,JSON.stringify(list));return list}
-async function saveAdminAccounts(){adminAccounts=normalizeAdminAccounts(adminAccounts);localStorage.setItem(ADMIN_ACCOUNT_KEY,JSON.stringify(adminAccounts));const ready=await ensureCloudReady(12000);if(!ready||!cloudDb)throw Error('Firebase ยังไม่พร้อม บัญชีบันทึกในเครื่องนี้แล้ว');await cloudDb.ref('ppms/adminAccounts').set(firebaseEncodeData(adminAccounts));return true}
+async function saveAdminAccounts(){
+ const pending=normalizeAdminAccounts(adminAccounts);
+ const read=await adminAccountsRequest(),remote=normalizeAdminAccounts(firebaseDecodeData(await read.json()));
+ await assertUserManagementAuthority(remote);
+ for(const account of pending){
+  const previous=remote.find(x=>x.username===account.username);
+  if(previous&&(previous.passwordHash!==account.passwordHash||previous.active!==account.active))await changeAdminAccount(account.username,{passwordHash:account.passwordHash,active:account.active,updatedAt:account.updatedAt});
+ }
+ return true;
+}
 // Account operations must not wait for the large employee/master payload.
-async function adminAccountsRequest(options={}){
+async function adminAccountsRequest(options={},path='ppms/adminAccounts'){
  const base=String(window.PPMS_FIREBASE_CONFIG?.databaseURL||'').replace(/\/$/,'');
  if(!base)throw Error('ไม่พบการตั้งค่าฐานข้อมูลบัญชีผู้ใช้');
  const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),10000);
  try{
-  const response=await fetch(base+'/ppms/adminAccounts.json',{...options,signal:controller.signal,cache:'no-store'});
+  const response=await fetch(base+'/'+path+'.json',{...options,signal:controller.signal,cache:'no-store'});
   if(!response.ok&&response.status!==412)throw Error(response.status===401||response.status===403?'Firebase ไม่อนุญาตให้บันทึกบัญชีผู้ใช้':'เชื่อมต่อฐานข้อมูลบัญชีผู้ใช้ไม่สำเร็จ ('+response.status+')');
   return response;
  }catch(error){if(error.name==='AbortError')throw Error('เชื่อมต่อฐานข้อมูลบัญชีผู้ใช้หมดเวลา กรุณาลองอีกครั้ง');throw error}
  finally{clearTimeout(timer)}
 }
+
+function isUserManagementOwner(){
+ const username=String(sessionStorage.getItem('ppms_admin_user')||'').trim().toLowerCase();
+ return isAdmin&&normalizeAdminAccounts(adminAccounts).some(x=>x.username===username&&x.owner===true&&x.active!==false);
+}
+async function assertUserManagementAuthority(list){
+ if(!isAdmin)throw Error('กรุณา Login เป็น Admin');
+ const username=String(sessionStorage.getItem('ppms_admin_user')||'').trim().toLowerCase();
+ if(!list.some(x=>x.username===username&&x.owner===true&&x.active!==false))throw Error('เฉพาะ Admin หลักเท่านั้นที่จัดการ User ได้');
+ const device=localStorage.getItem('ppms_v768_admin_device_id');
+ if(!device||sessionStorage.getItem('ppms_device_lock_verified')!==device)throw Error('เครื่องนี้ไม่มีสิทธิ์จัดการ User');
+ const response=await adminAccountsRequest({},'ppms/adminDeviceLocks/'+username.replace(/[^a-z0-9_-]/gi,'_'));
+ const lock=await response.json();
+ if(lock?.deviceId!==device)throw Error('จัดการ User ได้เฉพาะเครื่องของ Admin หลักที่ผูกไว้');
+}
+async function changeAdminAccount(username,changes,{remove=false}={}){
+ for(let attempt=0;attempt<3;attempt++){
+  const read=await adminAccountsRequest({headers:{'X-Firebase-ETag':'true'}});
+  const value=await read.json(),list=normalizeAdminAccounts(firebaseDecodeData(value));
+  await assertUserManagementAuthority(list);
+  const target=list.find(x=>x.username===username);
+  if(!target)throw Error('ไม่พบบัญชีผู้ใช้');
+  if(target.owner&&(remove||changes.active===false))throw Error('ไม่สามารถลบหรือปิดบัญชี Admin หลักได้');
+  const next=value?.username&&value?.passwordHash?list.map(x=>({...x})):structuredClone(value);
+  const key=Object.keys(next).find(k=>String(next[k]?.username||'').trim().toLowerCase()===username);
+  if(key===undefined)throw Error('ไม่พบตำแหน่งบัญชีผู้ใช้');
+  if(remove){if(Array.isArray(next))next[key]=null;else delete next[key]}else next[key]={...next[key],...changes};
+  const etag=read.headers.get('etag');if(!etag)throw Error('ไม่พบข้อมูลยืนยันเวอร์ชันฐานข้อมูล');
+  const saved=await adminAccountsRequest({method:'PUT',headers:{'Content-Type':'application/json','if-match':etag},body:JSON.stringify(next)});
+  if(saved.status===412)continue;
+  const confirmed=normalizeAdminAccounts(firebaseDecodeData(await saved.json()));
+  if(!confirmed.some(x=>x.owner===true))throw Error('ฐานข้อมูลไม่ยืนยันบัญชี Admin หลัก');
+  adminAccounts=confirmed;localStorage.setItem(ADMIN_ACCOUNT_KEY,JSON.stringify(confirmed));renderCore();
+  return confirmed;
+ }
+ throw Error('มีการแก้ไขบัญชีพร้อมกัน กรุณาลองอีกครั้ง');
+}
+
 async function createAdminAccount(username,password){
  if(!isAdmin)throw Error('กรุณา Login เป็น Admin');
+ const currentUsername=String(sessionStorage.getItem('ppms_admin_user')||'admin').trim().toLowerCase();
+ const cached=normalizeAdminAccounts(adminAccounts);
  const passwordHash=await adminPasswordHash(username,password);
  for(let attempt=0;attempt<3;attempt++){
   const read=await adminAccountsRequest({headers:{'X-Firebase-ETag':'true'}});
   const value=await read.json(),list=normalizeAdminAccounts(firebaseDecodeData(value));
-  if(value==null)list.push(await defaultAdminAccount());
+  const next=value?.username&&value?.passwordHash?list.map(x=>({...x})):value==null?{}:structuredClone(value);
+  let index=Object.keys(next).filter(k=>/^\d+$/.test(k)).reduce((max,k)=>Math.max(max,Number(k)+1),0);
+  // Older login versions kept the original Admin only in local storage.
+  // Restore its exact saved hash and fields; never replace a remote account.
+  const retained=cached.filter(x=>x.username===currentUsername||x.owner);
+  if(!list.length&&!retained.length&&currentUsername==='admin')retained.push(await defaultAdminAccount());
+  for(const account of retained){
+   if(list.some(x=>x.username===account.username))continue;
+   next[index++]={...account};list.push(account);
+  }
+  if(!list.some(x=>x.username===currentUsername&&x.active!==false))throw Error('ไม่พบบัญชี Admin ที่ใช้อยู่ จึงหยุดบันทึกเพื่อป้องกันบัญชีเดิมหาย กรุณาเข้าระบบด้วยบัญชีเดิมก่อน');
+  await assertUserManagementAuthority(list);
   if(list.some(x=>x.username===username))throw Error('Username นี้มีอยู่แล้ว');
-  // Preserve remote keys and fields, including device bindings. Append a numeric key
-  // so legacy array readers and password reset remain compatible.
-  const next=value==null?{}:structuredClone(value);
-  if(value==null)next[0]=list[0];
-  const keys=Object.keys(next).filter(k=>/^\d+$/.test(k));
-  const index=keys.length?Math.max(...keys.map(Number))+1:0;
+  const backup={savedAt:new Date().toISOString(),remote:value,accounts:list};
+  localStorage.setItem('ppms_admin_accounts_before_create',JSON.stringify(backup));
   const now=new Date().toISOString();
   next[index]={username,passwordHash,role:'admin',active:true,owner:false,createdAt:now,updatedAt:now};
   const etag=read.headers.get('etag');
@@ -60,6 +122,7 @@ async function createAdminAccount(username,password){
   const saved=await adminAccountsRequest({method:'PUT',headers:{'Content-Type':'application/json','if-match':etag},body:JSON.stringify(next)});
   if(saved.status===412)continue;
   const confirmed=normalizeAdminAccounts(firebaseDecodeData(await saved.json()));
+  if(!list.every(x=>confirmed.some(y=>y.username===x.username&&y.passwordHash===x.passwordHash)))throw Error('ฐานข้อมูลยังไม่ยืนยันบัญชีเดิมครบทุกบัญชี กรุณาลองอีกครั้ง');
   if(!confirmed.some(x=>x.username===username&&x.passwordHash===passwordHash))throw Error('ฐานข้อมูลยังไม่ยืนยันบัญชีใหม่ กรุณาลองอีกครั้ง');
   adminAccounts=confirmed;
   localStorage.setItem(ADMIN_ACCOUNT_KEY,JSON.stringify(confirmed));
@@ -1509,7 +1572,7 @@ function cardsPage(){
 }
 
 function exportPage(){return head('Export Center','สำรองและส่งออกข้อมูลจาก Firebase')+`<div class="panel sync-notice no-print"><h3>Firebase Live Sync</h3><p id="cloudStatus">${esc(cloudStatus)}</p><p><b>Firebase เป็นฐานข้อมูลหลักของรายชื่อพนักงาน</b> การเพิ่ม แก้ไข และลบจะซิงก์ไปทุกเครื่องอัตโนมัติเมื่อเชื่อมต่อสำเร็จ</p><p class="modal-note">ไฟล์ <code>employees-data.js</code> ไม่เก็บรายชื่อพนักงานอีกแล้ว จึงอัปเดต GitHub Pages ได้โดยไม่ทำให้รายชื่อเก่ากลับมา</p></div><div class="download-grid"><div class="card sync-card"><h3>สำรองข้อมูลเต็ม</h3><button data-action="backup">ดาวน์โหลด Backup JSON</button><button data-action="cloudAttendanceBackup" class="secondary">สำรอง Attendance ขึ้น Firebase</button><button data-action="restoreAttendanceArchive" class="secondary">กู้คืน Attendance จากคลัง</button><small>V494 Attendance Master: ข้อมูลเช็คชื่อถูกแยกเก็บที่ ppmsAttendance เป็น Master ถาวร ไม่ merge จาก cache/ไฟล์เวอร์ชันใหม่กลับเข้ามา และยังสำรองเพิ่มใน ppmsArchive</small></div><div class="card"><h3>Employee</h3><button data-action="csv">Employee CSV</button><button data-action="sectionCsv">Section CSV</button></div><div class="card"><h3>Skill Matrix</h3><button data-action="matrixCsv">Skill Matrix CSV</button><button data-action="cardCsv">Skill Card CSV</button></div><div class="card"><h3>Training / Examination</h3><button data-action="trainingCsv">Training CSV</button><button data-action="examCsv">Examination CSV</button></div></div><div class="panel no-print import-panel" style="margin-top:12px"><h3>นำเข้า Backup JSON</h3><input type="file" id="importJson" accept="application/json,.json"><p class="modal-note">การนำเข้าจะอัปเดตข้อมูลในเครื่อง และเมื่อ Firebase เชื่อมต่อจะซิงก์เป็นข้อมูลกลาง</p></div>`}
-function accountsPage(){const currentUser=sessionStorage.getItem('ppms_admin_user')||'admin',rows=adminAccounts.map((x,i)=>`<tr><td>${i+1}</td><td><b>${esc(x.username)}</b>${x.owner?'<small style="display:block">บัญชีหลัก</small>':''}</td><td>Admin</td><td><span class="account-status ${x.active!==false?'active':'disabled'}">${x.active!==false?'ใช้งาน':'ปิดใช้งาน'}</span></td><td>${esc(String(x.updatedAt||x.createdAt||'').slice(0,10)||'-')}</td><td><button type="button" class="secondary compact" data-account-reset="${esc(x.username)}">เปลี่ยน Password</button>${x.username!==currentUser?` <button type="button" class="${x.active!==false?'danger':'secondary'} compact" data-account-toggle="${esc(x.username)}">${x.active!==false?'ปิดบัญชี':'เปิดบัญชี'}</button>`:' <small>บัญชีที่ใช้อยู่</small>'}</td></tr>`).join('');return head('User Management','เพิ่มและจัดการบัญชี Admin')+`<div class="panel account-create-panel"><h3>เพิ่มบัญชี Admin</h3><form id="adminAccountForm" class="form-grid"><label>Username<input name="username" minlength="3" maxlength="40" autocomplete="off" required></label><label>Password<input type="password" name="password" minlength="4" autocomplete="new-password" required></label><label>ยืนยัน Password<input type="password" name="confirmPassword" minlength="4" autocomplete="new-password" required></label><div class="actions"><button type="submit">เพิ่มบัญชี</button></div></form><p class="modal-note">Password ถูกแปลงเป็นค่า Hash ก่อนบันทึก และบัญชีจะซิงก์ผ่าน Firebase เพื่อใช้ได้ทุกเครื่อง</p></div><div class="table-wrap" style="margin-top:12px"><table><thead><tr><th>No.</th><th>Username</th><th>Role</th><th>Status</th><th>Updated</th><th>จัดการ</th></tr></thead><tbody>${rows||'<tr><td colspan="6">กำลังโหลดบัญชี...</td></tr>'}</tbody></table></div>`}
+function accountsPage(){const canManage=isUserManagementOwner(),currentUser=sessionStorage.getItem('ppms_admin_user')||'admin',rows=adminAccounts.map((x,i)=>`<tr><td>${i+1}</td><td><b>${esc(x.username)}</b>${x.owner?'<small style="display:block">บัญชีหลัก</small>':''}</td><td>Admin</td><td><span class="account-status ${x.active!==false?'active':'disabled'}">${x.active!==false?'ใช้งาน':'ปิดใช้งาน'}</span></td><td>${esc(String(x.updatedAt||x.createdAt||'').slice(0,10)||'-')}</td><td><button type="button" ${canManage?'':'disabled'} class="secondary compact" data-account-reset="${esc(x.username)}">เปลี่ยน Password</button>${x.username!==currentUser?` <button type="button" ${canManage?'':'disabled'} class="${x.active!==false?'danger':'secondary'} compact" data-account-toggle="${esc(x.username)}">${x.active!==false?'ปิดบัญชี':'เปิดบัญชี'}</button>` :' <small>บัญชีที่ใช้อยู่</small>'}${!x.owner&&x.username!==currentUser?` <button type="button" ${canManage?'':'disabled'} class="danger compact" data-account-delete="${esc(x.username)}">ลบ User</button>`:''}</td></tr>`).join('');return head('User Management','เพิ่มและจัดการบัญชี Admin')+`<div class="panel account-create-panel">${canManage?'':'<p class="modal-note">เฉพาะเครื่องของ Admin หลักที่ผูกไว้เท่านั้นที่เพิ่มหรือลบ User ได้</p>'}<h3>เพิ่มบัญชี Admin</h3><form id="adminAccountForm" class="form-grid"><fieldset style="display:contents" ${canManage?'':'disabled'}><label>Username<input name="username" minlength="3" maxlength="40" autocomplete="off" required></label><label>Password<input type="password" name="password" minlength="4" autocomplete="new-password" required></label><label>ยืนยัน Password<input type="password" name="confirmPassword" minlength="4" autocomplete="new-password" required></label><div class="actions"><button type="submit">เพิ่มบัญชี</button></div></fieldset></form><p class="modal-note">Password ถูกแปลงเป็นค่า Hash ก่อนบันทึก และบัญชีจะซิงก์ผ่าน Firebase เพื่อใช้ได้ทุกเครื่อง</p></div><div class="table-wrap" style="margin-top:12px"><table><thead><tr><th>No.</th><th>Username</th><th>Role</th><th>Status</th><th>Updated</th><th>จัดการ</th></tr></thead><tbody>${rows||'<tr><td colspan="6">กำลังโหลดบัญชี...</td></tr>'}</tbody></table></div>`}
 function attendanceConfig(){return {factoryName:String(attendanceSettings.factoryName||'JINRONG Factory'),lat:Number(attendanceSettings.lat),lng:Number(attendanceSettings.lng),radius:Math.min(500,Math.max(50,Number(attendanceSettings.radius)||50)),maxAccuracy:Math.min(500,Math.max(10,Number(attendanceSettings.maxAccuracy)||100)),retroDays:3,kpiStartDate:String(attendanceSettings.kpiStartDate||thaiDateKey()),day:{name:'กะเช้า / Day Shift',checkInOpen:'07:00',workStart:'08:00',advanceLateCutoff:'07:50',lateReasonAfter:'08:05'},night:{name:'กะดึก / Night Shift',checkInOpen:'19:00',workStart:'20:00',advanceLateCutoff:'19:50',lateReasonAfter:'20:05'}}}
 function attendanceOperatingMode(){return String(attendanceSettings?.operatingMode||'trial')==='live'?'live':'trial'}
 function attendanceIsLive(){return attendanceOperatingMode()==='live'}
@@ -2411,7 +2474,21 @@ document.addEventListener('submit',async event=>{const form=event.target;if(form
  finally{form.dataset.submitting='';if(button){button.disabled=false;button.textContent=oldText}}
  return;
 }if(form?.id==='resetAdminPasswordForm'){event.preventDefault();const username=String(form.dataset.username||''),fd=new FormData(form),password=String(fd.get('password')||''),confirm=String(fd.get('confirmPassword')||'');if(password.length<4)return alert('Password ต้องมีอย่างน้อย 4 ตัว');if(password!==confirm)return alert('ยืนยัน Password ไม่ตรงกัน');const account=adminAccounts.find(x=>x.username===username);if(!account)return alert('ไม่พบบัญชี');account.passwordHash=await adminPasswordHash(username,password);account.updatedAt=new Date().toISOString();try{await saveAdminAccounts();closeModal();render();alert('เปลี่ยน Password เรียบร้อยแล้ว')}catch(err){alert(err.message)}}},true);
-document.addEventListener('click',async event=>{const toggle=event.target.closest?.('[data-account-toggle]');if(toggle){const username=toggle.dataset.accountToggle,account=adminAccounts.find(x=>x.username===username);if(!account)return;if(account.owner&&account.active!==false)return alert('ไม่สามารถปิดบัญชีหลักได้');account.active=account.active===false;account.updatedAt=new Date().toISOString();try{await saveAdminAccounts();render()}catch(err){render();alert(err.message)}return}const reset=event.target.closest?.('[data-account-reset]');if(reset){const username=reset.dataset.accountReset;modal(`<h2>เปลี่ยน Password</h2><p class="modal-note">Username: <b>${esc(username)}</b></p><form id="resetAdminPasswordForm" data-username="${esc(username)}"><label>Password ใหม่<input type="password" name="password" minlength="4" autocomplete="new-password" required></label><label>ยืนยัน Password<input type="password" name="confirmPassword" minlength="4" autocomplete="new-password" required></label><div class="actions"><button type="submit">บันทึก Password</button><button type="button" class="secondary" data-action="close">ยกเลิก</button></div></form>`)}},true);
+document.addEventListener('click',async event=>{
+ const deletion=event.target.closest?.('[data-account-delete]');
+ if(deletion){
+  const username=deletion.dataset.accountDelete;
+  if(!isUserManagementOwner())return alert('เฉพาะ Admin หลักเท่านั้นที่จัดการ User ได้');
+  if(!confirm('ลบ User '+username+' หรือไม่?'))return;
+  try{await changeAdminAccount(username,{},{remove:true});alert('ลบ User เรียบร้อยแล้ว')}catch(err){alert(err.message)}
+  return;
+ }
+ const toggle=event.target.closest?.('[data-account-toggle]');
+ if(toggle){
+  const username=toggle.dataset.accountToggle,account=adminAccounts.find(x=>x.username===username);if(!account)return;
+  try{await changeAdminAccount(username,{active:account.active===false,updatedAt:new Date().toISOString()})}catch(err){alert(err.message)}
+  return;
+ }const reset=event.target.closest?.('[data-account-reset]');if(reset){if(!isUserManagementOwner())return alert('เฉพาะ Admin หลักเท่านั้นที่จัดการ User ได้');const username=reset.dataset.accountReset;modal(`<h2>เปลี่ยน Password</h2><p class="modal-note">Username: <b>${esc(username)}</b></p><form id="resetAdminPasswordForm" data-username="${esc(username)}"><label>Password ใหม่<input type="password" name="password" minlength="4" autocomplete="new-password" required></label><label>ยืนยัน Password<input type="password" name="confirmPassword" minlength="4" autocomplete="new-password" required></label><div class="actions"><button type="submit">บันทึก Password</button><button type="button" class="secondary" data-action="close">ยกเลิก</button></div></form>`)}},true);
 function modal(html){$('#modalBody').innerHTML=html;$('#modal').classList.remove('hidden');bind()}
 function closeModal(){$('#modal').classList.add('hidden')}
 function imageToData(file){return new Promise((res,rej)=>{if(!file.type.startsWith('image/'))return rej(Error('ไฟล์ที่เลือกไม่ใช่รูปภาพ'));const r=new FileReader();r.onerror=()=>rej(Error('อ่านไฟล์ไม่ได้'));r.onload=()=>{const img=new Image();img.onerror=()=>rej(Error('รูปภาพเสียหรือไม่รองรับ'));img.onload=()=>{const max=480,scale=Math.min(1,max/Math.max(img.width,img.height)),w=Math.max(1,Math.round(img.width*scale)),h=Math.max(1,Math.round(img.height*scale)),c=document.createElement('canvas');c.width=w;c.height=h;const ctx=c.getContext('2d');ctx.drawImage(img,0,0,w,h);res(c.toDataURL('image/jpeg',0.74))};img.src=r.result};r.readAsDataURL(file)})}
@@ -2668,6 +2745,8 @@ window.openEmployeeEditor=openEmployeeEditor;
 window.getRendererHealth=()=>{try{const matrix=matrixPage(false),cards=cardsPage();return{ok:true,matrixLength:matrix.length,cardsLength:cards.length,wallet:typeof walletCardMarkup==='function',ng:typeof employeeNgHistoryPanel==='function'}}catch(err){return{ok:false,error:err.message,stack:String(err.stack||'')}}};
 window.getAppHealth=()=>({version:APP_DATA_VERSION,employees:employees.length,sections:new Set(employees.map(e=>e.section)).size,page:current,cloudReady,shiftScheduleRules:Object.keys(shiftSchedules||{}).length,pendingCloudSync:localStorage.getItem(CLOUD_DIRTY_KEY)==='1',pendingShiftSync:localStorage.getItem(SHIFT_CLOUD_DIRTY_KEY)==='1'});
 window.PPMS_RUNTIME={
+ syncAdminAccounts(list){if(!isAdmin)return;adminAccounts=normalizeAdminAccounts(list);localStorage.setItem(ADMIN_ACCOUNT_KEY,JSON.stringify(adminAccounts));if(current==='accounts')renderCore()},
+ changeAdminAccount,
  previewBiometricEvent(event){if(!isAdmin)throw Error('Admin only');return previewBiometricAttendanceEvent(event)},
  async recoverRealtime(){const ready=await ensureAttendanceCloudReady(15000);if(!ready||!cloudDb)return false;bindAttendanceCanonical();bindAttendanceInboxToday();bindAttendanceLiveMirror();bindAttendanceDurableKeyedToday();await Promise.allSettled([mergeTodayAttendanceCanonical(),mergeTodayAttendanceInbox(),mergeTodayAttendanceLiveMirror(),mergeTodayAttendanceDurableKeyed(),retryPendingAttendanceCloud()]);setCloudStatus('เชื่อมต่อแล้ว • Attendance การลา และแผนกะพร้อมใช้งาน');if(!userInteractionBusy()&&document.getElementById('modal')?.classList.contains('hidden'))queueRemoteRender();return true},
  refreshAttendanceRoster:refreshAttendanceRosterFromCloud,

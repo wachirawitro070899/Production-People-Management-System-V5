@@ -37,7 +37,11 @@
   }
 
   function normalize(value){
-    return (Array.isArray(value)?value:Object.values(value||{})).filter(x=>x&&x.username&&x.passwordHash);
+    const list=Array.isArray(value)?value:Object.values(value||{});
+    const rows=value?.username&&value?.passwordHash?[value,...list]:list;
+    const unique=new Map();
+    for(const x of rows){if(!x?.username||!x?.passwordHash)continue;const username=String(x.username).trim().toLowerCase();if(!unique.has(username))unique.set(username,{...x,username})}
+    return [...unique.values()];
   }
 
   async function accounts(){
@@ -144,13 +148,15 @@
     }
     try{
       const username=String(sessionStorage.getItem('ppms_admin_user')||'admin').toLowerCase();
-      const account=(await accounts()).find(x=>String(x.username).toLowerCase()===username);
+      const list=await accounts();
+      const account=list.find(x=>String(x.username).toLowerCase()===username);
       if(!account||account.active===false)throw Error('account disabled');
       const response=await rest(lockPath(username));
       if(!response.ok)throw Error('device check failed');
       const lock=await response.json();
       const ownerId=lock?.deviceId||account.allowedDeviceId||'';
       if(ownerId!==currentDevice)throw Error('device mismatch');
+      window.PPMS_RUNTIME?.syncAdminAccounts?.(list);
       const ownerName=String(lock?.ownerName||localStorage.getItem(OWNER_KEY)||'').trim();
       if(ownerName){localStorage.setItem(OWNER_KEY,ownerName);sessionStorage.setItem('ppms_admin_device_owner',ownerName)}
     }catch(error){
@@ -205,14 +211,8 @@
         if(password!==confirmPassword)return alert('ยืนยัน Password ไม่ตรงกัน');
         button.disabled=true;button.textContent='กำลังบันทึก...';
         try{
-          const list=await accounts();
-          const index=list.findIndex(x=>String(x.username).toLowerCase()===username);
-          if(index<0)throw Error('ไม่พบบัญชี Admin นี้');
-          list[index].passwordHash=await hash(username,password);
-          list[index].updatedAt=new Date().toISOString();
-          const response=await rest(`${ACCOUNT_PATH}/${index}`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({passwordHash:list[index].passwordHash,updatedAt:list[index].updatedAt})});
-          if(!response.ok)throw Error('Firebase ไม่อนุญาตให้บันทึก Password');
-          localStorage.setItem('ppms_v3_admin_accounts',JSON.stringify(list));
+          if(!window.PPMS_RUNTIME?.changeAdminAccount)throw Error('ระบบจัดการ User ยังไม่พร้อม');
+          await window.PPMS_RUNTIME.changeAdminAccount(username,{passwordHash:await hash(username,password),updatedAt:new Date().toISOString()});
           document.getElementById('modal')?.classList.add('hidden');
           alert('เปลี่ยน Password เรียบร้อยแล้ว');
         }catch(error){
