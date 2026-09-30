@@ -48,9 +48,6 @@
     let list=[];
     try{const response=await rest(ACCOUNT_PATH);if(response.ok)list=normalize(await response.json())}catch(error){console.warn('Admin account REST read failed',error)}
     if(!list.length)list=normalize(JSON.parse(localStorage.getItem('ppms_v3_admin_accounts')||'[]'));
-    if(!list.length){
-      list=[{username:'admin',passwordHash:await hash('admin','7533'),role:'admin',active:true,owner:true,createdAt:new Date().toISOString(),updatedAt:new Date().toISOString()}];
-    }
     return list;
   }
 
@@ -78,6 +75,77 @@
     return savedData;
   }
 
+
+  function recoveryOwnerUsername(){
+    try{
+      const cached=normalize(JSON.parse(localStorage.getItem('ppms_v3_admin_accounts')||'[]'));
+      const backup=JSON.parse(localStorage.getItem('ppms_admin_accounts_before_create')||'null');
+      const owner=[...cached,...normalize(backup?.accounts)].find(x=>x.owner===true);
+      return String(owner?.username||'admin').trim().toLowerCase();
+    }catch(_){return 'admin'}
+  }
+
+  async function recoverOwnerAccount(username,password){
+    const currentDevice=localStorage.getItem(DEVICE_KEY);
+    if(!currentDevice)throw Error('ต้องเปิดจากเบราว์เซอร์เดิมบนเครื่อง Admin ที่เคยผูกไว้');
+    if(username!==recoveryOwnerUsername())throw Error('กู้ได้เฉพาะบัญชี Admin หลักเดิม');
+    const passwordHash=await hash(username,password);
+    for(let attempt=0;attempt<3;attempt++){
+      // Recovery cannot claim a new device or change the existing device lock.
+      const deviceRead=await rest(lockPath(username));
+      if(!deviceRead.ok)throw Error('ตรวจสอบเครื่อง Admin ไม่สำเร็จ');
+      const lock=await deviceRead.json();
+      if(!lock?.deviceId||lock.deviceId!==currentDevice)throw Error('เครื่องนี้ไม่ตรงกับเครื่อง Admin เดิม กรุณาใช้เครื่องและเบราว์เซอร์ที่เคย Login');
+      const read=await rest(ACCOUNT_PATH,{headers:{'X-Firebase-ETag':'true'}});
+      if(!read.ok)throw Error('อ่านข้อมูลบัญชีไม่สำเร็จ');
+      const value=await read.json(),list=normalize(value);
+      const existing=list.find(x=>x.username===username);
+      if(existing&&existing.owner!==true)throw Error('บัญชีนี้ไม่ใช่ Admin หลัก จึงไม่สามารถกู้ด้วยวิธีนี้ได้');
+      if(existing?.allowedDeviceId&&existing.allowedDeviceId!==currentDevice)throw Error('เครื่องนี้ไม่ตรงกับเครื่องที่ผูกกับบัญชี');
+      const next=value?.username&&value?.passwordHash?list.map(x=>({...x})):value==null?{}:structuredClone(value);
+      const key=Object.keys(next).find(k=>String(next[k]?.username||'').trim().toLowerCase()===username);
+      const index=key===undefined?Object.keys(next).filter(k=>/^\d+$/.test(k)).reduce((max,k)=>Math.max(max,Number(k)+1),0):key;
+      const now=new Date().toISOString();
+      next[index]={...(existing||{}),username,passwordHash,role:'admin',owner:true,active:true,createdAt:existing?.createdAt||now,updatedAt:now};
+      localStorage.setItem('ppms_admin_accounts_before_recovery',JSON.stringify({savedAt:now,remote:value}));
+      const etag=read.headers.get('etag');
+      if(!etag)throw Error('ฐานข้อมูลไม่ส่งข้อมูลยืนยันเวอร์ชัน');
+      const saved=await rest(ACCOUNT_PATH,{method:'PUT',headers:{'Content-Type':'application/json','if-match':etag},body:JSON.stringify(next)});
+      if(saved.status===412)continue;
+      if(!saved.ok)throw Error('Firebase ไม่อนุญาตให้กู้บัญชี');
+      const confirmed=normalize(await saved.json());
+      if(!confirmed.some(x=>x.username===username&&x.passwordHash===passwordHash&&x.owner))throw Error('ฐานข้อมูลยังไม่ยืนยันบัญชี Admin');
+      if(!list.filter(x=>x.username!==username).every(x=>confirmed.some(y=>y.username===x.username&&y.passwordHash===x.passwordHash)))throw Error('ฐานข้อมูลยังไม่ยืนยัน User เดิมครบ');
+      localStorage.setItem('ppms_v3_admin_accounts',JSON.stringify(confirmed));
+      sessionStorage.setItem('ppms_admin','1');
+      sessionStorage.setItem('ppms_admin_user',username);
+      sessionStorage.setItem(VERIFIED_KEY,currentDevice);
+      sessionStorage.setItem('ppms_admin_device_owner',lock.ownerName||localStorage.getItem(OWNER_KEY)||'');
+      sessionStorage.removeItem('ppms_leader_id');
+      return true;
+    }
+    throw Error('มีการแก้ไขบัญชีพร้อมกัน กรุณาลองอีกครั้ง');
+  }
+
+  function showOwnerRecovery(){
+    const body=document.getElementById('modalBody');if(!body)return;
+    body.innerHTML='<h2>กู้บัญชี Admin หลัก</h2><p class="modal-note">ใช้ได้เฉพาะเครื่องและเบราว์เซอร์เดิมที่ผูกบัญชี Admin ไว้ ตั้งรหัสผ่านใหม่เพื่อกลับเข้าใช้งาน</p><form id="adminOwnerRecoveryForm"><label>Username<input name="username" readonly></label><label>Password ใหม่<input name="password" type="password" minlength="8" autocomplete="new-password" required></label><label>ยืนยัน Password ใหม่<input name="confirmPassword" type="password" minlength="8" autocomplete="new-password" required></label><div id="adminOwnerRecoveryMessage" class="login-message" role="status"></div><div class="actions"><button type="submit">กู้บัญชีและเข้าสู่ระบบ</button><button type="button" id="backToAdminLogin" class="secondary">กลับหน้า Login</button></div></form>';
+    const form=document.getElementById('adminOwnerRecoveryForm');
+    form.elements.username.value=recoveryOwnerUsername();
+    document.getElementById('backToAdminLogin').onclick=showLogin;
+    form.onsubmit=async event=>{
+      event.preventDefault();if(form.dataset.submitting==='1')return;
+      const data=new FormData(form),username=String(data.get('username')||'').trim().toLowerCase(),password=String(data.get('password')||''),confirm=String(data.get('confirmPassword')||'');
+      const message=document.getElementById('adminOwnerRecoveryMessage');
+      if(password.length<8){message.textContent='Password ใหม่ต้องมีอย่างน้อย 8 ตัว';return}
+      if(password!==confirm){message.textContent='ยืนยัน Password ไม่ตรงกัน';return}
+      const button=form.querySelector('[type="submit"]');form.dataset.submitting='1';button.disabled=true;button.textContent='กำลังกู้บัญชี...';message.textContent='';
+      try{await recoverOwnerAccount(username,password);location.reload()}
+      catch(error){message.textContent=error.message||String(error);form.dataset.submitting='';button.disabled=false;button.textContent='กู้บัญชีและเข้าสู่ระบบ'}
+    };
+    enhancePasswordFields(body);
+  }
+
   function showLogin(){
     const modal=document.getElementById('modal');
     const body=document.getElementById('modalBody');
@@ -89,8 +157,9 @@
         <label>Password<div style="display:flex;gap:6px;align-items:center"><input id="adminDevicePassword" data-password-toggle-ready="1" type="password" name="password" autocomplete="current-password" required style="flex:1"><button id="toggleAdminPassword" type="button" class="secondary" aria-label="แสดงรหัสผ่าน" title="แสดงรหัสผ่าน" style="min-width:48px;padding:10px">👁</button></div></label>
         <div id="adminDeviceLoginMessage" class="login-message"></div>
         <div class="actions"><button type="submit">Login / เข้าสู่ระบบ</button><button type="button" class="secondary" data-action="close">ยกเลิก</button></div>
-      </form>`;
+      </form><button type="button" id="recoverAdminOwnerButton" class="secondary" style="margin-top:12px">กู้บัญชี Admin หลัก (เครื่องเดิม)</button>`;
     modal.classList.remove('hidden');
+    document.getElementById('recoverAdminOwnerButton').onclick=showOwnerRecovery;
     const passwordInput=document.getElementById('adminDevicePassword');
     const passwordToggle=document.getElementById('toggleAdminPassword');
     if(passwordInput&&passwordToggle)passwordToggle.onclick=()=>{
