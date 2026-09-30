@@ -1,4 +1,4 @@
-/* Date-linked production KPI and monthly qualifying days for HR. */
+/* Date-linked production KPI and monthly qualifying days. */
 (() => {
   'use strict';
   const endpoint = 'https://machine-part-kpi.jinrong-tl-1709.chatgpt.site/api/employee-skill-history';
@@ -89,7 +89,7 @@
     }
     const days = [...byDate].sort(([a],[b])=>a.localeCompare(b)).map(([date,rows])=>({date,rows,checkedIn:attendance.has(date),status:daily(rows,attendance.has(date),data.online !== false && !error)}));
     const passed = days.filter(day=>day.status === 'ถึงเกณฑ์'), failed = days.filter(day=>day.status === 'ไม่ถึงเกณฑ์'), waiting = days.filter(day=>day.status === 'รอตรวจ');
-    content.innerHTML = `<div class="cards" style="margin:10px 0"><div class="card metric">วันถึงเกณฑ์ KPI<b style="color:#16734a">${passed.length} วัน</b><small>จำนวนวันสำหรับ HR ตรวจจ่าย KPI</small></div><div class="card metric">วันไม่ถึงเกณฑ์<b>${failed.length} วัน</b></div><div class="card metric">วันรอตรวจ<b>${waiting.length} วัน</b></div></div><p><b>วันที่ถึงเกณฑ์:</b> ${passed.length ? passed.map(day=>escape(day.date)).join(', ') : '—'}</p><div class="table-wrap"><table><thead><tr><th>วันที่ผลิต</th><th>เครื่อง · ทำได้ · ผล KPI</th><th>ผลรายวัน</th></tr></thead><tbody>${days.map(day=>`<tr><td>${escape(day.date)}</td><td>${day.rows.map(resultMarkup).join('')}</td><td><b>${day.status}</b>${!day.checkedIn ? '<small style="display:block">ยังไม่พบสแกนนิ้ววันเดียวกัน</small>' : ''}</td></tr>`).join('') || '<tr><td colspan="3">ยังไม่มีรายการผลิตที่เชื่อมกับพนักงานในเดือนนี้</td></tr>'}</tbody></table></div>${error ? `<p class="modal-note">${escape(error)} · รอตรวจข้อมูลล่าสุดก่อนนับวันผ่าน</p>` : ''}`;
+    content.innerHTML = `<div class="cards" style="margin:10px 0"><div class="card metric">วันถึงเกณฑ์ KPI<b style="color:#16734a">${passed.length} วัน</b></div><div class="card metric">วันไม่ถึงเกณฑ์<b>${failed.length} วัน</b></div><div class="card metric">วันรอตรวจ<b>${waiting.length} วัน</b></div></div><p><b>วันที่ถึงเกณฑ์:</b> ${passed.length ? passed.map(day=>escape(day.date)).join(', ') : '—'}</p><div class="table-wrap"><table><thead><tr><th>วันที่ผลิต</th><th>เครื่อง · ทำได้ · ผล KPI</th><th>ผลรายวัน</th></tr></thead><tbody>${days.map(day=>`<tr><td>${escape(day.date)}</td><td>${day.rows.map(resultMarkup).join('')}</td><td><b>${day.status}</b>${!day.checkedIn ? '<small style="display:block">ยังไม่พบสแกนนิ้ววันเดียวกัน</small>' : ''}</td></tr>`).join('') || '<tr><td colspan="3">ยังไม่มีรายการผลิตที่เชื่อมกับพนักงานในเดือนนี้</td></tr>'}</tbody></table></div>${error ? `<p class="modal-note">${escape(error)} · รอตรวจข้อมูลล่าสุดก่อนนับวันผ่าน</p>` : ''}`;
   }
   function display(panel,data,error) {
     const history = unique(data?.history);
