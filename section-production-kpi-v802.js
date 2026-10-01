@@ -16,8 +16,8 @@
     const list=read('ppms_v3_employees',[]), seen=new Set();
     return (Array.isArray(list)?list:[]).filter(e=>{const code=norm(e.id);if(!code||seen.has(code)||deleted.has(code))return false;seen.add(code);return true}).map(e=>({code:String(e.id),name:e.thaiName||e.name||'',section:String(e.section||'ไม่ระบุ Section')}));
   }
-  function summarize(roster,payload,attendance,selectedMonth,isOnline){
-    const checked=new Set((Array.isArray(attendance)?attendance:[]).filter(a=>a.checkIn).map(a=>norm(a.employeeId)+'|'+a.date));
+  const scanOnDate = row => { const stamp=new Date(row.scannedAt); return !Number.isNaN(stamp.getTime()) && new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Bangkok',year:'numeric',month:'2-digit',day:'2-digit'}).format(stamp)===row.workDate; };
+  function summarize(roster,payload,selectedMonth,isOnline){
     const histories=new Map((payload?.histories||[]).map(item=>[norm(item.employeeCode),item.history||[]]));
     const confirmed=row=>Number.isFinite(row.rate)&&['ถึงเกณฑ์','ต่ำกว่าเกณฑ์','ไม่ถึงเกณฑ์'].includes(row.status);
     return roster.map(employee=>{
@@ -28,7 +28,7 @@
       }
       const groups=new Map();for(const row of unique.values()){const list=groups.get(row.workDate)||[];list.push(row);groups.set(row.workDate,list)}
       const days=[...groups].sort(([a],[b])=>a.localeCompare(b)).map(([date,rows])=>{
-        const scan=checked.has(norm(employee.code)+'|'+date);
+        const scan=rows.every(scanOnDate);
         const status=!isOnline||!scan||rows.some(row=>!confirmed(row))?'รอตรวจ':rows.every(row=>row.passed)?'ถึงเกณฑ์':'ไม่ถึงเกณฑ์';
         return {date,rows,scan,status};
       });
@@ -39,7 +39,7 @@
     let root=document.getElementById(rootId);
     if(!root){root=document.createElement('main');root.id=rootId;document.getElementById('app').after(root)}
     root.hidden=!active;if(!active)return;
-    root.innerHTML=`<div class="page-head"><h2>สรุป KPI การผลิตรายเดือน / Section</h2></div><div class="kpi-section-controls"><label>เดือน<input type="month" id="sectionKpiMonth" value="${month}"></label><label>Section<select id="sectionKpiFilter"><option value="">ทุก Section</option></select></label><button type="button" id="sectionKpiRefresh">อัปเดตข้อมูล</button><button type="button" class="secondary" id="sectionKpiCsv">ดาวน์โหลด CSV</button></div><p class="kpi-summary-note">นับวันละ 1 วัน เมื่อมีสแกนนิ้วและทุกเครื่องที่ทำในวันนั้นถึงเกณฑ์ · วันที่รอตรวจยังไม่นับเป็นวันผ่าน</p><div id="sectionKpiStatus" role="status"></div><div id="sectionKpiResults"></div>`;
+    root.innerHTML=`<div class="page-head"><h2>สรุป KPI การผลิตรายเดือน / Section</h2></div><div class="kpi-section-controls"><label>เดือน<input type="month" id="sectionKpiMonth" value="${month}"></label><label>Section<select id="sectionKpiFilter"><option value="">ทุก Section</option></select></label><button type="button" id="sectionKpiRefresh">อัปเดตข้อมูล</button><button type="button" class="secondary" id="sectionKpiCsv">ดาวน์โหลด CSV</button></div><p class="kpi-summary-note">นับวันละ 1 วัน เมื่อมีสแกน QR หน้าเครื่องและทุกเครื่องที่ทำในวันนั้นถึงเกณฑ์ · วันที่รอตรวจยังไม่นับเป็นวันผ่าน</p><div id="sectionKpiStatus" role="status"></div><div id="sectionKpiResults"></div>`;
     root.querySelector('#sectionKpiMonth').onchange=e=>{month=e.target.value;data=null;error='';void load()};
     root.querySelector('#sectionKpiFilter').onchange=e=>{section=e.target.value;renderResults()};
     root.querySelector('#sectionKpiRefresh').onclick=()=>void load();
@@ -54,7 +54,7 @@
     const filter=root.querySelector('#sectionKpiFilter');
     const options='<option value="">ทุก Section</option>'+sections.map(s=>`<option value="${esc(s)}">${esc(s)}</option>`).join('');
     if(filter.innerHTML!==options)filter.innerHTML=options;filter.value=section;
-    results=summarize(roster,data,read('ppms_v3_attendance',[]),month,!!data&&data.online!==false&&!error&&!loading);
+    results=summarize(roster,data,month,!!data&&data.online!==false&&!error&&!loading);
     root.querySelector('#sectionKpiRefresh').disabled=loading;
     root.querySelector('#sectionKpiCsv').disabled=!data||loading||!!error;
     root.querySelector('#sectionKpiStatus').textContent=loading?'กำลังดึง KPI ล่าสุด...':error?error+' · ยังไม่นับข้อมูลนี้เป็นวันผ่าน':data?`เดือน ${month} · ${roster.length} คน${data.asOf?' · ข้อมูล OEE '+data.asOf:''}`:'กรุณาเลือกเดือน';
@@ -63,7 +63,7 @@
     const shown=results.filter(e=>!section||e.section===section);
     container.innerHTML=sections.filter(s=>!section||s===section).map(s=>{
       const rows=shown.filter(e=>e.section===s).sort((a,b)=>a.name.localeCompare(b.name,'th')||a.code.localeCompare(b.code));
-      return `<section class="panel"><div class="kpi-section-head"><h3>${esc(s)}</h3><span>${rows.length} คน · วันถึงเกณฑ์รวม ${rows.reduce((sum,e)=>sum+e.passed,0)} คน-วัน</span></div><div class="table-wrap"><table><thead><tr><th>รหัส</th><th>ชื่อพนักงาน</th><th>ถึงเกณฑ์ (วัน)</th><th>ไม่ถึงเกณฑ์ (วัน)</th><th>รอตรวจ (วัน)</th><th>วันที่ถึงเกณฑ์ / รายละเอียด</th></tr></thead><tbody>${rows.map(e=>`<tr><td>${esc(e.code)}</td><td>${esc(e.name)}</td><td class="kpi-pass">${e.passed}</td><td>${e.failed}</td><td class="kpi-pending">${e.waiting}</td><td>${e.days.length?`<details class="kpi-section-detail"><summary>${e.days.filter(d=>d.status==='ถึงเกณฑ์').map(d=>d.date.slice(-2)).join(', ')||'ยังไม่มีวันถึงเกณฑ์'} · ดูรายวัน</summary>${e.days.map(d=>`<div><b>${esc(d.date)} · ${d.status}</b>${!d.scan?' · ยังไม่พบสแกนนิ้ววันเดียวกัน':''}<br>${d.rows.map(r=>`${esc(r.machine)} · ${Number.isFinite(r.rate)?Number(r.rate).toLocaleString('th-TH',{maximumFractionDigits:1})+'%':'—'} · ${esc(r.status)}`).join('<br>')}</div>`).join('')}</details>`:'ไม่มีการผลิต'}</td></tr>`).join('')}</tbody></table></div></section>`;
+      return `<section class="panel"><div class="kpi-section-head"><h3>${esc(s)}</h3><span>${rows.length} คน · วันถึงเกณฑ์รวม ${rows.reduce((sum,e)=>sum+e.passed,0)} คน-วัน</span></div><div class="table-wrap"><table><thead><tr><th>รหัส</th><th>ชื่อพนักงาน</th><th>ถึงเกณฑ์ (วัน)</th><th>ไม่ถึงเกณฑ์ (วัน)</th><th>รอตรวจ (วัน)</th><th>วันที่ถึงเกณฑ์ / รายละเอียด</th></tr></thead><tbody>${rows.map(e=>`<tr><td>${esc(e.code)}</td><td>${esc(e.name)}</td><td class="kpi-pass">${e.passed}</td><td>${e.failed}</td><td class="kpi-pending">${e.waiting}</td><td>${e.days.length?`<details class="kpi-section-detail"><summary>${e.days.filter(d=>d.status==='ถึงเกณฑ์').map(d=>d.date.slice(-2)).join(', ')||'ยังไม่มีวันถึงเกณฑ์'} · ดูรายวัน</summary>${e.days.map(d=>`<div><b>${esc(d.date)} · ${d.status}</b>${!d.scan?' · วันที่สแกน QR ไม่ตรงกับวันที่ผลิต':''}<br>${d.rows.map(r=>`${esc(r.machine)} · ${Number.isFinite(r.rate)?Number(r.rate).toLocaleString('th-TH',{maximumFractionDigits:1})+'%':'—'} · ${esc(r.status)}`).join('<br>')}</div>`).join('')}</details>`:'ไม่มีการผลิต'}</td></tr>`).join('')}</tbody></table></div></section>`;
     }).join('')||'<p>ยังไม่มีพนักงานใน Section นี้</p>';
   }
   async function load(){
