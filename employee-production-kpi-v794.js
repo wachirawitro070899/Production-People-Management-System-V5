@@ -17,23 +17,7 @@
     }
     return [...rows.values()];
   }
-  function attendanceDates(panel) {
-    const dates = new Set(), normalize = value => String(value ?? '').normalize('NFKC').trim().toLowerCase();
-    try {
-      const records = JSON.parse(localStorage.getItem('ppms_v3_attendance') || 'null');
-      if (Array.isArray(records)) for (const row of records) {
-        if (normalize(row.employeeId) === normalize(panel.dataset.productionEmployee) && row.checkIn) dates.add(String(row.date));
-      }
-    } catch {}
-    // The currently displayed reconciled Attendance rows take precedence.
-    for (const row of panel.querySelector('table').querySelectorAll('tbody tr')) {
-      const date = row.cells[0]?.textContent?.trim(), checkIn = row.cells[1]?.textContent?.trim();
-      if (/^\d{4}-\d{2}-\d{2}$/.test(date || '')) {
-        if (/\d{1,2}:\d{2}/.test(checkIn || '')) dates.add(date); else dates.delete(date);
-      }
-    }
-    return dates;
-  }
+  const scanOnDate = row => { const stamp=new Date(row.scannedAt); return !Number.isNaN(stamp.getTime()) && new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Bangkok',year:'numeric',month:'2-digit',day:'2-digit'}).format(stamp)===row.workDate; };
   function daily(rows, checkedIn, online) {
     if (!online || !checkedIn || rows.some(row => !confirmed(row))) return 'รอตรวจ';
     return rows.length && rows.every(row => row.passed) ? 'ถึงเกณฑ์' : 'ไม่ถึงเกณฑ์';
@@ -68,7 +52,7 @@
       if (!panel.querySelector('[data-production-monthly]')) {
         const section = document.createElement('section');
         section.dataset.productionMonthly = 'true'; section.style.marginTop = '16px';
-        section.innerHTML = `<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap"><h3 style="margin:0">สรุป KPI การผลิตรายเดือน</h3><label>เดือน <input type="month" data-production-month value="${today().slice(0,7)}" aria-label="เดือนสรุป KPI การผลิต"></label></div><p class="modal-note">นับวันละ 1 วัน เมื่อมีสแกนนิ้วและทุกเครื่องถึงเกณฑ์ · วันที่รอตรวจยังไม่นับเป็นวันผ่าน</p><div data-production-month-results>กำลังดึงข้อมูล...</div>`;
+        section.innerHTML = `<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap"><h3 style="margin:0">สรุป KPI การผลิตรายเดือน</h3><label>เดือน <input type="month" data-production-month value="${today().slice(0,7)}" aria-label="เดือนสรุป KPI การผลิต"></label></div><p class="modal-note">นับวันละ 1 วัน เมื่อมีสแกน QR หน้าเครื่องและทุกเครื่องถึงเกณฑ์ · วันที่รอตรวจยังไม่นับเป็นวันผ่าน</p><div data-production-month-results>กำลังดึงข้อมูล...</div>`;
         section.querySelector('[data-production-month]').addEventListener('change', () => {
           const saved = cache.get(panel.dataset.productionEmployee);
           renderMonth(panel,saved?.data,saved?.error);
@@ -83,13 +67,13 @@
     if (!data) { content.textContent = error || 'กำลังดึงข้อมูล...'; return; }
     const month = panel.querySelector('[data-production-month]').value;
     if (!/^\d{4}-\d{2}$/.test(month)) {content.textContent = 'กรุณาเลือกเดือน';return;}
-    const byDate = new Map(), attendance = attendanceDates(panel);
+    const byDate = new Map();
     for (const row of unique(data.history).filter(row=>row.workDate.startsWith(month+'-'))) {
       byDate.set(row.workDate,[...(byDate.get(row.workDate)||[]),row]);
     }
-    const days = [...byDate].sort(([a],[b])=>a.localeCompare(b)).map(([date,rows])=>({date,rows,checkedIn:attendance.has(date),status:daily(rows,attendance.has(date),data.online !== false && !error)}));
+    const days = [...byDate].sort(([a],[b])=>a.localeCompare(b)).map(([date,rows])=>({date,rows,checkedIn:rows.every(scanOnDate),status:daily(rows,rows.every(scanOnDate),data.online !== false && !error)}));
     const passed = days.filter(day=>day.status === 'ถึงเกณฑ์'), failed = days.filter(day=>day.status === 'ไม่ถึงเกณฑ์'), waiting = days.filter(day=>day.status === 'รอตรวจ');
-    content.innerHTML = `<div class="cards" style="margin:10px 0"><div class="card metric">วันถึงเกณฑ์ KPI<b style="color:#16734a">${passed.length} วัน</b></div><div class="card metric">วันไม่ถึงเกณฑ์<b>${failed.length} วัน</b></div><div class="card metric">วันรอตรวจ<b>${waiting.length} วัน</b></div></div><p><b>วันที่ถึงเกณฑ์:</b> ${passed.length ? passed.map(day=>escape(day.date)).join(', ') : '—'}</p><div class="table-wrap"><table><thead><tr><th>วันที่ผลิต</th><th>เครื่อง · ทำได้ · ผล KPI</th><th>ผลรายวัน</th></tr></thead><tbody>${days.map(day=>`<tr><td>${escape(day.date)}</td><td>${day.rows.map(resultMarkup).join('')}</td><td><b>${day.status}</b>${!day.checkedIn ? '<small style="display:block">ยังไม่พบสแกนนิ้ววันเดียวกัน</small>' : ''}</td></tr>`).join('') || '<tr><td colspan="3">ไม่มีการผลิต</td></tr>'}</tbody></table></div>${error ? `<p class="modal-note">${escape(error)} · รอตรวจข้อมูลล่าสุดก่อนนับวันผ่าน</p>` : ''}`;
+    content.innerHTML = `<div class="cards" style="margin:10px 0"><div class="card metric">วันถึงเกณฑ์ KPI<b style="color:#16734a">${passed.length} วัน</b></div><div class="card metric">วันไม่ถึงเกณฑ์<b>${failed.length} วัน</b></div><div class="card metric">วันรอตรวจ<b>${waiting.length} วัน</b></div></div><p><b>วันที่ถึงเกณฑ์:</b> ${passed.length ? passed.map(day=>escape(day.date)).join(', ') : '—'}</p><div class="table-wrap"><table><thead><tr><th>วันที่ผลิต</th><th>เครื่อง · ทำได้ · ผล KPI</th><th>ผลรายวัน</th></tr></thead><tbody>${days.map(day=>`<tr><td>${escape(day.date)}</td><td>${day.rows.map(resultMarkup).join('')}</td><td><b>${day.status}</b>${!day.checkedIn ? '<small style="display:block">วันที่สแกน QR ไม่ตรงกับวันที่ผลิต</small>' : ''}</td></tr>`).join('') || '<tr><td colspan="3">ไม่มีการผลิต</td></tr>'}</tbody></table></div>${error ? `<p class="modal-note">${escape(error)} · รอตรวจข้อมูลล่าสุดก่อนนับวันผ่าน</p>` : ''}`;
   }
   function display(panel,data,error) {
     const history = unique(data?.history);
