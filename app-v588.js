@@ -263,7 +263,7 @@ function bindSkillUpdateForm(){
  document.getElementById('selectAllSkills')?.addEventListener('click',()=>{boxes.forEach(x=>x.checked=true);sync()});
  document.getElementById('clearAllSkills')?.addEventListener('click',()=>{boxes.forEach(x=>x.checked=false);sync()});
  sync();
- f.onsubmit=async ev=>{ev.preventDefault();if(!isAdmin)return alert('กรุณา Login เป็น Admin');const fd=new FormData(f),id=String(fd.get('employeeId')),e=employees.find(x=>String(x.id)===id);if(!e)return alert('ไม่พบข้อมูลพนักงาน');const selected=fd.getAll('selectedSkill').map(String);if(!selected.length)return alert('กรุณาเลือกอย่างน้อย 1 หัวข้อ');const skills=skillsFor(e.section),before={};skills.forEach(k=>before[k]=skillValue(e,k));const after={...before};selected.forEach(k=>{if(skills.includes(k))after[k]=Math.max(1,Math.min(5,Number(fd.get('skill::'+k)||before[k])))});const changed=selected.filter(k=>before[k]!==after[k]);if(!changed.length)return alert('ระดับ Skill ยังไม่มีการเปลี่ยนแปลง');const record={date:String(fd.get('date')),quarter:String(fd.get('quarter')),updateType:String(fd.get('updateType')),evaluator:String(fd.get('evaluator')).trim(),note:String(fd.get('note')||'').trim(),before,after,changed,selectedSkills:selected,createdAt:new Date().toISOString(),source:'Admin Full Skill Baseline'};if(!record.evaluator)return alert('กรุณากรอกชื่อผู้ประเมิน');e.skillLevels=after;e.currentSkillLevel=Math.max(...Object.values(after));e.skillUpdatedAt=record.date;e.skillRevisionAt=record.createdAt;e.skillQuarter=record.quarter;e.skillEvaluator=record.evaluator;e.skillHistory=[record,...skillHistory(e)].slice(0,100);save();let cloudSaved=true;try{await syncEmployeeCloudNow(e,e.id)}catch(err){cloudSaved=false;console.warn('Admin skill baseline cloud sync pending',err)}closeModal();render();alert(`อัปเดต Skill ${changed.length} หัวข้อเรียบร้อย${cloudSaved?' • ซิงก์ Firebase แล้ว':' • บันทึกในเครื่องแล้วและรอซิงก์ Firebase'}: ${changed.join(', ')}`)};
+ f.onsubmit=async ev=>{ev.preventDefault();if(f.querySelector('button[type="submit"]')?.disabled)return;if(!isAdmin)return alert('กรุณา Login เป็น Admin');const fd=new FormData(f),id=String(fd.get('employeeId')),e=employees.find(x=>String(x.id)===id);if(!e)return alert('ไม่พบข้อมูลพนักงาน');const selected=fd.getAll('selectedSkill').map(String);if(!selected.length)return alert('กรุณาเลือกอย่างน้อย 1 หัวข้อ');const skills=skillsFor(e.section),before={};skills.forEach(k=>before[k]=skillValue(e,k));const after={...before};selected.forEach(k=>{if(skills.includes(k))after[k]=Math.max(1,Math.min(5,Number(fd.get('skill::'+k)||before[k])))});const changed=selected.filter(k=>before[k]!==after[k]);if(!changed.length)return alert('ระดับ Skill ยังไม่มีการเปลี่ยนแปลง');const record={date:String(fd.get('date')),quarter:String(fd.get('quarter')),updateType:String(fd.get('updateType')),evaluator:String(fd.get('evaluator')).trim(),note:String(fd.get('note')||'').trim(),before,after,changed,selectedSkills:selected,createdAt:new Date().toISOString(),source:'Admin Full Skill Baseline'};if(!record.evaluator)return alert('กรุณากรอกชื่อผู้ประเมิน');e.skillLevels=after;e.currentSkillLevel=Math.max(...Object.values(after));e.skillUpdatedAt=record.date;e.skillRevisionAt=record.createdAt;e.skillQuarter=record.quarter;e.skillEvaluator=record.evaluator;e.skillHistory=[record,...skillHistory(e)].slice(0,100);save();const submit=f.querySelector('button[type="submit"]');if(submit){submit.disabled=true;submit.textContent='กำลังบันทึก Skill...'}let cloudSaved=false;try{cloudSaved=await syncEmployeeCloudNow(e,e.id)===true}catch(err){cloudSaved=false;console.warn('Admin skill baseline cloud sync pending',err)}closeModal();render();alert(`อัปเดต Skill ${changed.length} หัวข้อเรียบร้อย${cloudSaved?' • ซิงก์ Firebase แล้ว':' • บันทึกในเครื่องแล้วและรอซิงก์ Firebase'}: ${changed.join(', ')}`)};
 }
 function levelDescriptions(){return [
  {level:1,en:'Basic Knowledge',th:'มีความรู้พื้นฐาน ต้องได้รับการสอนและควบคุมอย่างใกล้ชิด'},
@@ -279,6 +279,19 @@ const pages=[['attendanceAdmin','Attendance & KPI'],['dashboard','Production Div
 
 function loadSkillOverrides(){try{const x=JSON.parse(localStorage.getItem(SKILL_OVERRIDE_KEY)||'{}');return x&&typeof x==='object'&&!Array.isArray(x)?x:{}}catch{return {}}}
 function persistSkillOverrides(){try{const existing=loadSkillOverrides();for(const e of employees||[]){if(!e||e.id==null)continue;const id=String(e.id),rev=employeeRevision(e);if(!rev&&!e.skillLevels&&!e.currentSkillLevel)continue;const old=existing[id]||{};if(!old.skillRevisionAt||String(rev)>=String(old.skillRevisionAt)){existing[id]={currentSkillLevel:e.currentSkillLevel,skillLevels:e.skillLevels,skillUpdatedAt:e.skillUpdatedAt,skillRevisionAt:rev,skillQuarter:e.skillQuarter,skillEvaluator:e.skillEvaluator,skillHistory:e.skillHistory}}}localStorage.setItem(SKILL_OVERRIDE_KEY,JSON.stringify(existing))}catch(err){console.warn('Skill override write failed',err)}}
+// Preserve the newest skill assessment independently of employee/profile updates.
+function mergeSkillOverrideMaps(local,remote){
+ const out={};
+ for(const source of [local,remote]){
+  if(!source||typeof source!=='object'||Array.isArray(source))continue;
+  for(const [id,value] of Object.entries(source)){
+   if(!value||typeof value!=='object'||Array.isArray(value))continue;
+   const previous=out[id];
+   if(!previous||employeeRevision(value)>=employeeRevision(previous))out[id]={...value};
+  }
+ }
+ return out;
+}
 function applySkillOverrides(list){const overrides=loadSkillOverrides();return (list||[]).map(e=>{const o=overrides[String(e.id)];if(!o)return e;const er=employeeRevision(e),or=String(o.skillRevisionAt||'');if(or&&or>=er)return {...e,...o};return e})}
 
 function loadDeletedIds(){try{const x=JSON.parse(localStorage.getItem(DELETED_KEY)||'[]');return new Set(Array.isArray(x)?x.map(String):[])}catch{return new Set()}}
@@ -598,7 +611,7 @@ function mergeCloudPayloadPreserve(serverValue,localValue){
   examQuestionBank:mergeExamQuestionBank(server.examQuestionBank,local.examQuestionBank),
   shiftSchedules:mergeShiftScheduleMaps(server.shiftSchedules,local.shiftSchedules),
   holidays:{...(local.holidays&&typeof local.holidays==='object'?local.holidays:{}),...(server.holidays&&typeof server.holidays==='object'?server.holidays:{})},
-  skillOverrides:{...(local.skillOverrides&&typeof local.skillOverrides==='object'?local.skillOverrides:{}),...(server.skillOverrides&&typeof server.skillOverrides==='object'?server.skillOverrides:{})},
+  skillOverrides:mergeSkillOverrideMaps(local.skillOverrides,server.skillOverrides),
   meta:{...(server.meta||{}),updatedAt:new Date().toISOString(),version:APP_DATA_VERSION,preserveExistingData:true,preserveAllAdminAndEmployeeData:true}
  };
 }
@@ -1125,7 +1138,7 @@ async function syncEmployeeCloudNow(data,originalId=''){
  const db=cloudDb||firebase.database(),id=String(data.id),oldId=String(originalId||'');
  clearTimeout(cloudTimer);cloudWritePending=true;
  try{
-  await db.ref('ppms').transaction(server=>{
+  const result=await db.ref('ppms').transaction(server=>{
    const decoded=firebaseDecodeData(server);
    const root=decoded&&typeof decoded==='object'?{...decoded}:{};
    const list=cloudEmployeeList(root);
@@ -1134,9 +1147,10 @@ async function syncEmployeeCloudNow(data,originalId=''){
    root.employees=next;
    const deleted=new Set((Array.isArray(root.deletedEmployeeIds)?root.deletedEmployeeIds:[]).map(String));
    deleted.delete(id);if(oldId&&oldId!==id)deleted.add(oldId);root.deletedEmployeeIds=[...deleted];
-   root.skillOverrides={...(root.skillOverrides&&typeof root.skillOverrides==='object'?root.skillOverrides:{}),...loadSkillOverrides()};root.meta={...(root.meta||{}),updatedAt:new Date().toISOString(),version:APP_DATA_VERSION,preserveExistingData:true,preserveAllAdminAndEmployeeData:true,employeeMaster:'firebase',employeeMasterVersion:'V489'};
+   root.skillOverrides=mergeSkillOverrideMaps(root.skillOverrides,{[id]:{currentSkillLevel:data.currentSkillLevel,skillLevels:data.skillLevels,skillUpdatedAt:data.skillUpdatedAt,skillRevisionAt:data.skillRevisionAt,skillQuarter:data.skillQuarter,skillEvaluator:data.skillEvaluator,skillHistory:data.skillHistory}});root.meta={...(root.meta||{}),updatedAt:new Date().toISOString(),version:APP_DATA_VERSION,preserveExistingData:true,preserveAllAdminAndEmployeeData:true,employeeMaster:'firebase',employeeMasterVersion:'V489'};
    return firebaseEncodeData(root);
   });
+  if(!result.committed)throw Error('Firebase ยังไม่ยืนยันการบันทึก กรุณาลองอีกครั้ง');
   localStorage.setItem(CLOUD_DIRTY_KEY,'0');
   setCloudStatus('แก้ไขข้อมูลพนักงานและบันทึก Firebase แล้ว');
   return true;
