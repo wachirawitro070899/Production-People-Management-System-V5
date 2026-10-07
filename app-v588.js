@@ -275,7 +275,7 @@ function levelDescriptions(){return [
 function levelLegend(){return `<div class="skill-legend">${levelDescriptions().map(x=>`<span class="lv${x.level}"><b>${x.level}</b> ${x.en}</span>`).join('')}</div>`}
 function levelDescriptionHtml(){return `<div class="level-description-grid">${levelDescriptions().map(x=>`<div class="level-description-item lv${x.level}"><strong>Level ${x.level} – ${x.en}</strong><span>${x.th}</span></div>`).join('')}</div>`}
 
-const pages=[['attendanceAdmin','Attendance & KPI'],['dashboard','Production Division Organization Chart'],['section','Section View'],['sectionChart','Section Organization Chart'],['add','Add Employee'],['search','Search Employee'],['examPlan','Examination Plan'],['matrix','Section Skill Matrix'],['cards','Employee Skill Card'],['ngDashboard','NG Dashboard'],['exam','Examination'],['examCheck','เช็ค/แก้ไขข้อสอบ'],['examHistory','Examination History'],['accounts','User Management'],['export','Export Center']];
+const pages=[['factoryLayout','Layout โรงงาน'],['attendanceAdmin','Attendance & KPI'],['dashboard','Production Division Organization Chart'],['section','Section View'],['sectionChart','Section Organization Chart'],['add','Add Employee'],['search','Search Employee'],['examPlan','Examination Plan'],['matrix','Section Skill Matrix'],['cards','Employee Skill Card'],['ngDashboard','NG Dashboard'],['exam','Examination'],['examCheck','เช็ค/แก้ไขข้อสอบ'],['examHistory','Examination History'],['accounts','User Management'],['export','Export Center']];
 
 function loadSkillOverrides(){try{const x=JSON.parse(localStorage.getItem(SKILL_OVERRIDE_KEY)||'{}');return x&&typeof x==='object'&&!Array.isArray(x)?x:{}}catch{return {}}}
 function persistSkillOverrides(){try{const existing=loadSkillOverrides();for(const e of employees||[]){if(!e||e.id==null)continue;const id=String(e.id),rev=employeeRevision(e);if(!rev&&!e.skillLevels&&!e.currentSkillLevel)continue;const old=existing[id]||{};if(!old.skillRevisionAt||String(rev)>=String(old.skillRevisionAt)){existing[id]={currentSkillLevel:e.currentSkillLevel,skillLevels:e.skillLevels,skillUpdatedAt:e.skillUpdatedAt,skillRevisionAt:rev,skillQuarter:e.skillQuarter,skillEvaluator:e.skillEvaluator,skillHistory:e.skillHistory}}}localStorage.setItem(SKILL_OVERRIDE_KEY,JSON.stringify(existing))}catch(err){console.warn('Skill override write failed',err)}}
@@ -2456,9 +2456,9 @@ function renderCore(){
  if(isLeaderMode()&&current!=='leaderShift')current='leaderShift';
  else if(!isAdmin&&!isLeaderMode()&&!['exam','attendance'].includes(current))current=EXAM_LINK?'exam':'attendance';
  nav();
- const map={attendance:attendancePage,attendanceAdmin:attendanceAdminPage,leaderShift:leaderShiftPage,dashboard,section:()=>sectionView(false),sectionChart:()=>sectionView(true),add,search,examPlan:examinationPlanPage,matrix:()=>matrixPage(false),cards:cardsPage,ngDashboard:typeof ngDashboardPage==='function'?ngDashboardPage:dashboard,exam:examPage,examCheck:examCheckPage,examHistory:examHistoryPage,accounts:accountsPage,export:exportPage};
+ const map={factoryLayout:()=>window.PPMS_FACTORY_LAYOUT?.page()||head('Layout โรงงาน','กำลังโหลดหน้า Layout กรุณารีเฟรช'),attendance:attendancePage,attendanceAdmin:attendanceAdminPage,leaderShift:leaderShiftPage,dashboard,section:()=>sectionView(false),sectionChart:()=>sectionView(true),add,search,examPlan:examinationPlanPage,matrix:()=>matrixPage(false),cards:cardsPage,ngDashboard:typeof ngDashboardPage==='function'?ngDashboardPage:dashboard,exam:examPage,examCheck:examCheckPage,examHistory:examHistoryPage,accounts:accountsPage,export:exportPage};
  try{
-  $('#app').innerHTML=(map[current]||dashboard)();bind();enhanceSelects();updateAuth();renderQRCodes();
+  $('#app').innerHTML=(map[current]||dashboard)();bind();enhanceSelects();updateAuth();renderQRCodes();window.PPMS_FACTORY_LAYOUT?.mount();
   if(focusState){
    let next=focusState.id?document.getElementById(focusState.id):null;
    if(!next&&focusState.name)next=document.querySelector(`[name="${CSS.escape(focusState.name)}"]`);
@@ -2759,6 +2759,8 @@ window.openEmployeeEditor=openEmployeeEditor;
 window.getRendererHealth=()=>{try{const matrix=matrixPage(false),cards=cardsPage();return{ok:true,matrixLength:matrix.length,cardsLength:cards.length,wallet:typeof walletCardMarkup==='function',ng:typeof employeeNgHistoryPanel==='function'}}catch(err){return{ok:false,error:err.message,stack:String(err.stack||'')}}};
 window.getAppHealth=()=>({version:APP_DATA_VERSION,employees:employees.length,sections:new Set(employees.map(e=>e.section)).size,page:current,cloudReady,shiftScheduleRules:Object.keys(shiftSchedules||{}).length,pendingCloudSync:localStorage.getItem(CLOUD_DIRTY_KEY)==='1',pendingShiftSync:localStorage.getItem(SHIFT_CLOUD_DIRTY_KEY)==='1'});
 window.PPMS_RUNTIME={
+ factoryLayoutEmployees:()=>[...(organizationRenderMaster?.employees||employees)].map(e=>({...e})),
+ factoryLayoutIsAdmin:()=>isAdmin&&sessionStorage.getItem('ppms_admin')==='1',
  syncAdminAccounts(list){if(!isAdmin)return;adminAccounts=normalizeAdminAccounts(list);localStorage.setItem(ADMIN_ACCOUNT_KEY,JSON.stringify(adminAccounts));if(current==='accounts')renderCore()},
  changeAdminAccount,
  previewBiometricEvent(event){if(!isAdmin)throw Error('Admin only');return previewBiometricAttendanceEvent(event)},
