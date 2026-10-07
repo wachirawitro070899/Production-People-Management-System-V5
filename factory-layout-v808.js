@@ -2,21 +2,29 @@
 (() => {
   'use strict';
   const PATH = 'ppmsFactoryLayout/v1', CACHE = 'ppms_factory_layout_v1';
-  const PREVIEW = 'factory-layout-current.png?v=812';
   const MAPS = {
-    factory:{src:PREVIEW,name:'ผังโรงงาน',section:''},
     stamping_1_8:{src:'stamping-layout-1-8.png?v=813',name:'Stamping · เครื่อง 1#–8#',section:'Stamping Section'},
     bending:{src:'bending-layout.png?v=813',name:'Bending Section',section:'Bending Section'},
     stamping_9_13:{src:'stamping-layout-9-13.png?v=813',name:'Stamping · เครื่อง 9#–13#',section:'Stamping Section'}
   };
-  let activeMap = 'factory';
-  const machineMap = m => MAPS[m.mapId] ? m.mapId : 'factory';
-  const visiblePosition = m => positioned(m) && machineMap(m) === activeMap;
+  let activeMap = 'stamping_1_8';
+  let uploading = false;
+  const imageCache = new Map(), imageRequests = new Map();
+  function maps() {
+    const result = {...MAPS};
+    for (const [id,m] of Object.entries(data.sectionMaps || {})) {
+      if (id !== 'factory' && m && typeof m.section === 'string' && m.section.trim() && /^[a-zA-Z0-9_-]+$/.test(id)) result[id] = {...(MAPS[id] || {}),...m,name:m.name || MAPS[id]?.name || m.section};
+    }
+    return result;
+  }
+  const mapInfo = id => maps()[id];
+  const machineMap = m => mapInfo(m.mapId) ? m.mapId : '';
+  const visiblePosition = m => !!activeMap && positioned(m) && machineMap(m) === activeMap;
   function switchMap(id) {
-    if (!MAPS[id]) return;
-    activeMap = id; section = MAPS[id].section; selected = ''; placing = false; selectingArea = false; pendingZoom = null; pendingFocus = false; zoom = 1;
+    if (!mapInfo(id)) return;
+    activeMap = id; section = mapInfo(id).section; selected = ''; placing = false; selectingArea = false; pendingZoom = null; pendingFocus = false; zoom = 1;
     drawArea(null); refresh(); root.querySelector('.fl-viewport').scrollTo(0,0);
-    note(MAPS[id].name + ' · ลากพนักงานลงป้ายเครื่องเพื่อบันทึก');
+    note(mapInfo(id).name + ' · ลากพนักงานลงป้ายเครื่องเพื่อบันทึก');
   }
 
   const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -32,13 +40,13 @@
   let data = normalize(null), ready = false, busy = false, root = null, subscription = null, rosterTimer = null;
   let remotePending = false;
   const editingControl = () => root?.contains(document.activeElement) && document.activeElement?.matches('input,select,textarea');
-  let selected = '', placing = false, zoom = 1, section = '', query = '', rosterSignature = '', statusText = '';
+  let selected = '', placing = false, zoom = 1, section = 'Stamping Section', query = '', rosterSignature = '', statusText = '';
   let selectingArea = false, areaStart = null, areaPointer = null, pendingFocus = false, pendingEmployee = '', pendingZoom = null;
-  const areaKey = s => employeeKey(s) + (activeMap === 'factory' ? '' : '_' + activeMap);
+  const areaKey = s => employeeKey(s) + '_' + activeMap;
   function sectionBounds() {
     if (!section) return null;
     const a = data.areas?.[areaKey(section)];
-    if (!a && activeMap !== 'factory') return {x:0,y:0,width:100,height:100};
+    if (!a && activeMap) return {x:0,y:0,width:100,height:100};
     if (a && [a.x,a.y,a.width,a.height].every(Number.isFinite) && a.width > 0 && a.height > 0 && a.x >= 0 && a.y >= 0 && a.x + a.width <= 100.001 && a.y + a.height <= 100.001) return a;
     const points = entries().filter(m => m.section === section && visiblePosition(m));
     if (!points.length) return null;
@@ -49,6 +57,7 @@
     return {x:Math.max(0,Math.min(100-width,cx-width/2)),y:Math.max(0,Math.min(100-height,cy-height/2)),width,height};
   }
   function zoomSection() {
+    if (!activeMap) { note('แผนกนี้ยังไม่มีผัง กรุณาอัปโหลดผังแผนกก่อน'); return; }
     if (!section) { zoom = 1; refresh(); const v = root.querySelector('.fl-viewport'); v.scrollTo(0,0); return; }
     const a = sectionBounds();
     if (!a) { note('ยังไม่ได้กำหนดพื้นที่ ' + section + ' · กด “กำหนดพื้นที่แผนก” แล้วลากกรอบบนผัง'); return; }
@@ -68,8 +77,8 @@
     const m = data.machines[id];
     if (!m) return;
     const nextMap = machineMap(m);
-    if (nextMap !== activeMap) { activeMap = nextMap; section = MAPS[nextMap].section || m.section; pendingZoom = null; pendingFocus = false; refresh(); }
-    if (!positioned(m)) { note('ยังไม่ได้วางจุด ' + m.name + ' · กด “วางจุดบนผัง” แล้วเลือกตำแหน่งเครื่องจริง'); return; }
+    if (nextMap !== activeMap) { activeMap = nextMap; section = mapInfo(nextMap)?.section || m.section; pendingZoom = null; pendingFocus = false; refresh(); }
+    if (!nextMap || !positioned(m)) { note('ยังไม่ได้วางจุด ' + m.name + ' · กด “วางจุดบนผัง” แล้วเลือกตำแหน่งเครื่องจริง'); return; }
     zoomBounds({x:Math.max(0,Math.min(92,m.x-4)),y:Math.max(0,Math.min(92,m.y-4)),width:8,height:8},'เครื่อง: ' + m.name + ' · ' + assigned(m).map(e => e.name).join(' / '));
   }
   function setZoom(value) {
@@ -81,7 +90,7 @@
   function dropTarget(target) {
     const pin = target.closest('[data-fl-select]');
     if (pin) return {machine:pin.dataset.flSelect,place:false};
-    if (target.closest('#flCanvas') && selected && data.machines[selected] && (!positioned(data.machines[selected]) || placing)) return {machine:selected,place:true};
+    if (target.closest('#flCanvas') && activeMap && selected && data.machines[selected] && (!positioned(data.machines[selected]) || placing)) return {machine:selected,place:true};
     return null;
   }
   function photo(e) {
@@ -151,7 +160,7 @@
   function entries() { return Object.entries(data.machines).filter(([,m]) => m && typeof m === 'object').map(([id,m]) => ({...m,id})); }
   function assigned(m) { const ids = new Set(Object.values(m.assignments || {}).map(a => String(a?.employeeId || ''))); return roster().filter(e => ids.has(String(e.id))); }
   function match(m) {
-    if (machineMap(m) !== activeMap) return false;
+    if (activeMap && machineMap(m) !== activeMap && !(m.section === section && !machineMap(m))) return false;
     if (section && m.section !== section) return false;
     const people = assigned(m);
     return !query || [m.name,m.section,...people.flatMap(e => [e.id,e.name,e.position])].join(' ').toLowerCase().includes(query.toLowerCase());
@@ -160,19 +169,20 @@
     return `<div class="fl-person ${String(e.id) === pendingEmployee ? 'fl-person-selected' : ''}" data-fl-employee="${esc(e.id)}" draggable="${admin()}" tabindex="0" role="button" title="ลากรูปหรือแตะพนักงานแล้วเลือกเครื่องจักร" style="--person-color:${colors[rank(e)]}">${photo(e)}<div><b>${esc(e.name)}</b><small>${esc(e.id)} · ${esc(e.position)} · ${esc(e.section)}</small></div>${removable ? `<button type="button" data-fl-remove="${esc(e.id)}" class="secondary" aria-label="ยกเลิก ${esc(e.name)} ประจำเครื่อง">ยกเลิก</button>` : ''}</div>`;
   }
   function controls() {
-    root?.querySelectorAll('[data-fl-write], [data-fl-remove], #flAddMachine, #flAssign').forEach(e => { e.disabled = busy || !ready || !admin(); });
-    const areaButton = root?.querySelector('#flSetArea'); if (areaButton) areaButton.disabled = !section || busy || !ready || !admin();
+    root?.querySelectorAll('[data-fl-write], [data-fl-remove], #flAddMachine, #flAssign, #flUploadSection').forEach(e => { e.disabled = busy || uploading || !ready || !admin(); });
+    const areaButton = root?.querySelector('#flSetArea'); if (areaButton) areaButton.disabled = !activeMap || !section || busy || !ready || !admin();
   }
   function refresh() {
     if (!root?.isConnected) return;
     const all = entries(), list = all.filter(match), m = data.machines[selected];
-    const img = root.querySelector('#flImage'), src = MAPS[activeMap].src;
-    root.querySelector('#flMapPicker').value = activeMap;
-    if (img.getAttribute('src') !== src) { pendingFocus = false; pendingZoom = null; img.src = src; }
+    const img = root.querySelector('#flImage'), map = mapInfo(activeMap);
+    const pickerMap = root.querySelector('#flMapPicker');
+    pickerMap.innerHTML = '<option value="">— เลือกผังแผนก —</option>' + Object.entries(maps()).filter(([,m]) => !section || m.section === section).map(([id,m]) => `<option value="${esc(id)}">${esc(m.name)}</option>`).join(''); pickerMap.value = activeMap;
+    showMapImage(img,map);
     root.querySelector('#flCanvas').style.width = (zoom * 100) + '%';
     root.querySelector('#flZoomLabel').textContent = Math.round(zoom * 100) + '%';
     root.querySelector('#flZoomPreset').value = [1,2,4,6,8,10,16].includes(zoom) ? String(zoom) : '';
-    root.querySelector('#flImageNote').textContent = MAPS[activeMap].name + ' · เลือกเครื่องแล้วลากพนักงานลงตำแหน่งจริงเพื่อวางจุดและบันทึกทันที · จุดที่วางแล้วให้ลากลงป้ายเครื่อง · ภาพ PNG อาจเห็นพิกเซลเมื่อขยายมาก แต่ป้ายชื่อยังคมชัด';
+    root.querySelector('#flImageNote').textContent = (map?.name || section || 'เลือกแผนก') + ' · เลือกเครื่องแล้วลากพนักงานลงตำแหน่งจริงเพื่อวางจุดและบันทึกทันที · จุดที่วางแล้วให้ลากลงป้ายเครื่อง · ภาพ PNG อาจเห็นพิกเซลเมื่อขยายมาก แต่ป้ายชื่อยังคมชัด';
     const placed = list.filter(visiblePosition);
     root.querySelector('#flPins').innerHTML = placed.map(x => {
       const people = assigned(x), color = people.length ? colors[rank(people[0])] : '#64748b';
@@ -191,16 +201,16 @@
     root.querySelector('#flCanvas').classList.toggle('selecting-area', selectingArea);
     const areaButton = root.querySelector('#flSetArea');
     areaButton.textContent = selectingArea ? 'ยกเลิกกำหนดพื้นที่' : 'กำหนดพื้นที่แผนก';
-    areaButton.disabled = !section || busy || !ready || !admin();
-    root.querySelector('#flZoomSection').disabled = !section;
+    areaButton.disabled = !activeMap || !section || busy || !ready || !admin();
+    root.querySelector('#flZoomSection').disabled = !activeMap || !section;
     const savedArea = sectionBounds(), outline = root.querySelector('#flSavedArea');
     outline.hidden = !savedArea;
     if (savedArea) Object.assign(outline.style,{left:savedArea.x+'%',top:savedArea.y+'%',width:savedArea.width+'%',height:savedArea.height+'%'});
     
     root.querySelector('#flUnassigned').innerHTML = roster().filter(e => (!section || e.section === section) && (!query || [e.name,e.id].join(' ').toLowerCase().includes(query.toLowerCase())) ).map(e => person(e)).join('') || '<p class="fl-empty">ไม่มีพนักงานตามตัวกรองนี้</p>';
     const select = root.querySelector('#flSection'), value = section;
-    const sections = [...new Set([...roster().map(e => e.section),...all.map(x => x.section)].filter(Boolean))].sort();
-    select.innerHTML = '<option value="">ทุก Section</option>' + sections.map(s => `<option value="${esc(s)}">${esc(s)}</option>`).join(''); select.value = value;
+    const sections = [...new Set([...roster().map(e => e.section),...all.map(x => x.section),...Object.values(maps()).map(m => m.section)].filter(Boolean))].sort();
+    select.innerHTML = '<option value="">— เลือกแผนก —</option>' + sections.map(s => `<option value="${esc(s)}">${esc(s)}</option>`).join(''); select.value = value;
     note(statusText); controls();
   }
   function fillEmployeeOptions() {
@@ -236,6 +246,81 @@
       else { dlg.querySelector('[role=status]').textContent = statusText; buttons.forEach(b => b.disabled = false); }
     };
   }
+  async function imageRequest(path,options = {}) {
+    if (!/^ppmsFactoryLayoutImages\/v1\/[a-zA-Z0-9_-]+\/[a-zA-Z0-9_-]+$/.test(path)) throw Error('ที่อยู่ภาพผังไม่ถูกต้อง');
+    const controller = new AbortController(), timer = setTimeout(() => controller.abort(),30000);
+    try {
+      const response = await fetch(base() + '/' + path + '.json',{...options,signal:controller.signal,cache:'no-store'});
+      if (!response.ok) throw Error('โหลดหรือบันทึกภาพผังไม่สำเร็จ (' + response.status + ')');
+      return await response.json();
+    } finally { clearTimeout(timer); }
+  }
+  function showMapImage(img,map) {
+    const path = map?.imagePath;
+    let src = path ? imageCache.get(path) : map?.src;
+    img.hidden = !src;
+    if (!src) {
+      img.removeAttribute('src');
+      root.querySelector('#flNoMap').hidden = false;
+      root.querySelector('#flNoMap').textContent = map ? 'กำลังโหลดภาพผังแผนก...' : 'แผนกนี้ยังไม่มีภาพผัง · กดอัปโหลดผังแผนก';
+      if (path && !imageRequests.has(path)) {
+        imageRequests.set(path,true);
+        imageRequest(path).then(record => {
+          if (!/^data:image\/(png|jpeg|webp);base64,/i.test(record?.src || '')) throw Error('ไฟล์ภาพผังไม่ถูกต้อง');
+          imageCache.set(path,record.src);
+          if (root?.isConnected && mapInfo(activeMap)?.imagePath === path) refresh();
+        }).catch(e => { if (root?.isConnected && mapInfo(activeMap)?.imagePath === path) { root.querySelector('#flNoMap').textContent = 'โหลดภาพไม่ได้ · กดโหลดข้อมูลล่าสุดเพื่อลองใหม่'; note(e.message); } });
+      }
+      return;
+    }
+    root.querySelector('#flNoMap').hidden = true;
+    if (img.getAttribute('src') !== src) img.src = src;
+  }
+  function uploadSection() {
+    if (!admin() || !ready || busy || uploading) return;
+    const dlg = document.createElement('dialog'); dlg.className = 'fl-dialog';
+    const departments = [...new Set([...roster().map(e=>e.section),...entries().map(m=>m.section),...Object.values(maps()).map(m=>m.section)].filter(Boolean))].sort();
+    dlg.innerHTML = `<form><h3>อัปโหลดผังแยกแผนก</h3><label>แผนก / Section<select name="department" required>${departments.map(s=>`<option value="${esc(s)}">${esc(s)}</option>`).join('')}</select></label><label>ผังที่จะอัปโหลด<select name="target"></select></label><label>ชื่อผัง<input name="mapName" maxlength="100" required></label><label>ภาพผัง<input name="imageFile" type="file" accept="image/png,image/jpeg,image/webp" required></label><p class="fl-muted">PNG / JPG / WebP ไม่เกิน 10 MB · เก็บความละเอียดต้นฉบับ</p><label class="fl-keep"><input name="keepPositions" type="checkbox">คงจุดเครื่องเดิมเมื่อภาพใหม่มีตำแหน่งตรงกับเดิม</label><p class="fl-hint">เมื่อเปลี่ยนภาพ จุดเครื่องในผังนี้จะต้องวางใหม่ เว้นแต่เลือกคงจุดเดิม · รายชื่อพนักงานประจำเครื่องยังอยู่</p><div class="fl-actions"><button type="submit">อัปโหลดและบันทึก</button><button type="button" class="secondary" data-cancel>ยกเลิก</button></div><p role="status"></p></form>`;
+    document.body.append(dlg); dlg.showModal();
+    const form = dlg.querySelector('form'), department = form.elements.department, target = form.elements.target, name = form.elements.mapName;
+    department.value = section || departments[0] || '';
+    const chooseName = () => { name.value = mapInfo(target.value)?.name || department.value; };
+    const fillTargets = () => { target.innerHTML = '<option value="new">เพิ่มผังใหม่ในแผนกนี้</option>' + Object.entries(maps()).filter(([,m])=>m.section===department.value).map(([id,m])=>`<option value="${esc(id)}">แทนภาพ: ${esc(m.name)}</option>`).join(''); if (mapInfo(activeMap)?.section === department.value) target.value = activeMap; chooseName(); };
+    department.onchange = fillTargets; target.onchange = chooseName; fillTargets();
+    dlg.querySelector('[data-cancel]').onclick = () => dlg.close(); dlg.onclose = () => dlg.remove();
+    form.onsubmit = async event => {
+      event.preventDefault();
+      if (!admin() || busy || uploading || !ready) return;
+      const file = form.elements.imageFile.files[0], sec = department.value, title = name.value.trim(), existing = target.value !== 'new', id = existing ? target.value : 'map_' + employeeKey(sec) + '_' + Date.now().toString(36), keep = form.elements.keepPositions.checked;
+      const status = dlg.querySelector('[role=status]');
+      if (!file || !title || !sec) return;
+      if (!['image/png','image/jpeg','image/webp'].includes(file.type) || file.size > 10*1024*1024) { status.textContent = 'เลือก PNG / JPG / WebP ขนาดไม่เกิน 10 MB'; return; }
+      uploading = true; controls(); dlg.querySelectorAll('button,input,select').forEach(e=>e.disabled=true); status.textContent = 'กำลังอัปโหลดภาพต้นฉบับ...';
+      try {
+        const src = await new Promise((resolve,reject)=>{ const reader=new FileReader(); reader.onload=()=>resolve(reader.result); reader.onerror=()=>reject(Error('อ่านไฟล์ภาพไม่ได้')); reader.readAsDataURL(file); });
+        const dimensions = await new Promise((resolve,reject)=>{ const image=new Image(); image.onload=()=>resolve({width:image.naturalWidth,height:image.naturalHeight}); image.onerror=()=>reject(Error('เปิดไฟล์ภาพไม่ได้')); image.src=src; });
+        if (!dimensions.width || !dimensions.height) throw Error('ภาพไม่มีขนาดที่ถูกต้อง');
+        const version = 'img_' + (crypto.randomUUID?.() || Date.now().toString(36) + '_' + Math.random().toString(36).slice(2)), path = 'ppmsFactoryLayoutImages/v1/' + id + '/' + version;
+        if (!admin()) throw Error('สิทธิ์ Admin หมดอายุ');
+        await imageRequest(path,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({src,...dimensions,fileName:file.name})});
+        const ok = await save(d => {
+          d.sectionMaps ||= {};
+          if (existing && !MAPS[id] && !d.sectionMaps[id]) throw Error('ผังนี้ถูกลบแล้ว');
+          if (existing && (d.sectionMaps[id]?.section || MAPS[id]?.section) !== sec) throw Error('แผนกของผังเปลี่ยนแล้ว กรุณาโหลดข้อมูลล่าสุด');
+          if (existing) {
+            d.layoutHistory ||= {}; d.layoutHistory[version] = {mapId:id,map:d.sectionMaps[id] || MAPS[id],positions:{}};
+            if (!keep) { for (const [mid,m] of Object.entries(d.machines)) if (m.mapId === id) { d.layoutHistory[version].positions[mid] = {x:m.x ?? null,y:m.y ?? null}; delete m.x; delete m.y; } }
+          }
+          d.sectionMaps[id] = {name:title,section:sec,imagePath:path,...dimensions,revision:version};
+          delete d.areas?.[employeeKey(sec)+'_'+id];
+        },'อัปโหลดผังแผนกแล้ว');
+        if (!ok) throw Error(statusText);
+        imageCache.set(path,src); switchMap(id); dlg.close();
+      } catch (e) { status.textContent = e.message; }
+      finally { uploading=false; controls(); if (dlg.isConnected) dlg.querySelectorAll('button,input,select').forEach(e=>e.disabled=false); }
+    };
+  }
+
   async function load() {
     ready = false; controls(); note('กำลังโหลด Layout จากข้อมูลกลาง...');
     try {
@@ -273,14 +358,15 @@
       if (b?.dataset.flRemove) { const id = b.dataset.flRemove, machine = selected; await save(d => { if (!d.machines[machine]) throw Error('เครื่องนี้ถูกลบแล้ว'); delete (d.machines[machine].assignments || {})[employeeKey(id)]; }); return; }
       const personCard = event.target.closest('[data-fl-employee]');
       if (personCard && !b && admin() && !busy && ready) { pendingEmployee = personCard.dataset.flEmployee; refresh(); note('เลือกเครื่องที่จะให้ ' + (roster().find(e => String(e.id) === pendingEmployee)?.name || pendingEmployee) + ' ประจำ'); return; }
-      if (event.target.closest('#flCanvas') && placing && selected && !busy && ready) {
+      if (event.target.closest('#flCanvas') && activeMap && placing && selected && !busy && ready) {
         const rect = root.querySelector('#flCanvas').getBoundingClientRect(), x = Math.max(0,Math.min(100,(event.clientX-rect.left)/rect.width*100)), y = Math.max(0,Math.min(100,(event.clientY-rect.top)/rect.height*100)), machine = selected, mapId = activeMap;
         if (await save(d => { if (!d.machines[machine]) throw Error('เครื่องนี้ถูกลบแล้ว'); d.machines[machine].x = x; d.machines[machine].y = y; d.machines[machine].mapId = mapId; })) { placing = false; refresh(); }
       }
     });
     root.querySelector('#flAddMachine').onclick = () => editMachine();
     root.querySelector('#flSeedStamping').onclick = () => save(d => { for (let n = 1; n <= 13; n++) { const name = 'Stamping ' + n + '#'; if (!Object.values(d.machines).some(m => m.name === name && m.section === 'Stamping Section')) d.machines['stamping_' + n] ||= {name,section:'Stamping Section',assignments:{}}; } }, 'เพิ่มรายการ Stamping 1#–13# แล้ว · กรุณาวางจุดตามตำแหน่งจริง');
-    root.querySelector('#flReload').onclick = load;
+    root.querySelector('#flReload').onclick = () => { imageRequests.clear(); load(); };
+    root.querySelector('#flUploadSection').onclick = uploadSection;
     root.querySelector('#flZoomMachine').onclick = () => zoomMachine();
     root.querySelector('#flMachinePicker').onchange = async event => { selected = event.target.value; placing = false; if (pendingEmployee && selected) await assignEmployee(pendingEmployee,selected); refresh(); if (selected) zoomMachine(); };
     root.addEventListener('error', event => { const img = event.target; if (!img?.classList?.contains('fl-photo')) return; img.hidden = true; const fallback = img.parentElement.querySelector('.fl-photo-fallback'); if (fallback) fallback.hidden = false; },true);
@@ -308,12 +394,12 @@
     });
     root.querySelector('#flSearch').oninput = event => { query = event.target.value; refresh(); };
     root.querySelector('#flMapPicker').onchange = event => switchMap(event.target.value);
-    root.querySelector('#flSection').onchange = event => { section = event.target.value; activeMap = section === 'Stamping Section' ? 'stamping_1_8' : section === 'Bending Section' ? 'bending' : 'factory'; selected = ''; placing = false; selectingArea = false; drawArea(null); refresh(); zoomSection(); };
+    root.querySelector('#flSection').onchange = event => { section = event.target.value; activeMap = Object.keys(maps()).find(id => mapInfo(id).section === section) || ''; selected = ''; placing = false; selectingArea = false; drawArea(null); refresh(); zoomSection(); };
     for (const [id,change] of [['flZoomIn',.25],['flZoomOut',-.25]]) root.querySelector('#' + id).onclick = () => { setZoom(zoom+change); };
     root.querySelector('#flZoomPreset').onchange = event => { if (event.target.value) setZoom(Number(event.target.value)); };
-    root.querySelector('#flFit').onclick = () => { activeMap = 'factory'; section = ''; query = ''; selected = ''; placing = false; selectingArea = false; zoom = 1; root.querySelector('#flSearch').value = ''; drawArea(null); refresh(); root.querySelector('.fl-viewport').scrollTo(0,0); note('แสดงทั้งโรงงาน'); };
+    root.querySelector('#flFit').onclick = () => { query = ''; selected = ''; placing = false; selectingArea = false; zoom = 1; root.querySelector('#flSearch').value = ''; drawArea(null); refresh(); root.querySelector('.fl-viewport').scrollTo(0,0); note('แสดงผังแผนกเต็มภาพ'); };
     root.querySelector('#flZoomSection').onclick = zoomSection;
-    root.querySelector('#flSetArea').onclick = () => { if (!section || !ready || busy || !admin()) return; selectingArea = !selectingArea; placing = false; areaStart = null; drawArea(null); refresh(); note(selectingArea ? 'ลากกรอบคลุมพื้นที่จริงของ ' + section + ' บนผัง แล้วปล่อยเพื่อบันทึก' : 'ยกเลิกกำหนดพื้นที่'); };
+    root.querySelector('#flSetArea').onclick = () => { if (!activeMap || !section || !ready || busy || !admin()) return; selectingArea = !selectingArea; placing = false; areaStart = null; drawArea(null); refresh(); note(selectingArea ? 'ลากกรอบคลุมพื้นที่จริงของ ' + section + ' บนผัง แล้วปล่อยเพื่อบันทึก' : 'ยกเลิกกำหนดพื้นที่'); };
     root.querySelector('#flImage').onload = () => { if (pendingFocus && pendingZoom) zoomBounds(pendingZoom.bounds,pendingZoom.label); };
     const canvas = root.querySelector('#flCanvas');
     canvas.addEventListener('pointerdown', event => {
@@ -336,10 +422,10 @@
     refresh(); void load();
   }
   window.PPMS_FACTORY_LAYOUT = {
-    page: () => `<section id="factoryLayoutPage"><div class="page-head"><div><h2>Layout โรงงาน · พนักงานประจำเครื่อง</h2><p>เลือกผังแยก Section / เครื่องเพื่อซูม · ลากรูปพนักงานไปวางที่เครื่องเพื่อกำหนดผู้รับผิดชอบ</p></div></div><div class="fl-toolbar"><label>เลือกผัง<select id="flMapPicker">${Object.entries(MAPS).map(([id,m]) => `<option value="${id}">${esc(m.name)}</option>`).join('')}</select></label><label>Section<select id="flSection"></select></label><label>เครื่องจักร<select id="flMachinePicker"></select></label><label>ค้นหาเครื่อง / ชื่อ / รหัสพนักงาน<input id="flSearch" placeholder="ค้นหาตำแหน่งพนักงานหรือเครื่องจักร"></label><button id="flAddMachine">เพิ่มเครื่อง/จุดงาน</button><button id="flSeedStamping" data-fl-write class="secondary">เพิ่ม Stamping 1#–13#</button><button id="flReload" class="secondary">โหลดข้อมูลล่าสุด</button></div><div class="fl-status" data-layout-status role="status"></div><p id="flCounts"></p><div class="fl-grid"><aside class="fl-panel fl-sidebar"><details><summary>เครื่องจักร / จุดงาน</summary><div id="flMachineList"></div></details><h3>ลากพนักงานไปที่เครื่อง</h3><p class="fl-muted">กรองรายชื่อด้วย Section หรือช่องค้นหาด้านบน</p><div id="flUnassigned"></div></aside><section class="fl-panel fl-map"><div class="fl-actions"><button id="flZoomOut" class="secondary" aria-label="ย่อผัง">−</button><span id="flZoomLabel" aria-live="polite"></span><select id="flZoomPreset" aria-label="ระดับซูม"><option value="">กำหนดเอง</option><option value="1">100%</option><option value="2">200%</option><option value="4">400%</option><option value="6">600%</option><option value="8">800%</option><option value="10">1000%</option><option value="16">1600%</option></select><button id="flZoomIn" class="secondary" aria-label="ขยายผัง">+</button><button id="flZoomSection">ซูมแผนก</button><button id="flZoomMachine">ซูมเครื่อง</button><button id="flSetArea" data-fl-write class="secondary">กำหนดพื้นที่แผนก</button><button id="flFit" class="secondary">ทั้งโรงงาน</button></div><p id="flImageNote" class="fl-hint"></p><div class="fl-viewport"><div id="flCanvas"><img id="flImage" alt="ผังเครื่องจักรโรงงาน" draggable="false"><div id="flSavedArea" class="fl-area-outline" hidden></div><div id="flAreaSelection" class="fl-area-selection" hidden></div><div id="flPins"></div></div></div><p class="fl-muted">เลือกรูปพนักงานแล้วเลือกเครื่อง หรือใช้วิธีลากรูปไปวางที่จุดเครื่อง · กดเครื่องเพื่อดูผู้รับผิดชอบ</p><div class="fl-legend">${Object.entries(colors).map(([k,c]) => `<span><i style="background:${c}"></i>${k}</span>`).join('')}</div></section><aside class="fl-panel" id="flDetail"></aside></div></section>`,
+    page: () => `<section id="factoryLayoutPage"><div class="page-head"><div><h2>Layout แยกแผนก · พนักงานประจำเครื่อง</h2><p>เลือกผังแยก Section / เครื่องเพื่อซูม · ลากรูปพนักงานไปวางที่เครื่องเพื่อกำหนดผู้รับผิดชอบ</p></div></div><div class="fl-toolbar"><label>แผนก / Section<select id="flSection"></select></label><label>ผังแผนก<select id="flMapPicker"></select></label><label>เครื่องจักร<select id="flMachinePicker"></select></label><label>ค้นหาเครื่อง / ชื่อ / รหัสพนักงาน<input id="flSearch" placeholder="ค้นหาตำแหน่งพนักงานหรือเครื่องจักร"></label><button id="flUploadSection" data-fl-write>อัปโหลดผังแผนก</button><button id="flAddMachine">เพิ่มเครื่อง/จุดงาน</button><button id="flSeedStamping" data-fl-write class="secondary">เพิ่ม Stamping 1#–13#</button><button id="flReload" class="secondary">โหลดข้อมูลล่าสุด</button></div><div class="fl-status" data-layout-status role="status"></div><p id="flCounts"></p><div class="fl-grid"><aside class="fl-panel fl-sidebar"><details><summary>เครื่องจักร / จุดงาน</summary><div id="flMachineList"></div></details><h3>ลากพนักงานไปที่เครื่อง</h3><p class="fl-muted">กรองรายชื่อด้วย Section หรือช่องค้นหาด้านบน</p><div id="flUnassigned"></div></aside><section class="fl-panel fl-map"><div class="fl-actions"><button id="flZoomOut" class="secondary" aria-label="ย่อผัง">−</button><span id="flZoomLabel" aria-live="polite"></span><select id="flZoomPreset" aria-label="ระดับซูม"><option value="">กำหนดเอง</option><option value="1">100%</option><option value="2">200%</option><option value="4">400%</option><option value="6">600%</option><option value="8">800%</option><option value="10">1000%</option><option value="16">1600%</option></select><button id="flZoomIn" class="secondary" aria-label="ขยายผัง">+</button><button id="flZoomSection">ซูมแผนก</button><button id="flZoomMachine">ซูมเครื่อง</button><button id="flSetArea" data-fl-write class="secondary">กำหนดพื้นที่แผนก</button><button id="flFit" class="secondary">เต็มผังแผนก</button></div><p id="flImageNote" class="fl-hint"></p><div class="fl-viewport"><p id="flNoMap" class="fl-empty" hidden></p><div id="flCanvas"><img id="flImage" alt="ผังเครื่องจักรโรงงาน" draggable="false"><div id="flSavedArea" class="fl-area-outline" hidden></div><div id="flAreaSelection" class="fl-area-selection" hidden></div><div id="flPins"></div></div></div><p class="fl-muted">เลือกรูปพนักงานแล้วเลือกเครื่อง หรือใช้วิธีลากรูปไปวางที่จุดเครื่อง · กดเครื่องเพื่อดูผู้รับผิดชอบ</p><div class="fl-legend">${Object.entries(colors).map(([k,c]) => `<span><i style="background:${c}"></i>${k}</span>`).join('')}</div></section><aside class="fl-panel" id="flDetail"></aside></div></section>`,
     mount
   };
   const style = document.createElement('style');
-  style.textContent = `.fl-sidebar{align-self:start;position:sticky;top:12px}.fl-sidebar summary{cursor:pointer;font-weight:700;margin-bottom:12px}.fl-sidebar h3{margin-top:14px}#flUnassigned{max-height:60vh;overflow:auto;overscroll-behavior:contain}#flZoomPreset{padding:8px;border:1px solid #b9cadb;border-radius:6px}.fl-drop-target{outline:3px solid #16a34a!important;outline-offset:-3px}.fl-sidebar #flMachineList{max-height:190px}@media(max-width:600px){.fl-sidebar{position:static}#flUnassigned{max-height:180px}}#factoryLayoutPage{color:#20364b}.fl-toolbar,.fl-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.fl-toolbar label{display:grid;gap:4px;font-size:12px}.fl-toolbar input,.fl-toolbar select,.fl-dialog input,#flDetail input,#flDetail select{padding:9px;border:1px solid #b9cadb;border-radius:7px;min-width:0}.fl-toolbar input{width:240px}.fl-status{padding:10px 12px;background:#edf5ff;border-left:4px solid #2563eb;margin:12px 0;min-height:40px}.fl-grid{display:grid;grid-template-columns:240px minmax(0,1fr) 260px;gap:14px}.fl-panel{background:#fff;border:1px solid #ccdbe8;border-radius:12px;padding:14px;min-width:0}.fl-panel h3{font-size:16px;margin:0 0 12px}.fl-machine{display:block;width:100%;text-align:left;padding:10px;margin:7px 0;background:#f7fafc!important;color:#20364b!important;border:1px solid #cbd5e1!important}.fl-machine.selected{border:2px solid #2563eb!important;background:#eaf3ff!important}.fl-machine small,.fl-person small{display:block;font-size:11px;margin-top:4px;overflow-wrap:anywhere}.fl-viewport{width:100%;height:65vh;min-height:420px;overflow:auto;background:#edf2f7;border:1px solid #cbd5e1;border-radius:8px}.fl-map{overflow:hidden}#flCanvas{position:relative;min-width:100%;line-height:0}#flCanvas.placing{cursor:crosshair}#flCanvas.selecting-area{cursor:crosshair;touch-action:none}.fl-area-outline,.fl-area-selection{position:absolute;pointer-events:none;box-sizing:border-box;z-index:1}.fl-area-outline{border:2px dashed #0ea5e9;background:#0ea5e90c}.fl-area-selection{border:3px solid #f59e0b;background:#f59e0b33}.fl-area-outline[hidden],.fl-area-selection[hidden]{display:none}#flImage{display:block;width:100%;height:auto;user-select:none}#flPins{position:absolute;inset:0;pointer-events:none}.fl-pin{position:absolute;pointer-events:auto;transform:translate(-50%,-50%);background:white!important;color:#20364b!important;border:2px solid var(--pin-color)!important;box-shadow:0 2px 8px #0003;border-radius:8px;padding:5px 8px;max-width:190px;font-size:11px;line-height:1.3}.fl-pin small{display:block;font-size:10px;max-height:65px;overflow:auto}.fl-pin.selected{outline:3px solid #fbbf24;z-index:2}.fl-person{border-left:4px solid var(--person-color);padding:9px;background:#f7fafc;border-radius:6px;margin:8px 0;display:flex;gap:6px;justify-content:space-between;align-items:center}.fl-person b{font-size:13px}.fl-person[draggable="true"]{cursor:grab}.fl-person-selected{outline:3px solid #f59e0b}.fl-photo-wrap{width:42px;height:42px;flex-shrink:0;display:inline-flex;align-items:center;justify-content:center;position:relative;border:2px solid var(--person-color,#2563eb);border-radius:50%;overflow:hidden;background:#e2e8f0;color:#334155}.fl-photo{width:100%;height:100%;object-fit:cover}.fl-photo[hidden],.fl-photo-fallback[hidden]{display:none}.fl-photo-fallback{font-size:16px;font-weight:800}.fl-pin-people{display:grid;gap:4px;margin-top:5px}.fl-pin-person{display:flex;align-items:center;gap:5px;text-align:left;line-height:1.2}.fl-pin-person .fl-photo-wrap{width:30px;height:30px;border-width:1px}.fl-pin-person>span:last-child{font-size:10px;white-space:normal}.fl-person>div{flex:1;min-width:0}.fl-person button{font-size:11px}.fl-hint{padding:8px;background:#fffbeb;color:#785823;font-size:12px}.fl-muted,.fl-empty{color:#64748b;font-size:12px}.fl-legend{display:flex;flex-wrap:wrap;gap:8px;font-size:11px}.fl-legend i{width:10px;height:10px;display:inline-block;margin-right:4px;border-radius:2px}.fl-pool{margin-top:14px}.fl-pool summary{cursor:pointer;font-weight:700}.fl-pool>div{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px}.fl-dialog{border:1px solid #cbd5e1;border-radius:12px;padding:22px;width:min(450px,90vw)}.fl-dialog::backdrop{background:#1238}.fl-dialog label,#flAssign label{display:grid;gap:5px;margin:12px 0}.fl-dialog input,#flAssign input,#flAssign select{width:100%;box-sizing:border-box}.fl-upload input{max-width:210px;font-size:11px}.fl-toolbar button,.fl-actions button{font-size:12px}#flMachineList{max-height:560px;overflow:auto}@media(max-width:1150px){.fl-grid{grid-template-columns:220px minmax(0,1fr)}#flDetail{grid-column:1/-1}.fl-viewport{height:450px}}@media(max-width:600px){.fl-grid{grid-template-columns:1fr}#flDetail{grid-column:auto}#flMachineList{max-height:180px}.fl-viewport{height:320px}.fl-toolbar{align-items:stretch}.fl-toolbar label{width:100%}.fl-toolbar input{width:100%;box-sizing:border-box}}`;
+  style.textContent = `.fl-dialog select{padding:9px;border:1px solid #b9cadb;border-radius:7px;width:100%}.fl-dialog label.fl-keep{display:flex;align-items:center}.fl-dialog .fl-keep input{width:auto}#flNoMap{padding:24px;font-size:14px}#flImage[hidden]{display:none}.fl-sidebar{align-self:start;position:sticky;top:12px}.fl-sidebar summary{cursor:pointer;font-weight:700;margin-bottom:12px}.fl-sidebar h3{margin-top:14px}#flUnassigned{max-height:60vh;overflow:auto;overscroll-behavior:contain}#flZoomPreset{padding:8px;border:1px solid #b9cadb;border-radius:6px}.fl-drop-target{outline:3px solid #16a34a!important;outline-offset:-3px}.fl-sidebar #flMachineList{max-height:190px}@media(max-width:600px){.fl-sidebar{position:static}#flUnassigned{max-height:180px}}#factoryLayoutPage{color:#20364b}.fl-toolbar,.fl-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.fl-toolbar label{display:grid;gap:4px;font-size:12px}.fl-toolbar input,.fl-toolbar select,.fl-dialog input,#flDetail input,#flDetail select{padding:9px;border:1px solid #b9cadb;border-radius:7px;min-width:0}.fl-toolbar input{width:240px}.fl-status{padding:10px 12px;background:#edf5ff;border-left:4px solid #2563eb;margin:12px 0;min-height:40px}.fl-grid{display:grid;grid-template-columns:240px minmax(0,1fr) 260px;gap:14px}.fl-panel{background:#fff;border:1px solid #ccdbe8;border-radius:12px;padding:14px;min-width:0}.fl-panel h3{font-size:16px;margin:0 0 12px}.fl-machine{display:block;width:100%;text-align:left;padding:10px;margin:7px 0;background:#f7fafc!important;color:#20364b!important;border:1px solid #cbd5e1!important}.fl-machine.selected{border:2px solid #2563eb!important;background:#eaf3ff!important}.fl-machine small,.fl-person small{display:block;font-size:11px;margin-top:4px;overflow-wrap:anywhere}.fl-viewport{width:100%;height:65vh;min-height:420px;overflow:auto;background:#edf2f7;border:1px solid #cbd5e1;border-radius:8px}.fl-map{overflow:hidden}#flCanvas{position:relative;min-width:100%;line-height:0}#flCanvas.placing{cursor:crosshair}#flCanvas.selecting-area{cursor:crosshair;touch-action:none}.fl-area-outline,.fl-area-selection{position:absolute;pointer-events:none;box-sizing:border-box;z-index:1}.fl-area-outline{border:2px dashed #0ea5e9;background:#0ea5e90c}.fl-area-selection{border:3px solid #f59e0b;background:#f59e0b33}.fl-area-outline[hidden],.fl-area-selection[hidden]{display:none}#flImage{display:block;width:100%;height:auto;user-select:none}#flPins{position:absolute;inset:0;pointer-events:none}.fl-pin{position:absolute;pointer-events:auto;transform:translate(-50%,-50%);background:white!important;color:#20364b!important;border:2px solid var(--pin-color)!important;box-shadow:0 2px 8px #0003;border-radius:8px;padding:5px 8px;max-width:190px;font-size:11px;line-height:1.3}.fl-pin small{display:block;font-size:10px;max-height:65px;overflow:auto}.fl-pin.selected{outline:3px solid #fbbf24;z-index:2}.fl-person{border-left:4px solid var(--person-color);padding:9px;background:#f7fafc;border-radius:6px;margin:8px 0;display:flex;gap:6px;justify-content:space-between;align-items:center}.fl-person b{font-size:13px}.fl-person[draggable="true"]{cursor:grab}.fl-person-selected{outline:3px solid #f59e0b}.fl-photo-wrap{width:42px;height:42px;flex-shrink:0;display:inline-flex;align-items:center;justify-content:center;position:relative;border:2px solid var(--person-color,#2563eb);border-radius:50%;overflow:hidden;background:#e2e8f0;color:#334155}.fl-photo{width:100%;height:100%;object-fit:cover}.fl-photo[hidden],.fl-photo-fallback[hidden]{display:none}.fl-photo-fallback{font-size:16px;font-weight:800}.fl-pin-people{display:grid;gap:4px;margin-top:5px}.fl-pin-person{display:flex;align-items:center;gap:5px;text-align:left;line-height:1.2}.fl-pin-person .fl-photo-wrap{width:30px;height:30px;border-width:1px}.fl-pin-person>span:last-child{font-size:10px;white-space:normal}.fl-person>div{flex:1;min-width:0}.fl-person button{font-size:11px}.fl-hint{padding:8px;background:#fffbeb;color:#785823;font-size:12px}.fl-muted,.fl-empty{color:#64748b;font-size:12px}.fl-legend{display:flex;flex-wrap:wrap;gap:8px;font-size:11px}.fl-legend i{width:10px;height:10px;display:inline-block;margin-right:4px;border-radius:2px}.fl-pool{margin-top:14px}.fl-pool summary{cursor:pointer;font-weight:700}.fl-pool>div{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px}.fl-dialog{border:1px solid #cbd5e1;border-radius:12px;padding:22px;width:min(450px,90vw)}.fl-dialog::backdrop{background:#1238}.fl-dialog label,#flAssign label{display:grid;gap:5px;margin:12px 0}.fl-dialog input,#flAssign input,#flAssign select{width:100%;box-sizing:border-box}.fl-upload input{max-width:210px;font-size:11px}.fl-toolbar button,.fl-actions button{font-size:12px}#flMachineList{max-height:560px;overflow:auto}@media(max-width:1150px){.fl-grid{grid-template-columns:220px minmax(0,1fr)}#flDetail{grid-column:1/-1}.fl-viewport{height:450px}}@media(max-width:600px){.fl-grid{grid-template-columns:1fr}#flDetail{grid-column:auto}#flMachineList{max-height:180px}.fl-viewport{height:320px}.fl-toolbar{align-items:stretch}.fl-toolbar label{width:100%}.fl-toolbar input{width:100%;box-sizing:border-box}}`;
   document.head.append(style);
 })();
