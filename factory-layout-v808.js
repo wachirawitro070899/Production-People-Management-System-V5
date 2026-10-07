@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const PATH = 'ppmsFactoryLayout/v1', CACHE = 'ppms_factory_layout_v1';
-  const PREVIEW = 'factory-machine-layout-hd.png?v=810';
+  const PREVIEW = 'factory-layout-current.png?v=812';
   const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const uid = () => 'm_' + (crypto.randomUUID?.() || Date.now() + '_' + Math.random().toString(36).slice(2));
   const employeeKey = id => 'e_' + Array.from(String(id)).map(c => c.codePointAt(0).toString(16)).join('_');
