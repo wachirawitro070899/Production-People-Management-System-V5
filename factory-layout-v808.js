@@ -17,6 +17,42 @@
   let remotePending = false;
   const editingControl = () => root?.contains(document.activeElement) && document.activeElement?.matches('input,select,textarea');
   let selected = '', placing = false, zoom = 1, section = '', query = '', rosterSignature = '', statusText = '';
+  let selectingArea = false, areaStart = null, areaPointer = null, pendingFocus = false;
+  const areaKey = s => employeeKey(s);
+  function sectionBounds() {
+    if (!section) return null;
+    const a = data.areas?.[areaKey(section)];
+    if (a && [a.x,a.y,a.width,a.height].every(Number.isFinite) && a.width > 0 && a.height > 0 && a.x >= 0 && a.y >= 0 && a.x + a.width <= 100.001 && a.y + a.height <= 100.001) return a;
+    const points = entries().filter(m => m.section === section && positioned(m));
+    if (!points.length) return null;
+    const xs = points.map(m => m.x), ys = points.map(m => m.y);
+    const cx = (Math.min(...xs)+Math.max(...xs))/2, cy = (Math.min(...ys)+Math.max(...ys))/2;
+    const width = Math.min(100,Math.max(12,Math.max(...xs)-Math.min(...xs)+8));
+    const height = Math.min(100,Math.max(12,Math.max(...ys)-Math.min(...ys)+8));
+    return {x:Math.max(0,Math.min(100-width,cx-width/2)),y:Math.max(0,Math.min(100-height,cy-height/2)),width,height};
+  }
+  function zoomSection() {
+    if (!section) { zoom = 1; refresh(); const v = root.querySelector('.fl-viewport'); v.scrollTo(0,0); return; }
+    const a = sectionBounds();
+    if (!a) { note('ยังไม่ได้กำหนดพื้นที่ ' + section + ' · กด “กำหนดพื้นที่แผนก” แล้วลากกรอบบนผัง'); return; }
+    const viewport = root.querySelector('.fl-viewport'), img = root.querySelector('#flImage');
+    if (!img.naturalWidth || !viewport.clientWidth) { pendingFocus = true; return; }
+    pendingFocus = false;
+    const baseWidth = viewport.clientWidth, baseHeight = baseWidth * img.naturalHeight / img.naturalWidth;
+    zoom = Math.max(1,Math.min(8,Math.min(viewport.clientWidth/(baseWidth*a.width/100),viewport.clientHeight/(baseHeight*a.height/100))*.88));
+    refresh();
+    requestAnimationFrame(() => { if (!root?.isConnected) return; const c = root.querySelector('#flCanvas'); viewport.scrollTo({left:Math.max(0,c.clientWidth*(a.x+a.width/2)/100-viewport.clientWidth/2),top:Math.max(0,c.clientHeight*(a.y+a.height/2)/100-viewport.clientHeight/2)}); });
+    note('ซูมแผนก: ' + section);
+  }
+  function areaPoint(event) {
+    const r = root.querySelector('#flCanvas').getBoundingClientRect();
+    return {x:Math.max(0,Math.min(100,(event.clientX-r.left)/r.width*100)),y:Math.max(0,Math.min(100,(event.clientY-r.top)/r.height*100))};
+  }
+  function drawArea(a) {
+    const box = root.querySelector('#flAreaSelection'); box.hidden = !a;
+    if (a) Object.assign(box.style,{left:a.x+'%',top:a.y+'%',width:a.width+'%',height:a.height+'%'});
+  }
+  const rectangle = (a,b) => ({x:Math.min(a.x,b.x),y:Math.min(a.y,b.y),width:Math.abs(a.x-b.x),height:Math.abs(a.y-b.y)});
   function roster() { return window.PPMS_RUNTIME?.factoryLayoutEmployees?.() || []; }
   function admin() { return window.PPMS_RUNTIME?.factoryLayoutIsAdmin?.() === true; }
   function base() {
@@ -92,6 +128,14 @@
     root.querySelector('#flAssign')?.addEventListener('submit', assign);
     root.querySelector('#flEmployeeSearch')?.addEventListener('input', fillEmployeeOptions);
     root.querySelector('#flCanvas').classList.toggle('placing', placing);
+    root.querySelector('#flCanvas').classList.toggle('selecting-area', selectingArea);
+    const areaButton = root.querySelector('#flSetArea');
+    areaButton.textContent = selectingArea ? 'ยกเลิกกำหนดพื้นที่' : 'กำหนดพื้นที่แผนก';
+    areaButton.disabled = !section || busy || !ready || !admin();
+    root.querySelector('#flZoomSection').disabled = !section;
+    const savedArea = sectionBounds(), outline = root.querySelector('#flSavedArea');
+    outline.hidden = !savedArea;
+    if (savedArea) Object.assign(outline.style,{left:savedArea.x+'%',top:savedArea.y+'%',width:savedArea.width+'%',height:savedArea.height+'%'});
     const assignedIds = new Set(all.flatMap(x => Object.values(x.assignments || {}).map(a => String(a?.employeeId || ''))));
     root.querySelector('#flUnassigned').innerHTML = roster().filter(e => (!section || e.section === section) && (!query || [e.name,e.id].join(' ').toLowerCase().includes(query.toLowerCase())) && !assignedIds.has(String(e.id))).map(e => person(e)).join('') || '<p class="fl-empty">ไม่มีพนักงานที่ยังไม่กำหนดจุดตามตัวกรองนี้</p>';
     const select = root.querySelector('#flSection'), value = section;
@@ -143,13 +187,13 @@
       const src = canvas.toDataURL('image/jpeg',0.88);
       if (src.length > 4 * 1024 * 1024) throw Error('ภาพมีขนาดใหญ่เกินไป กรุณาลดความละเอียดแล้วเลือกใหม่');
       if (data.image && entries().some(positioned) && !confirm('เปลี่ยนผังโรงงาน? จุดเครื่องเดิมจะกลับเป็น “ยังไม่วางตำแหน่ง” เพื่อให้กำหนดจุดบนผังใหม่อย่างถูกต้อง')) return;
-      await save(d => { d.image = {src,name:file.name,width:canvas.width,height:canvas.height}; Object.values(d.machines).forEach(m => {delete m.x; delete m.y;}); placing = false; }, 'บันทึกผังใหม่แล้ว · กรุณาวางตำแหน่งเครื่องบนผัง');
+      await save(d => { d.image = {src,name:file.name,width:canvas.width,height:canvas.height}; Object.values(d.machines).forEach(m => {delete m.x; delete m.y;}); delete d.areas; selectingArea = false; placing = false; }, 'บันทึกผังใหม่แล้ว · กรุณาวางตำแหน่งเครื่องบนผัง');
     } catch (e) { note('เปลี่ยนผังไม่สำเร็จ: ' + e.message); }
   }
   async function load() {
     ready = false; controls(); note('กำลังโหลด Layout จากข้อมูลกลาง...');
     try {
-      const r = await request(); data = normalize(await r.json()); ready = true; remember(); note('เชื่อมต่อข้อมูลกลางแล้ว'); refresh();
+      const r = await request(); data = normalize(await r.json()); ready = true; remember(); note('เชื่อมต่อข้อมูลกลางแล้ว'); refresh(); if (section) zoomSection();
       if (window.firebase?.apps?.length && !subscription) {
         subscription = firebase.database().ref(PATH);
         subscription.on('value', snapshot => {
@@ -166,13 +210,14 @@
     if (subscription) { subscription.off(); subscription = null; }
     clearInterval(rosterTimer); root = next;
     if (!root) return;
-    selected = ''; placing = false;
+    selected = ''; placing = false; selectingArea = false; areaStart = null; areaPointer = null;
     try { data = normalize(JSON.parse(localStorage.getItem(CACHE) || 'null')); } catch (_) { data = normalize(null); }
     root.querySelector('#flSearch').value = query;
     root.addEventListener('click', async event => {
       const b = event.target.closest('button');
+      if (selectingArea && event.target.closest('#flCanvas')) return;
       if (b?.dataset.flSelect) { selected = b.dataset.flSelect; placing = false; refresh(); return; }
-      if (b?.hasAttribute('data-fl-place')) { if (!busy && ready) { placing = !placing; refresh(); } return; }
+      if (b?.hasAttribute('data-fl-place')) { if (!busy && ready) { selectingArea = false; drawArea(null); placing = !placing; refresh(); } return; }
       if (b?.hasAttribute('data-fl-edit')) { editMachine(selected); return; }
       if (b?.hasAttribute('data-fl-delete')) {
         const machine = selected;
@@ -189,20 +234,38 @@
     root.querySelector('#flSeedStamping').onclick = () => save(d => { for (let n = 1; n <= 13; n++) { const name = 'Stamping ' + n + '#'; if (!Object.values(d.machines).some(m => m.name === name && m.section === 'Stamping Section')) d.machines['stamping_' + n] ||= {name,section:'Stamping Section',assignments:{}}; } }, 'เพิ่มรายการ Stamping 1#–13# แล้ว · กรุณาวางจุดตามตำแหน่งจริง');
     root.querySelector('#flReload').onclick = load;
     root.querySelector('#flSearch').oninput = event => { query = event.target.value; refresh(); };
-    root.querySelector('#flSection').onchange = event => { section = event.target.value; refresh(); };
+    root.querySelector('#flSection').onchange = event => { section = event.target.value; selected = ''; placing = false; selectingArea = false; drawArea(null); refresh(); zoomSection(); };
     root.querySelector('#flUpload').onchange = event => { void upload(event.target.files[0]); event.target.value = ''; };
-    for (const [id,change] of [['flZoomIn',.25],['flZoomOut',-.25]]) root.querySelector('#' + id).onclick = () => { zoom = Math.max(1,Math.min(4,zoom+change)); refresh(); };
-    root.querySelector('#flFit').onclick = () => { zoom = 1; refresh(); };
+    for (const [id,change] of [['flZoomIn',.25],['flZoomOut',-.25]]) root.querySelector('#' + id).onclick = () => { zoom = Math.max(1,Math.min(8,zoom+change)); refresh(); };
+    root.querySelector('#flFit').onclick = () => { section = ''; query = ''; selected = ''; placing = false; selectingArea = false; zoom = 1; root.querySelector('#flSearch').value = ''; drawArea(null); refresh(); root.querySelector('.fl-viewport').scrollTo(0,0); note('แสดงทั้งโรงงาน'); };
+    root.querySelector('#flZoomSection').onclick = zoomSection;
+    root.querySelector('#flSetArea').onclick = () => { if (!section || !ready || busy || !admin()) return; selectingArea = !selectingArea; placing = false; areaStart = null; drawArea(null); refresh(); note(selectingArea ? 'ลากกรอบคลุมพื้นที่จริงของ ' + section + ' บนผัง แล้วปล่อยเพื่อบันทึก' : 'ยกเลิกกำหนดพื้นที่'); };
+    root.querySelector('#flImage').onload = () => { if (pendingFocus && section) zoomSection(); };
+    const canvas = root.querySelector('#flCanvas');
+    canvas.addEventListener('pointerdown', event => {
+      if (!selectingArea || busy || !ready || event.button !== 0) return;
+      event.preventDefault(); areaPointer = event.pointerId; areaStart = areaPoint(event); canvas.setPointerCapture(event.pointerId); drawArea(rectangle(areaStart,areaStart));
+    });
+    canvas.addEventListener('pointermove', event => { if (selectingArea && areaStart && event.pointerId === areaPointer) { event.preventDefault(); drawArea(rectangle(areaStart,areaPoint(event))); } });
+    canvas.addEventListener('pointerup', async event => {
+      if (!selectingArea || !areaStart || event.pointerId !== areaPointer) return;
+      event.preventDefault(); const bounds = rectangle(areaStart,areaPoint(event)), sec = section;
+      areaStart = null; areaPointer = null; selectingArea = false; if (canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId); drawArea(null);
+      if (bounds.width < 1 || bounds.height < 1) { refresh(); note('กรุณาลากกรอบให้มีความกว้างและความสูงอย่างน้อย 1% ของผัง'); return; }
+      const ok = await save(d => { d.areas ||= {}; d.areas[areaKey(sec)] = {...bounds,section:sec}; }, 'บันทึกพื้นที่แผนกแล้ว');
+      if (ok && root?.isConnected && section === sec) zoomSection();
+    });
+    canvas.addEventListener('pointercancel', () => { areaStart = null; areaPointer = null; drawArea(null); });
     root.addEventListener('focusout', () => setTimeout(() => { if (root?.isConnected && !editingControl() && !busy && remotePending) { remotePending = false; refresh(); }; },100));
     rosterSignature = JSON.stringify(roster());
     rosterTimer = setInterval(() => { const sig = JSON.stringify(roster()); if (sig !== rosterSignature) { rosterSignature = sig; remotePending = true; if (!editingControl() && !busy) { remotePending = false; refresh(); } } },3000);
     refresh(); void load();
   }
   window.PPMS_FACTORY_LAYOUT = {
-    page: () => `<section id="factoryLayoutPage"><div class="page-head"><div><h2>Layout โรงงาน · พนักงานประจำเครื่อง</h2><p>เลือกเครื่องเพื่อดูผู้รับผิดชอบ · ค้นหาพนักงานเพื่อดูตำแหน่งบนผัง</p></div></div><div class="fl-toolbar"><label>Section<select id="flSection"></select></label><label>ค้นหาเครื่อง / ชื่อ / รหัสพนักงาน<input id="flSearch" placeholder="ค้นหาตำแหน่งพนักงานหรือเครื่องจักร"></label><button id="flAddMachine">เพิ่มเครื่อง/จุดงาน</button><button id="flSeedStamping" data-fl-write class="secondary">เพิ่ม Stamping 1#–13#</button><button id="flReload" class="secondary">โหลดข้อมูลล่าสุด</button><label class="fl-upload">เปลี่ยนภาพผัง PNG/JPG<input type="file" id="flUpload" accept="image/png,image/jpeg,image/webp"></label></div><div class="fl-status" data-layout-status role="status"></div><p id="flCounts"></p><div class="fl-grid"><aside class="fl-panel"><h3>เครื่องจักร / จุดงาน</h3><div id="flMachineList"></div></aside><section class="fl-panel fl-map"><div class="fl-actions"><button id="flZoomOut" class="secondary" aria-label="ย่อผัง">−</button><span id="flZoomLabel"></span><button id="flZoomIn" class="secondary" aria-label="ขยายผัง">+</button><button id="flFit" class="secondary">พอดีจอ</button></div><p id="flImageNote" class="fl-hint"></p><div class="fl-viewport"><div id="flCanvas"><img id="flImage" alt="ผังโรงงาน General layout_A0_V5" draggable="false"><div id="flPins"></div></div></div><p class="fl-muted">ขยายแล้วเลื่อนผังซ้าย–ขวา/ขึ้น–ลงได้ · จุดที่ยังไม่วางแสดงในรายการเครื่องจักร</p><div class="fl-legend">${Object.entries(colors).map(([k,c]) => `<span><i style="background:${c}"></i>${k}</span>`).join('')}</div></section><aside class="fl-panel" id="flDetail"></aside></div><details class="fl-panel fl-pool"><summary>พนักงานที่ยังไม่กำหนดเครื่อง/จุดงานใน Layout</summary><div id="flUnassigned"></div></details></section>`,
+    page: () => `<section id="factoryLayoutPage"><div class="page-head"><div><h2>Layout โรงงาน · พนักงานประจำเครื่อง</h2><p>เลือกเครื่องเพื่อดูผู้รับผิดชอบ · ค้นหาพนักงานเพื่อดูตำแหน่งบนผัง</p></div></div><div class="fl-toolbar"><label>Section<select id="flSection"></select></label><label>ค้นหาเครื่อง / ชื่อ / รหัสพนักงาน<input id="flSearch" placeholder="ค้นหาตำแหน่งพนักงานหรือเครื่องจักร"></label><button id="flAddMachine">เพิ่มเครื่อง/จุดงาน</button><button id="flSeedStamping" data-fl-write class="secondary">เพิ่ม Stamping 1#–13#</button><button id="flReload" class="secondary">โหลดข้อมูลล่าสุด</button><label class="fl-upload">เปลี่ยนภาพผัง PNG/JPG<input type="file" id="flUpload" accept="image/png,image/jpeg,image/webp"></label></div><div class="fl-status" data-layout-status role="status"></div><p id="flCounts"></p><div class="fl-grid"><aside class="fl-panel"><h3>เครื่องจักร / จุดงาน</h3><div id="flMachineList"></div></aside><section class="fl-panel fl-map"><div class="fl-actions"><button id="flZoomOut" class="secondary" aria-label="ย่อผัง">−</button><span id="flZoomLabel"></span><button id="flZoomIn" class="secondary" aria-label="ขยายผัง">+</button><button id="flZoomSection">ซูมแผนก</button><button id="flSetArea" data-fl-write class="secondary">กำหนดพื้นที่แผนก</button><button id="flFit" class="secondary">ทั้งโรงงาน</button></div><p id="flImageNote" class="fl-hint"></p><div class="fl-viewport"><div id="flCanvas"><img id="flImage" alt="ผังโรงงาน General layout_A0_V5" draggable="false"><div id="flSavedArea" class="fl-area-outline" hidden></div><div id="flAreaSelection" class="fl-area-selection" hidden></div><div id="flPins"></div></div></div><p class="fl-muted">เลือก Section เพื่อซูมแผนก · กำหนดพื้นที่ด้วยการลากกรอบบนผัง · ปุ่มทั้งโรงงานกลับมาดูภาพรวม</p><div class="fl-legend">${Object.entries(colors).map(([k,c]) => `<span><i style="background:${c}"></i>${k}</span>`).join('')}</div></section><aside class="fl-panel" id="flDetail"></aside></div><details class="fl-panel fl-pool"><summary>พนักงานที่ยังไม่กำหนดเครื่อง/จุดงานใน Layout</summary><div id="flUnassigned"></div></details></section>`,
     mount
   };
   const style = document.createElement('style');
-  style.textContent = `#factoryLayoutPage{color:#20364b}.fl-toolbar,.fl-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.fl-toolbar label{display:grid;gap:4px;font-size:12px}.fl-toolbar input,.fl-toolbar select,.fl-dialog input,#flDetail input,#flDetail select{padding:9px;border:1px solid #b9cadb;border-radius:7px;min-width:0}.fl-toolbar input{width:240px}.fl-status{padding:10px 12px;background:#edf5ff;border-left:4px solid #2563eb;margin:12px 0;min-height:40px}.fl-grid{display:grid;grid-template-columns:210px minmax(0,1fr) 300px;gap:14px}.fl-panel{background:#fff;border:1px solid #ccdbe8;border-radius:12px;padding:14px;min-width:0}.fl-panel h3{font-size:16px;margin:0 0 12px}.fl-machine{display:block;width:100%;text-align:left;padding:10px;margin:7px 0;background:#f7fafc!important;color:#20364b!important;border:1px solid #cbd5e1!important}.fl-machine.selected{border:2px solid #2563eb!important;background:#eaf3ff!important}.fl-machine small,.fl-person small{display:block;font-size:11px;margin-top:4px;overflow-wrap:anywhere}.fl-viewport{width:100%;height:520px;overflow:auto;background:#edf2f7;border:1px solid #cbd5e1;border-radius:8px}.fl-map{overflow:hidden}#flCanvas{position:relative;min-width:100%;line-height:0}#flCanvas.placing{cursor:crosshair}#flImage{display:block;width:100%;height:auto;user-select:none}#flPins{position:absolute;inset:0;pointer-events:none}.fl-pin{position:absolute;pointer-events:auto;transform:translate(-50%,-50%);background:white!important;color:#20364b!important;border:2px solid var(--pin-color)!important;box-shadow:0 2px 8px #0003;border-radius:8px;padding:5px 8px;max-width:190px;font-size:11px;line-height:1.3}.fl-pin small{display:block;font-size:10px;max-height:65px;overflow:auto}.fl-pin.selected{outline:3px solid #fbbf24;z-index:2}.fl-person{border-left:4px solid var(--person-color);padding:9px;background:#f7fafc;border-radius:6px;margin:8px 0;display:flex;gap:6px;justify-content:space-between;align-items:center}.fl-person b{font-size:13px}.fl-person button{font-size:11px}.fl-hint{padding:8px;background:#fffbeb;color:#785823;font-size:12px}.fl-muted,.fl-empty{color:#64748b;font-size:12px}.fl-legend{display:flex;flex-wrap:wrap;gap:8px;font-size:11px}.fl-legend i{width:10px;height:10px;display:inline-block;margin-right:4px;border-radius:2px}.fl-pool{margin-top:14px}.fl-pool summary{cursor:pointer;font-weight:700}.fl-pool>div{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px}.fl-dialog{border:1px solid #cbd5e1;border-radius:12px;padding:22px;width:min(450px,90vw)}.fl-dialog::backdrop{background:#1238}.fl-dialog label,#flAssign label{display:grid;gap:5px;margin:12px 0}.fl-dialog input,#flAssign input,#flAssign select{width:100%;box-sizing:border-box}.fl-upload input{max-width:210px;font-size:11px}.fl-toolbar button,.fl-actions button{font-size:12px}#flMachineList{max-height:560px;overflow:auto}@media(max-width:1150px){.fl-grid{grid-template-columns:180px minmax(0,1fr)}#flDetail{grid-column:1/-1}.fl-viewport{height:450px}}@media(max-width:600px){.fl-grid{grid-template-columns:1fr}#flDetail{grid-column:auto}#flMachineList{max-height:180px}.fl-viewport{height:320px}.fl-toolbar{align-items:stretch}.fl-toolbar label{width:100%}.fl-toolbar input{width:100%;box-sizing:border-box}}`;
+  style.textContent = `#factoryLayoutPage{color:#20364b}.fl-toolbar,.fl-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.fl-toolbar label{display:grid;gap:4px;font-size:12px}.fl-toolbar input,.fl-toolbar select,.fl-dialog input,#flDetail input,#flDetail select{padding:9px;border:1px solid #b9cadb;border-radius:7px;min-width:0}.fl-toolbar input{width:240px}.fl-status{padding:10px 12px;background:#edf5ff;border-left:4px solid #2563eb;margin:12px 0;min-height:40px}.fl-grid{display:grid;grid-template-columns:210px minmax(0,1fr) 300px;gap:14px}.fl-panel{background:#fff;border:1px solid #ccdbe8;border-radius:12px;padding:14px;min-width:0}.fl-panel h3{font-size:16px;margin:0 0 12px}.fl-machine{display:block;width:100%;text-align:left;padding:10px;margin:7px 0;background:#f7fafc!important;color:#20364b!important;border:1px solid #cbd5e1!important}.fl-machine.selected{border:2px solid #2563eb!important;background:#eaf3ff!important}.fl-machine small,.fl-person small{display:block;font-size:11px;margin-top:4px;overflow-wrap:anywhere}.fl-viewport{width:100%;height:520px;overflow:auto;background:#edf2f7;border:1px solid #cbd5e1;border-radius:8px}.fl-map{overflow:hidden}#flCanvas{position:relative;min-width:100%;line-height:0}#flCanvas.placing{cursor:crosshair}#flCanvas.selecting-area{cursor:crosshair;touch-action:none}.fl-area-outline,.fl-area-selection{position:absolute;pointer-events:none;box-sizing:border-box;z-index:1}.fl-area-outline{border:2px dashed #0ea5e9;background:#0ea5e90c}.fl-area-selection{border:3px solid #f59e0b;background:#f59e0b33}.fl-area-outline[hidden],.fl-area-selection[hidden]{display:none}#flImage{display:block;width:100%;height:auto;user-select:none}#flPins{position:absolute;inset:0;pointer-events:none}.fl-pin{position:absolute;pointer-events:auto;transform:translate(-50%,-50%);background:white!important;color:#20364b!important;border:2px solid var(--pin-color)!important;box-shadow:0 2px 8px #0003;border-radius:8px;padding:5px 8px;max-width:190px;font-size:11px;line-height:1.3}.fl-pin small{display:block;font-size:10px;max-height:65px;overflow:auto}.fl-pin.selected{outline:3px solid #fbbf24;z-index:2}.fl-person{border-left:4px solid var(--person-color);padding:9px;background:#f7fafc;border-radius:6px;margin:8px 0;display:flex;gap:6px;justify-content:space-between;align-items:center}.fl-person b{font-size:13px}.fl-person button{font-size:11px}.fl-hint{padding:8px;background:#fffbeb;color:#785823;font-size:12px}.fl-muted,.fl-empty{color:#64748b;font-size:12px}.fl-legend{display:flex;flex-wrap:wrap;gap:8px;font-size:11px}.fl-legend i{width:10px;height:10px;display:inline-block;margin-right:4px;border-radius:2px}.fl-pool{margin-top:14px}.fl-pool summary{cursor:pointer;font-weight:700}.fl-pool>div{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px}.fl-dialog{border:1px solid #cbd5e1;border-radius:12px;padding:22px;width:min(450px,90vw)}.fl-dialog::backdrop{background:#1238}.fl-dialog label,#flAssign label{display:grid;gap:5px;margin:12px 0}.fl-dialog input,#flAssign input,#flAssign select{width:100%;box-sizing:border-box}.fl-upload input{max-width:210px;font-size:11px}.fl-toolbar button,.fl-actions button{font-size:12px}#flMachineList{max-height:560px;overflow:auto}@media(max-width:1150px){.fl-grid{grid-template-columns:180px minmax(0,1fr)}#flDetail{grid-column:1/-1}.fl-viewport{height:450px}}@media(max-width:600px){.fl-grid{grid-template-columns:1fr}#flDetail{grid-column:auto}#flMachineList{max-height:180px}.fl-viewport{height:320px}.fl-toolbar{align-items:stretch}.fl-toolbar label{width:100%}.fl-toolbar input{width:100%;box-sizing:border-box}}`;
   document.head.append(style);
 })();
