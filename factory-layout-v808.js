@@ -3,6 +3,22 @@
   'use strict';
   const PATH = 'ppmsFactoryLayout/v1', CACHE = 'ppms_factory_layout_v1';
   const PREVIEW = 'factory-layout-current.png?v=812';
+  const MAPS = {
+    factory:{src:PREVIEW,name:'ผังโรงงาน',section:''},
+    stamping_1_8:{src:'stamping-layout-1-8.png?v=813',name:'Stamping · เครื่อง 1#–8#',section:'Stamping Section'},
+    bending:{src:'bending-layout.png?v=813',name:'Bending Section',section:'Bending Section'},
+    stamping_9_13:{src:'stamping-layout-9-13.png?v=813',name:'Stamping · เครื่อง 9#–13#',section:'Stamping Section'}
+  };
+  let activeMap = 'factory';
+  const machineMap = m => MAPS[m.mapId] ? m.mapId : 'factory';
+  const visiblePosition = m => positioned(m) && machineMap(m) === activeMap;
+  function switchMap(id) {
+    if (!MAPS[id]) return;
+    activeMap = id; section = MAPS[id].section; selected = ''; placing = false; selectingArea = false; pendingZoom = null; pendingFocus = false; zoom = 1;
+    drawArea(null); refresh(); root.querySelector('.fl-viewport').scrollTo(0,0);
+    note(MAPS[id].name + ' · ลากพนักงานลงป้ายเครื่องเพื่อบันทึก');
+  }
+
   const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const uid = () => 'm_' + (crypto.randomUUID?.() || Date.now() + '_' + Math.random().toString(36).slice(2));
   const employeeKey = id => 'e_' + Array.from(String(id)).map(c => c.codePointAt(0).toString(16)).join('_');
@@ -18,12 +34,13 @@
   const editingControl = () => root?.contains(document.activeElement) && document.activeElement?.matches('input,select,textarea');
   let selected = '', placing = false, zoom = 1, section = '', query = '', rosterSignature = '', statusText = '';
   let selectingArea = false, areaStart = null, areaPointer = null, pendingFocus = false, pendingEmployee = '', pendingZoom = null;
-  const areaKey = s => employeeKey(s);
+  const areaKey = s => employeeKey(s) + (activeMap === 'factory' ? '' : '_' + activeMap);
   function sectionBounds() {
     if (!section) return null;
     const a = data.areas?.[areaKey(section)];
+    if (!a && activeMap !== 'factory') return {x:0,y:0,width:100,height:100};
     if (a && [a.x,a.y,a.width,a.height].every(Number.isFinite) && a.width > 0 && a.height > 0 && a.x >= 0 && a.y >= 0 && a.x + a.width <= 100.001 && a.y + a.height <= 100.001) return a;
-    const points = entries().filter(m => m.section === section && positioned(m));
+    const points = entries().filter(m => m.section === section && visiblePosition(m));
     if (!points.length) return null;
     const xs = points.map(m => m.x), ys = points.map(m => m.y);
     const cx = (Math.min(...xs)+Math.max(...xs))/2, cy = (Math.min(...ys)+Math.max(...ys))/2;
@@ -39,7 +56,7 @@
   }
   function zoomBounds(a,label) {
     const viewport = root.querySelector('.fl-viewport'), img = root.querySelector('#flImage');
-    if (!img.naturalWidth || !viewport.clientWidth) { pendingFocus = true; pendingZoom = {bounds:a,label}; return; }
+    if (!img.complete || !img.naturalWidth || !viewport.clientWidth) { pendingFocus = true; pendingZoom = {bounds:a,label}; return; }
     pendingFocus = false; pendingZoom = null;
     const baseWidth = viewport.clientWidth, baseHeight = baseWidth * img.naturalHeight / img.naturalWidth;
     zoom = Math.max(1,Math.min(16,Math.min(viewport.clientWidth/(baseWidth*a.width/100),viewport.clientHeight/(baseHeight*a.height/100))*.88));
@@ -50,6 +67,8 @@
   function zoomMachine(id = selected) {
     const m = data.machines[id];
     if (!m) return;
+    const nextMap = machineMap(m);
+    if (nextMap !== activeMap) { activeMap = nextMap; section = MAPS[nextMap].section || m.section; pendingZoom = null; pendingFocus = false; refresh(); }
     if (!positioned(m)) { note('ยังไม่ได้วางจุด ' + m.name + ' · กด “วางจุดบนผัง” แล้วเลือกตำแหน่งเครื่องจริง'); return; }
     zoomBounds({x:Math.max(0,Math.min(92,m.x-4)),y:Math.max(0,Math.min(92,m.y-4)),width:8,height:8},'เครื่อง: ' + m.name + ' · ' + assigned(m).map(e => e.name).join(' / '));
   }
@@ -72,8 +91,9 @@
   }
   async function assignEmployee(id,machine,point = null) {
     id = String(id || '');
+    const mapId = activeMap, relocating = placing;
     if (!id || !roster().some(e => String(e.id) === id)) { note('กรุณาเลือกพนักงานจากรายชื่อ PPMS'); return false; }
-    const ok = await save(d => { const m = d.machines[machine]; if (!m) throw Error('เครื่องนี้ถูกลบแล้ว'); const e = roster().find(e => String(e.id) === id); if (!e || (m.section && e.section !== m.section)) throw Error('Section พนักงานไม่ตรงกับเครื่อง'); if (point) { if (![point.x,point.y].every(v => Number.isFinite(v) && v >= 0 && v <= 100)) throw Error('ตำแหน่งไม่ถูกต้อง'); if (!positioned(m) || placing) { m.x = point.x; m.y = point.y; } else throw Error('เครื่องนี้มีตำแหน่งแล้ว กรุณาวางรูปที่ป้ายเครื่อง'); } m.assignments ||= {}; m.assignments[employeeKey(id)] = {employeeId:id,assignedAt:new Date().toISOString()}; },'บันทึกพนักงานประจำเครื่องแล้ว');
+    const ok = await save(d => { const m = d.machines[machine]; if (!m) throw Error('เครื่องนี้ถูกลบแล้ว'); const e = roster().find(e => String(e.id) === id); if (!e || (m.section && e.section !== m.section)) throw Error('Section พนักงานไม่ตรงกับเครื่อง'); if (point) { if (![point.x,point.y].every(v => Number.isFinite(v) && v >= 0 && v <= 100)) throw Error('ตำแหน่งไม่ถูกต้อง'); if (!positioned(m) || relocating) { m.x = point.x; m.y = point.y; m.mapId = mapId; } else throw Error('เครื่องนี้มีตำแหน่งแล้ว กรุณาวางรูปที่ป้ายเครื่อง'); } m.assignments ||= {}; m.assignments[employeeKey(id)] = {employeeId:id,assignedAt:new Date().toISOString()}; },'บันทึกพนักงานประจำเครื่องแล้ว');
     if (ok) { pendingEmployee = ''; placing = false; refresh(); }
     return ok;
   }
@@ -131,6 +151,7 @@
   function entries() { return Object.entries(data.machines).filter(([,m]) => m && typeof m === 'object').map(([id,m]) => ({...m,id})); }
   function assigned(m) { const ids = new Set(Object.values(m.assignments || {}).map(a => String(a?.employeeId || ''))); return roster().filter(e => ids.has(String(e.id))); }
   function match(m) {
+    if (machineMap(m) !== activeMap) return false;
     if (section && m.section !== section) return false;
     const people = assigned(m);
     return !query || [m.name,m.section,...people.flatMap(e => [e.id,e.name,e.position])].join(' ').toLowerCase().includes(query.toLowerCase());
@@ -145,13 +166,14 @@
   function refresh() {
     if (!root?.isConnected) return;
     const all = entries(), list = all.filter(match), m = data.machines[selected];
-    const img = root.querySelector('#flImage'), src = PREVIEW;
-    if (img.getAttribute('src') !== src) img.src = src;
+    const img = root.querySelector('#flImage'), src = MAPS[activeMap].src;
+    root.querySelector('#flMapPicker').value = activeMap;
+    if (img.getAttribute('src') !== src) { pendingFocus = false; pendingZoom = null; img.src = src; }
     root.querySelector('#flCanvas').style.width = (zoom * 100) + '%';
     root.querySelector('#flZoomLabel').textContent = Math.round(zoom * 100) + '%';
     root.querySelector('#flZoomPreset').value = [1,2,4,6,8,10,16].includes(zoom) ? String(zoom) : '';
-    root.querySelector('#flImageNote').textContent = 'เลือกเครื่องแล้วลากพนักงานลงตำแหน่งจริงเพื่อวางจุดและบันทึกทันที · จุดที่วางแล้วให้ลากลงป้ายเครื่อง · ภาพ PNG อาจเห็นพิกเซลเมื่อขยายมาก แต่ป้ายชื่อยังคมชัด';
-    const placed = list.filter(positioned);
+    root.querySelector('#flImageNote').textContent = MAPS[activeMap].name + ' · เลือกเครื่องแล้วลากพนักงานลงตำแหน่งจริงเพื่อวางจุดและบันทึกทันที · จุดที่วางแล้วให้ลากลงป้ายเครื่อง · ภาพ PNG อาจเห็นพิกเซลเมื่อขยายมาก แต่ป้ายชื่อยังคมชัด';
+    const placed = list.filter(visiblePosition);
     root.querySelector('#flPins').innerHTML = placed.map(x => {
       const people = assigned(x), color = people.length ? colors[rank(people[0])] : '#64748b';
       return `<button class="fl-pin ${x.id === selected ? 'selected' : ''}" style="left:${x.x}%;top:${x.y}%;--pin-color:${color}" data-fl-select="${esc(x.id)}" title="${esc(x.name)} · ${people.map(e => esc(e.name)).join(', ') || 'ยังไม่มีพนักงาน'}"><b>${esc(x.name)}</b><span class="fl-pin-people">${people.length ? people.map(e => `<span class="fl-pin-person">${photo(e)}<span>${esc(e.name)}</span></span>`).join('') : '<small>ยังไม่มีพนักงาน</small>'}</span></button>`;
@@ -160,7 +182,7 @@
     const picker = root.querySelector('#flMachinePicker');
     picker.innerHTML = '<option value="">— เลือกเครื่องจักร —</option>' + list.map(x => `<option value="${esc(x.id)}">${esc(x.name)} · ${esc(x.section)}</option>`).join(''); picker.value = selected;
     root.querySelector('#flZoomMachine').disabled = !m || !positioned(m);
-    root.querySelector('#flCounts').textContent = `${all.length} เครื่อง/จุดงาน · วางบนผัง ${all.filter(positioned).length} จุด · แสดง ${list.length} จุด`;
+    root.querySelector('#flCounts').textContent = `${all.length} เครื่อง/จุดงาน · วางบนผัง ${all.filter(positioned).length} จุด · ผังนี้ ${list.length} เครื่อง`;
     root.querySelector('#flDetail').innerHTML = m ? `<h3>${esc(m.name)}</h3><p>${esc(m.section || 'ไม่ระบุ Section')}</p><div class="fl-actions"><button data-fl-write data-fl-place>${placing ? 'ยกเลิกวางตำแหน่ง' : positioned(m) ? 'ย้ายจุดบนผัง' : 'วางจุดบนผัง'}</button><button class="secondary" data-fl-write data-fl-edit>แก้ไขชื่อ/Section</button><button class="secondary" data-fl-write data-fl-delete>ลบเครื่อง/จุดงาน</button></div>${placing ? '<p class="fl-hint">กดตำแหน่งจริงบนผังเพื่อบันทึกจุดเครื่อง</p>' : ''}<h4>พนักงานประจำเครื่อง/จุดงาน</h4>${assigned(m).map(e => person(e,true)).join('') || '<p class="fl-empty">ยังไม่ได้กำหนดพนักงาน</p>'}<form id="flAssign"><label>ค้นหาชื่อหรือรหัสพนักงาน<input id="flEmployeeSearch" placeholder="พิมพ์ชื่อหรือรหัสพนักงาน" autocomplete="off"></label><label>เลือกพนักงาน<select id="flEmployee" required></select></label><button type="submit" data-fl-write>เพิ่มพนักงานประจำเครื่อง</button><p class="fl-muted">กำหนดเป็นผู้รับผิดชอบประจำจุด · พนักงานหนึ่งคนดูแลได้หลายเครื่อง</p></form>` : '<h3>รายละเอียดเครื่องจักร</h3><p class="fl-empty">เลือกเครื่องจากผังหรือรายการด้านซ้าย เพื่อดูและกำหนดพนักงาน</p>';
     fillEmployeeOptions();
     root.querySelector('#flAssign')?.addEventListener('submit', assign);
@@ -208,7 +230,7 @@
         if (Object.entries(d.machines).some(([k,m]) => k !== mid && m.name?.toLowerCase() === name.toLowerCase() && m.section === sec)) throw Error('ชื่อเครื่องนี้มีอยู่แล้วใน Section');
         const prior = d.machines[mid] || {};
         if (prior.section && prior.section !== sec && Object.keys(prior.assignments || {}).length) throw Error('ยกเลิกพนักงานประจำเครื่องก่อนเปลี่ยน Section');
-        d.machines[mid] = {...prior,name,section:sec,assignments:prior.assignments || {}};
+        d.machines[mid] = {...prior,name,section:sec,mapId:prior.mapId || activeMap,assignments:prior.assignments || {}};
       });
       if (ok) { selected = mid; placing = !positioned(data.machines[mid]); dlg.close(); refresh(); }
       else { dlg.querySelector('[role=status]').textContent = statusText; buttons.forEach(b => b.disabled = false); }
@@ -252,8 +274,8 @@
       const personCard = event.target.closest('[data-fl-employee]');
       if (personCard && !b && admin() && !busy && ready) { pendingEmployee = personCard.dataset.flEmployee; refresh(); note('เลือกเครื่องที่จะให้ ' + (roster().find(e => String(e.id) === pendingEmployee)?.name || pendingEmployee) + ' ประจำ'); return; }
       if (event.target.closest('#flCanvas') && placing && selected && !busy && ready) {
-        const rect = root.querySelector('#flCanvas').getBoundingClientRect(), x = Math.max(0,Math.min(100,(event.clientX-rect.left)/rect.width*100)), y = Math.max(0,Math.min(100,(event.clientY-rect.top)/rect.height*100)), machine = selected;
-        if (await save(d => { if (!d.machines[machine]) throw Error('เครื่องนี้ถูกลบแล้ว'); d.machines[machine].x = x; d.machines[machine].y = y; })) { placing = false; refresh(); }
+        const rect = root.querySelector('#flCanvas').getBoundingClientRect(), x = Math.max(0,Math.min(100,(event.clientX-rect.left)/rect.width*100)), y = Math.max(0,Math.min(100,(event.clientY-rect.top)/rect.height*100)), machine = selected, mapId = activeMap;
+        if (await save(d => { if (!d.machines[machine]) throw Error('เครื่องนี้ถูกลบแล้ว'); d.machines[machine].x = x; d.machines[machine].y = y; d.machines[machine].mapId = mapId; })) { placing = false; refresh(); }
       }
     });
     root.querySelector('#flAddMachine').onclick = () => editMachine();
@@ -285,10 +307,11 @@
       await assignEmployee(id,selected,point);
     });
     root.querySelector('#flSearch').oninput = event => { query = event.target.value; refresh(); };
-    root.querySelector('#flSection').onchange = event => { section = event.target.value; selected = ''; placing = false; selectingArea = false; drawArea(null); refresh(); zoomSection(); };
+    root.querySelector('#flMapPicker').onchange = event => switchMap(event.target.value);
+    root.querySelector('#flSection').onchange = event => { section = event.target.value; activeMap = section === 'Stamping Section' ? 'stamping_1_8' : section === 'Bending Section' ? 'bending' : 'factory'; selected = ''; placing = false; selectingArea = false; drawArea(null); refresh(); zoomSection(); };
     for (const [id,change] of [['flZoomIn',.25],['flZoomOut',-.25]]) root.querySelector('#' + id).onclick = () => { setZoom(zoom+change); };
     root.querySelector('#flZoomPreset').onchange = event => { if (event.target.value) setZoom(Number(event.target.value)); };
-    root.querySelector('#flFit').onclick = () => { section = ''; query = ''; selected = ''; placing = false; selectingArea = false; zoom = 1; root.querySelector('#flSearch').value = ''; drawArea(null); refresh(); root.querySelector('.fl-viewport').scrollTo(0,0); note('แสดงทั้งโรงงาน'); };
+    root.querySelector('#flFit').onclick = () => { activeMap = 'factory'; section = ''; query = ''; selected = ''; placing = false; selectingArea = false; zoom = 1; root.querySelector('#flSearch').value = ''; drawArea(null); refresh(); root.querySelector('.fl-viewport').scrollTo(0,0); note('แสดงทั้งโรงงาน'); };
     root.querySelector('#flZoomSection').onclick = zoomSection;
     root.querySelector('#flSetArea').onclick = () => { if (!section || !ready || busy || !admin()) return; selectingArea = !selectingArea; placing = false; areaStart = null; drawArea(null); refresh(); note(selectingArea ? 'ลากกรอบคลุมพื้นที่จริงของ ' + section + ' บนผัง แล้วปล่อยเพื่อบันทึก' : 'ยกเลิกกำหนดพื้นที่'); };
     root.querySelector('#flImage').onload = () => { if (pendingFocus && pendingZoom) zoomBounds(pendingZoom.bounds,pendingZoom.label); };
@@ -300,10 +323,10 @@
     canvas.addEventListener('pointermove', event => { if (selectingArea && areaStart && event.pointerId === areaPointer) { event.preventDefault(); drawArea(rectangle(areaStart,areaPoint(event))); } });
     canvas.addEventListener('pointerup', async event => {
       if (!selectingArea || !areaStart || event.pointerId !== areaPointer) return;
-      event.preventDefault(); const bounds = rectangle(areaStart,areaPoint(event)), sec = section;
+      event.preventDefault(); const bounds = rectangle(areaStart,areaPoint(event)), sec = section, key = areaKey(section);
       areaStart = null; areaPointer = null; selectingArea = false; if (canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId); drawArea(null);
       if (bounds.width < 1 || bounds.height < 1) { refresh(); note('กรุณาลากกรอบให้มีความกว้างและความสูงอย่างน้อย 1% ของผัง'); return; }
-      const ok = await save(d => { d.areas ||= {}; d.areas[areaKey(sec)] = {...bounds,section:sec}; }, 'บันทึกพื้นที่แผนกแล้ว');
+      const ok = await save(d => { d.areas ||= {}; d.areas[key] = {...bounds,section:sec}; }, 'บันทึกพื้นที่แผนกแล้ว');
       if (ok && root?.isConnected && section === sec) zoomSection();
     });
     canvas.addEventListener('pointercancel', () => { areaStart = null; areaPointer = null; drawArea(null); });
@@ -313,7 +336,7 @@
     refresh(); void load();
   }
   window.PPMS_FACTORY_LAYOUT = {
-    page: () => `<section id="factoryLayoutPage"><div class="page-head"><div><h2>Layout โรงงาน · พนักงานประจำเครื่อง</h2><p>เลือก Section / เครื่องเพื่อซูม · ลากรูปพนักงานไปวางที่เครื่องเพื่อกำหนดผู้รับผิดชอบ</p></div></div><div class="fl-toolbar"><label>Section<select id="flSection"></select></label><label>เครื่องจักร<select id="flMachinePicker"></select></label><label>ค้นหาเครื่อง / ชื่อ / รหัสพนักงาน<input id="flSearch" placeholder="ค้นหาตำแหน่งพนักงานหรือเครื่องจักร"></label><button id="flAddMachine">เพิ่มเครื่อง/จุดงาน</button><button id="flSeedStamping" data-fl-write class="secondary">เพิ่ม Stamping 1#–13#</button><button id="flReload" class="secondary">โหลดข้อมูลล่าสุด</button></div><div class="fl-status" data-layout-status role="status"></div><p id="flCounts"></p><div class="fl-grid"><aside class="fl-panel fl-sidebar"><details><summary>เครื่องจักร / จุดงาน</summary><div id="flMachineList"></div></details><h3>ลากพนักงานไปที่เครื่อง</h3><p class="fl-muted">กรองรายชื่อด้วย Section หรือช่องค้นหาด้านบน</p><div id="flUnassigned"></div></aside><section class="fl-panel fl-map"><div class="fl-actions"><button id="flZoomOut" class="secondary" aria-label="ย่อผัง">−</button><span id="flZoomLabel" aria-live="polite"></span><select id="flZoomPreset" aria-label="ระดับซูม"><option value="">กำหนดเอง</option><option value="1">100%</option><option value="2">200%</option><option value="4">400%</option><option value="6">600%</option><option value="8">800%</option><option value="10">1000%</option><option value="16">1600%</option></select><button id="flZoomIn" class="secondary" aria-label="ขยายผัง">+</button><button id="flZoomSection">ซูมแผนก</button><button id="flZoomMachine">ซูมเครื่อง</button><button id="flSetArea" data-fl-write class="secondary">กำหนดพื้นที่แผนก</button><button id="flFit" class="secondary">ทั้งโรงงาน</button></div><p id="flImageNote" class="fl-hint"></p><div class="fl-viewport"><div id="flCanvas"><img id="flImage" alt="ผังเครื่องจักรโรงงาน" draggable="false"><div id="flSavedArea" class="fl-area-outline" hidden></div><div id="flAreaSelection" class="fl-area-selection" hidden></div><div id="flPins"></div></div></div><p class="fl-muted">เลือกรูปพนักงานแล้วเลือกเครื่อง หรือใช้วิธีลากรูปไปวางที่จุดเครื่อง · กดเครื่องเพื่อดูผู้รับผิดชอบ</p><div class="fl-legend">${Object.entries(colors).map(([k,c]) => `<span><i style="background:${c}"></i>${k}</span>`).join('')}</div></section><aside class="fl-panel" id="flDetail"></aside></div></section>`,
+    page: () => `<section id="factoryLayoutPage"><div class="page-head"><div><h2>Layout โรงงาน · พนักงานประจำเครื่อง</h2><p>เลือกผังแยก Section / เครื่องเพื่อซูม · ลากรูปพนักงานไปวางที่เครื่องเพื่อกำหนดผู้รับผิดชอบ</p></div></div><div class="fl-toolbar"><label>เลือกผัง<select id="flMapPicker">${Object.entries(MAPS).map(([id,m]) => `<option value="${id}">${esc(m.name)}</option>`).join('')}</select></label><label>Section<select id="flSection"></select></label><label>เครื่องจักร<select id="flMachinePicker"></select></label><label>ค้นหาเครื่อง / ชื่อ / รหัสพนักงาน<input id="flSearch" placeholder="ค้นหาตำแหน่งพนักงานหรือเครื่องจักร"></label><button id="flAddMachine">เพิ่มเครื่อง/จุดงาน</button><button id="flSeedStamping" data-fl-write class="secondary">เพิ่ม Stamping 1#–13#</button><button id="flReload" class="secondary">โหลดข้อมูลล่าสุด</button></div><div class="fl-status" data-layout-status role="status"></div><p id="flCounts"></p><div class="fl-grid"><aside class="fl-panel fl-sidebar"><details><summary>เครื่องจักร / จุดงาน</summary><div id="flMachineList"></div></details><h3>ลากพนักงานไปที่เครื่อง</h3><p class="fl-muted">กรองรายชื่อด้วย Section หรือช่องค้นหาด้านบน</p><div id="flUnassigned"></div></aside><section class="fl-panel fl-map"><div class="fl-actions"><button id="flZoomOut" class="secondary" aria-label="ย่อผัง">−</button><span id="flZoomLabel" aria-live="polite"></span><select id="flZoomPreset" aria-label="ระดับซูม"><option value="">กำหนดเอง</option><option value="1">100%</option><option value="2">200%</option><option value="4">400%</option><option value="6">600%</option><option value="8">800%</option><option value="10">1000%</option><option value="16">1600%</option></select><button id="flZoomIn" class="secondary" aria-label="ขยายผัง">+</button><button id="flZoomSection">ซูมแผนก</button><button id="flZoomMachine">ซูมเครื่อง</button><button id="flSetArea" data-fl-write class="secondary">กำหนดพื้นที่แผนก</button><button id="flFit" class="secondary">ทั้งโรงงาน</button></div><p id="flImageNote" class="fl-hint"></p><div class="fl-viewport"><div id="flCanvas"><img id="flImage" alt="ผังเครื่องจักรโรงงาน" draggable="false"><div id="flSavedArea" class="fl-area-outline" hidden></div><div id="flAreaSelection" class="fl-area-selection" hidden></div><div id="flPins"></div></div></div><p class="fl-muted">เลือกรูปพนักงานแล้วเลือกเครื่อง หรือใช้วิธีลากรูปไปวางที่จุดเครื่อง · กดเครื่องเพื่อดูผู้รับผิดชอบ</p><div class="fl-legend">${Object.entries(colors).map(([k,c]) => `<span><i style="background:${c}"></i>${k}</span>`).join('')}</div></section><aside class="fl-panel" id="flDetail"></aside></div></section>`,
     mount
   };
   const style = document.createElement('style');
