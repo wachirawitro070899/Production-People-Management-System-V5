@@ -50,12 +50,12 @@
     return {...d, machines:d.machines && typeof d.machines === 'object' ? d.machines : {}, image:d.image || null};
   }
   let data = normalize(null), ready = false, busy = false, root = null, subscription = null, rosterTimer = null;
-  let remotePending = false;
+  let remotePending = false, layoutRevision = 0, layoutPollRunning = false;
   const editingControl = () => root?.contains(document.activeElement) && document.activeElement?.matches('input,select,textarea');
   let shift = 'day';
   const shiftName = value => value === 'night' ? 'กะดึก' : 'กะเช้า';
   const assignmentShift = a => a?.shift === 'night' ? 'night' : 'day';
-  const assignmentIds = (m,value = shift) => { const people = new Map(roster().map(e => [String(e.id),e])); return new Set(Object.values(m?.assignments || {}).filter(a => { const e = people.get(String(a?.employeeId || '')); return e && (!m.section || e.section === m.section) && assignmentShift(a) === value; }).map(a => String(a.employeeId))); };
+  const assignmentIds = (m,value = shift) => { const people = new Map(roster().map(e => [String(e.id),e])); return new Set(Object.values(m?.assignments || {}).filter(a => { const e = people.get(String(a?.employeeId || '')); return e && (!m.section || e.section === m.section) && (value === null || assignmentShift(a) === value); }).map(a => String(a.employeeId))); };
   function checkCapacity(m,id,value) {
     if (m.kind === 'support' && [...assignmentIds(m,value)].some(other => other !== id)) throw Error(m.name + ' · ' + shiftName(value) + ' มี Support ครบ 1 คนแล้ว กรุณาย้ายหรือยกเลิกคนเดิมก่อน');
   }
@@ -223,7 +223,7 @@
     if (busy) return false;
     if (!admin()) { note('กรุณาเข้าสู่ระบบ Admin'); return false; }
     if (!ready) { note('ต้องเชื่อมต่อข้อมูลล่าสุดก่อนบันทึก'); return false; }
-    busy = true; controls(); note('กำลังบันทึก...');
+    busy = true; layoutRevision++; controls(); note('กำลังบันทึก...');
     try {
       let confirmed = false;
       for (let attempt = 0; attempt < 4; attempt++) {
@@ -305,10 +305,10 @@
     if (savedArea) Object.assign(outline.style,{left:savedArea.x+'%',top:savedArea.y+'%',width:savedArea.width+'%',height:savedArea.height+'%'});
     
     const departmentPeople = section ? roster().filter(e => e.section === section).sort((a,b) => String(a.name || '').localeCompare(String(b.name || ''),'th')) : [];
-    const assignedPeople = new Set(all.flatMap(m => [...assignmentIds(m)]));
+    const assignedPeople = new Set(all.flatMap(m => [...assignmentIds(m,null)]));
     const availablePeople = departmentPeople.filter(e => !assignedPeople.has(String(e.id)));
     if (pendingEmployee && !availablePeople.some(e => String(e.id) === pendingEmployee)) pendingEmployee = '';
-    root.querySelector('#flRosterCount').textContent = section ? `${section} · ว่าง ${availablePeople.length}/${departmentPeople.length} คน · ${shiftName(shift)}` : 'เลือก Section ก่อน';
+    root.querySelector('#flRosterCount').textContent = section ? `${section} · ยังไม่จัดทั้งสองกะ ${availablePeople.length}/${departmentPeople.length} คน` : 'เลือก Section ก่อน';
     root.querySelector('#flUnassigned').innerHTML = availablePeople.map(e => person(e)).join('') || `<p class="fl-empty">${departmentPeople.length ? 'กำหนดพนักงานครบแล้ว · ลากพนักงานกลับมาที่นี่เพื่อยกเลิกประจำเครื่อง' : section ? 'ไม่มีพนักงานใน Section นี้' : 'เลือก Section เพื่อแสดงพนักงาน'}</p>`;
 
     const select = root.querySelector('#flSection'), value = overview ? OVERVIEW_ID : section;
@@ -424,6 +424,17 @@
     };
   }
 
+  async function pollLayout() {
+    if (!root?.isConnected || !ready || busy || uploading || layoutPollRunning || navigator.onLine === false) return;
+    const page = root, revision = layoutRevision;
+    layoutPollRunning = true;
+    try {
+      const response = await request(), next = normalize(await response.json());
+      if (root !== page || !page.isConnected || busy || revision !== layoutRevision) return;
+      if (JSON.stringify(next) !== JSON.stringify(data)) { data = next; remember(); syncRoster(true); }
+    } catch (_) { /* Keep confirmed data and retry on the next interval. */ }
+    finally { layoutPollRunning = false; }
+  }
   async function load() {
     ready = false; controls(); note('กำลังโหลด Layout จากข้อมูลกลาง...');
     try {
@@ -431,7 +442,7 @@
       if (window.firebase?.apps?.length && !subscription) {
         subscription = firebase.database().ref(PATH);
         subscription.on('value', snapshot => {
-          data = normalize(snapshot.val()); remember();
+          layoutRevision++; data = normalize(snapshot.val()); remember();
           remotePending = true;
           syncRoster(true);
         }, () => { note('การอัปเดตสดขาดการเชื่อมต่อ · กดโหลดข้อมูลล่าสุด'); });
@@ -527,11 +538,11 @@
     canvas.addEventListener('pointercancel', () => { areaStart = null; areaPointer = null; drawArea(null); });
     root.addEventListener('focusout', () => setTimeout(() => { if (root?.isConnected && !editingControl() && !busy && remotePending) { remotePending = false; refresh(); }; },100));
     rosterSignature = ''; rosterCleanupPending = true;
-    rosterTimer = setInterval(syncRoster,3000);
+    rosterTimer = setInterval(() => { syncRoster(); void pollLayout(); },5000);
     refresh(); void load();
   }
   window.PPMS_FACTORY_LAYOUT = {
-    page: () => `<section id="factoryLayoutPage"><div class="page-head"><div><h2>Layout โรงงาน · พนักงานประจำเครื่อง</h2><p>เลือก Layout รวมเพื่อดูภาพรวมโรงงาน หรือเลือก Section เพื่อเปิดพื้นที่ของแผนกนั้น · เลือกกะเช้าหรือกะดึก · ลากรูปจากรายชื่อเพื่อกำหนดเครื่อง · ลากรูปจากเครื่องเดิมไปเครื่องใหม่เพื่อย้าย</p></div></div><div class="fl-toolbar"><label class="fl-section-choice">เลือก Section<select id="flSection" aria-label="เลือก Section เพื่อดูเฉพาะพื้นที่แผนก"></select></label><label data-fl-section-only>กะ<select id="flShift" aria-label="เลือกกะพนักงานประจำเครื่อง"><option value="day">กะเช้า</option><option value="night">กะดึก</option></select></label><label id="flMapChoice" hidden>พื้นที่ใน Section<select id="flMapPicker"></select></label><label data-fl-section-only>เครื่องจักร<select id="flMachinePicker"></select></label><label data-fl-section-only>ค้นหาเครื่อง / ชื่อ / รหัสพนักงาน<input id="flSearch" placeholder="ค้นหาตำแหน่งพนักงานหรือเครื่องจักร"></label><button id="flUploadSection" data-fl-write>อัปโหลดผังแผนก</button><button data-fl-section-only id="flAddMachine">เพิ่มเครื่อง/จุดงาน</button><button data-fl-section-only id="flSeedStamping" data-fl-write class="secondary">เพิ่ม Stamping 1#–13#</button><button id="flReload" class="secondary">โหลดข้อมูลล่าสุด</button></div><div class="fl-status" data-layout-status role="status"></div><p id="flCounts"></p><p data-fl-section-only class="fl-muted">แยกรายชื่อประจำเครื่องตามกะ · รายการเดิมที่ยังไม่ระบุกะแสดงในกะเช้า · Support Stamping ฝั่งละ 1 คนต่อกะ</p><div class="fl-grid"><aside class="fl-panel fl-sidebar"><details><summary>เครื่องจักร / จุดงาน</summary><div id="flMachineList"></div></details><h3>พนักงานที่ยังไม่ประจำเครื่อง</h3><p class="fl-muted">เลือกเครื่องแล้วลากพนักงานลงพื้นที่ว่างบนผัง หรือวางลงป้ายเครื่อง · ลากกลับแถบนี้เพื่อยกเลิกประจำเครื่อง</p><p id="flRosterCount" class="fl-muted"></p><div id="flUnassigned"></div><div id="flMoveTargets" class="fl-transfer-targets" hidden></div></aside><section class="fl-panel fl-map"><div class="fl-actions"><button id="flZoomOut" class="secondary" aria-label="ย่อผัง">−</button><span id="flZoomLabel" aria-live="polite"></span><select id="flZoomPreset" aria-label="ระดับซูม"><option value="">กำหนดเอง</option><option value="1">100%</option><option value="2">200%</option><option value="4">400%</option><option value="6">600%</option><option value="8">800%</option><option value="10">1000%</option><option value="16">1600%</option></select><button id="flZoomIn" class="secondary" aria-label="ขยายผัง">+</button><button data-fl-section-only id="flZoomSection">ซูมแผนก</button><button data-fl-section-only id="flZoomMachine">ซูมเครื่อง</button><button data-fl-section-only id="flSetArea" data-fl-write class="secondary">กำหนดพื้นที่แผนก</button><button id="flFit" class="secondary">เต็มผังแผนก</button></div><p id="flImageNote" class="fl-hint"></p><div class="fl-viewport"><p id="flNoMap" class="fl-empty" hidden></p><div id="flCanvas"><img id="flImage" alt="ผังเครื่องจักรโรงงาน" draggable="false"><div id="flSavedArea" class="fl-area-outline" hidden></div><div id="flAreaSelection" class="fl-area-selection" hidden></div><div id="flPins"></div></div></div><p data-fl-section-only class="fl-muted">ลากรูปพนักงานที่อยู่บนป้ายเครื่องไปวางบนป้ายเครื่องปลายทางเพื่อย้ายทันที · กดเครื่องเพื่อดูผู้รับผิดชอบ</p><div data-fl-section-only class="fl-legend">${Object.entries(colors).map(([k,c]) => `<span><i style="background:${c}"></i>${k}</span>`).join('')}</div></section><aside class="fl-panel" id="flDetail"></aside></div></section>`,
+    page: () => `<section id="factoryLayoutPage"><div class="page-head"><div><h2>Layout โรงงาน · พนักงานประจำเครื่อง</h2><p>เลือก Layout รวมเพื่อดูภาพรวมโรงงาน หรือเลือก Section เพื่อเปิดพื้นที่ของแผนกนั้น · เลือกกะเช้าหรือกะดึก · ลากรูปจากรายชื่อเพื่อกำหนดเครื่อง · ลากรูปจากเครื่องเดิมไปเครื่องใหม่เพื่อย้าย</p></div></div><div class="fl-toolbar"><label class="fl-section-choice">เลือก Section<select id="flSection" aria-label="เลือก Section เพื่อดูเฉพาะพื้นที่แผนก"></select></label><label data-fl-section-only>กะ<select id="flShift" aria-label="เลือกกะพนักงานประจำเครื่อง"><option value="day">กะเช้า</option><option value="night">กะดึก</option></select></label><label id="flMapChoice" hidden>พื้นที่ใน Section<select id="flMapPicker"></select></label><label data-fl-section-only>เครื่องจักร<select id="flMachinePicker"></select></label><label data-fl-section-only>ค้นหาเครื่อง / ชื่อ / รหัสพนักงาน<input id="flSearch" placeholder="ค้นหาตำแหน่งพนักงานหรือเครื่องจักร"></label><button id="flUploadSection" data-fl-write>อัปโหลดผังแผนก</button><button data-fl-section-only id="flAddMachine">เพิ่มเครื่อง/จุดงาน</button><button data-fl-section-only id="flSeedStamping" data-fl-write class="secondary">เพิ่ม Stamping 1#–13#</button><button id="flReload" class="secondary">โหลดข้อมูลล่าสุด</button></div><div class="fl-status" data-layout-status role="status"></div><p id="flCounts"></p><p data-fl-section-only class="fl-muted">ช่องพนักงานว่างแสดงเฉพาะคนที่ยังไม่จัดทั้งสองกะ · รายชื่อบนเครื่องแยกตามกะ · รายการเดิมที่ยังไม่ระบุกะแสดงในกะเช้า · Support Stamping ฝั่งละ 1 คนต่อกะ</p><div class="fl-grid"><aside class="fl-panel fl-sidebar"><details><summary>เครื่องจักร / จุดงาน</summary><div id="flMachineList"></div></details><h3>พนักงานที่ยังไม่ประจำเครื่อง</h3><p class="fl-muted">เลือกเครื่องแล้วลากพนักงานลงพื้นที่ว่างบนผัง หรือวางลงป้ายเครื่อง · ลากกลับแถบนี้เพื่อยกเลิกประจำเครื่อง</p><p id="flRosterCount" class="fl-muted"></p><div id="flUnassigned"></div><div id="flMoveTargets" class="fl-transfer-targets" hidden></div></aside><section class="fl-panel fl-map"><div class="fl-actions"><button id="flZoomOut" class="secondary" aria-label="ย่อผัง">−</button><span id="flZoomLabel" aria-live="polite"></span><select id="flZoomPreset" aria-label="ระดับซูม"><option value="">กำหนดเอง</option><option value="1">100%</option><option value="2">200%</option><option value="4">400%</option><option value="6">600%</option><option value="8">800%</option><option value="10">1000%</option><option value="16">1600%</option></select><button id="flZoomIn" class="secondary" aria-label="ขยายผัง">+</button><button data-fl-section-only id="flZoomSection">ซูมแผนก</button><button data-fl-section-only id="flZoomMachine">ซูมเครื่อง</button><button data-fl-section-only id="flSetArea" data-fl-write class="secondary">กำหนดพื้นที่แผนก</button><button id="flFit" class="secondary">เต็มผังแผนก</button></div><p id="flImageNote" class="fl-hint"></p><div class="fl-viewport"><p id="flNoMap" class="fl-empty" hidden></p><div id="flCanvas"><img id="flImage" alt="ผังเครื่องจักรโรงงาน" draggable="false"><div id="flSavedArea" class="fl-area-outline" hidden></div><div id="flAreaSelection" class="fl-area-selection" hidden></div><div id="flPins"></div></div></div><p data-fl-section-only class="fl-muted">ลากรูปพนักงานที่อยู่บนป้ายเครื่องไปวางบนป้ายเครื่องปลายทางเพื่อย้ายทันที · กดเครื่องเพื่อดูผู้รับผิดชอบ</p><div data-fl-section-only class="fl-legend">${Object.entries(colors).map(([k,c]) => `<span><i style="background:${c}"></i>${k}</span>`).join('')}</div></section><aside class="fl-panel" id="flDetail"></aside></div></section>`,
     mount
   };
   const style = document.createElement('style');
