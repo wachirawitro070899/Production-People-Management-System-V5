@@ -55,7 +55,7 @@
   let shift = 'day';
   const shiftName = value => value === 'night' ? 'กะดึก' : 'กะเช้า';
   const assignmentShift = a => a?.shift === 'night' ? 'night' : 'day';
-  const assignmentIds = (m,value = shift) => new Set(Object.values(m?.assignments || {}).filter(a => assignmentShift(a) === value).map(a => String(a?.employeeId || '')).filter(Boolean));
+  const assignmentIds = (m,value = shift) => { const people = new Map(roster().map(e => [String(e.id),e])); return new Set(Object.values(m?.assignments || {}).filter(a => { const e = people.get(String(a?.employeeId || '')); return e && (!m.section || e.section === m.section) && assignmentShift(a) === value; }).map(a => String(a.employeeId))); };
   function checkCapacity(m,id,value) {
     if (m.kind === 'support' && [...assignmentIds(m,value)].some(other => other !== id)) throw Error(m.name + ' · ' + shiftName(value) + ' มี Support ครบ 1 คนแล้ว กรุณาย้ายหรือยกเลิกคนเดิมก่อน');
   }
@@ -183,7 +183,25 @@
     if (a) Object.assign(box.style,{left:a.x+'%',top:a.y+'%',width:a.width+'%',height:a.height+'%'});
   }
   const rectangle = (a,b) => ({x:Math.min(a.x,b.x),y:Math.min(a.y,b.y),width:Math.abs(a.x-b.x),height:Math.abs(a.y-b.y)});
-  function roster() { return window.PPMS_RUNTIME?.factoryLayoutEmployees?.() || []; }
+  const deletedIds = () => new Set((window.PPMS_RUNTIME?.factoryLayoutDeletedEmployeeIds?.() || []).map(String));
+  function roster() { const deleted = deletedIds(); return (window.PPMS_RUNTIME?.factoryLayoutEmployees?.() || []).filter(e => e && e.id != null && !deleted.has(String(e.id))); }
+  function purgeDeletedAssignments(d) {
+    const deleted = deletedIds();
+    for (const m of Object.values(d.machines || {})) for (const [key,a] of Object.entries(m?.assignments || {})) if (deleted.has(String(a?.employeeId || ''))) delete m.assignments[key];
+  }
+  let rosterCleanupPending = false;
+  function syncRoster(force = false) {
+    if (!root?.isConnected) return;
+    const sig = JSON.stringify({people:roster(),deleted:[...deletedIds()]});
+    if (force || sig !== rosterSignature) { rosterSignature = sig; rosterCleanupPending = true; remotePending = true; }
+    if (remotePending && !editingControl() && !busy) { remotePending = false; refresh(); }
+    if (rosterCleanupPending && ready && !busy && admin()) {
+      rosterCleanupPending = false;
+      const deleted = deletedIds();
+      if (entries().some(m => Object.values(m.assignments || {}).some(a => deleted.has(String(a?.employeeId || ''))))) void save(purgeDeletedAssignments,'อัปเดต Layout ตามรายชื่อหลัก · ลบรายการประจำเครื่องของพนักงานที่ถูกลบแล้ว');
+    }
+  }
+  window.addEventListener('ppms-employees-changed', () => syncRoster(true));
   function admin() { return window.PPMS_RUNTIME?.factoryLayoutIsAdmin?.() === true; }
   function base() {
     const url = String(window.PPMS_FIREBASE_CONFIG?.databaseURL || '').replace(/\/$/, '');
@@ -213,7 +231,7 @@
         const read = await request({headers:{'X-Firebase-ETag':'true'}}), etag = read.headers.get('etag');
         if (!etag) throw Error('ฐานข้อมูลไม่ส่งเวอร์ชันยืนยัน กรุณาลองอีกครั้ง');
         const next = normalize(await read.json());
-        update(next);
+        purgeDeletedAssignments(next); update(next);
         next.updatedAt = new Date().toISOString();
         next.updatedBy = sessionStorage.getItem('ppms_admin_user') || 'admin';
         const write = await request({method:'PUT', headers:{'Content-Type':'application/json','if-match':etag}, body:JSON.stringify(next)});
@@ -409,13 +427,13 @@
   async function load() {
     ready = false; controls(); note('กำลังโหลด Layout จากข้อมูลกลาง...');
     try {
-      const r = await request(); data = normalize(await r.json()); ready = true; remember(); note('เชื่อมต่อข้อมูลกลางแล้ว'); refresh(); if (section) zoomSection();
+      const r = await request(); data = normalize(await r.json()); ready = true; remember(); note('เชื่อมต่อข้อมูลกลางแล้ว'); refresh(); syncRoster(true); if (section) zoomSection();
       if (window.firebase?.apps?.length && !subscription) {
         subscription = firebase.database().ref(PATH);
         subscription.on('value', snapshot => {
           data = normalize(snapshot.val()); remember();
           remotePending = true;
-          if (!busy && !editingControl()) { remotePending = false; refresh(); }
+          syncRoster(true);
         }, () => { note('การอัปเดตสดขาดการเชื่อมต่อ · กดโหลดข้อมูลล่าสุด'); });
       }
     } catch (e) { note(e.message + ' · แสดงข้อมูลสำรองและยังบันทึกไม่ได้'); refresh(); }
@@ -508,8 +526,8 @@
     });
     canvas.addEventListener('pointercancel', () => { areaStart = null; areaPointer = null; drawArea(null); });
     root.addEventListener('focusout', () => setTimeout(() => { if (root?.isConnected && !editingControl() && !busy && remotePending) { remotePending = false; refresh(); }; },100));
-    rosterSignature = JSON.stringify(roster());
-    rosterTimer = setInterval(() => { const sig = JSON.stringify(roster()); if (sig !== rosterSignature) { rosterSignature = sig; remotePending = true; if (!editingControl() && !busy) { remotePending = false; refresh(); } } },3000);
+    rosterSignature = ''; rosterCleanupPending = true;
+    rosterTimer = setInterval(syncRoster,3000);
     refresh(); void load();
   }
   window.PPMS_FACTORY_LAYOUT = {
