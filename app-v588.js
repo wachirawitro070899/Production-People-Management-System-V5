@@ -2795,6 +2795,19 @@ window.PPMS_RUNTIME={
  skillScoreRanges,
  factoryLayoutEmployees:()=>[...(organizationRenderMaster?.employees||employees)].filter(e=>e&&e.id!=null&&!deletedEmployeeIds.has(String(e.id))).map(e=>({...e})),
  factoryLayoutDeletedEmployeeIds:()=>[...deletedEmployeeIds].map(String),
+ applyEmployeeDeletionSnapshot(ids){
+  const remote = new Set(ids.map(String));
+  const list = organizationRenderMaster?.employees || employees;
+  if(!list.some(e=>remote.has(String(e.id))) && [...remote].every(id=>deletedEmployeeIds.has(id)))return;
+  for(const id of remote)deletedEmployeeIds.add(id);
+  employees=employees.filter(e=>!remote.has(String(e.id)));
+  if(organizationRenderMaster)organizationRenderMaster.employees=organizationRenderMaster.employees.filter(e=>!remote.has(String(e.id)));
+  evaluations=evaluations.filter(e=>!remote.has(String(e.employeeId)));
+  training=training.filter(e=>!remote.has(String(e.employeeId)));
+  persistDeletedIds();persistCloudToLocal();
+  window.dispatchEvent(new Event('ppms-employees-changed'));
+  if(current!=='factoryLayout')queueRemoteRender();
+ },
  async deleteEmployeeNow(id){if(!isAdmin&&!isLeaderMode())throw Error('กรุณาเข้าสู่ระบบ Admin หรือ Leader');const e=(organizationRenderMaster?.employees||employees).find(e=>String(e.id)===String(id));if(!isAdmin&&(!e||e.section!==leaderEmployee()?.section))throw Error('ลบได้เฉพาะพนักงานใน Section ของตนเอง');return deleteEmployeeCloudNow(id)},
  factoryLayoutIsAdmin:()=>isAdmin&&sessionStorage.getItem('ppms_admin')==='1',
  syncAdminAccounts(list){if(!isAdmin)return;adminAccounts=normalizeAdminAccounts(list);localStorage.setItem(ADMIN_ACCOUNT_KEY,JSON.stringify(adminAccounts));if(current==='accounts')renderCore()},

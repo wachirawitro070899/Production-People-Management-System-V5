@@ -48,5 +48,18 @@ async function remove(id){
  if(records(roster.value).some(e=>String(e.id)===id)||!Object.values(deleted.value||{}).map(String).includes(id))throw Error('Firebase ยังไม่ยืนยันการลบ • เก็บรายการรอลบไว้แล้ว');
  return {employees:roster.value,deletedEmployeeIds:Object.values(deleted.value||{}).map(String)};
 }
+// A small REST read still reaches other devices when the large root socket stalls.
+let deletionPollRunning=false;
+async function pollDeletions(){
+ if(deletionPollRunning||navigator.onLine===false||!window.PPMS_RUNTIME?.applyEmployeeDeletionSnapshot)return;
+ deletionPollRunning=true;
+ try{const result=await request('deletedEmployeeIds');window.PPMS_RUNTIME.applyEmployeeDeletionSnapshot(Object.values(result.value||{}).map(String))}
+ catch(_){/* Retry without replacing confirmed data with an offline cache. */}
+ finally{deletionPollRunning=false}
+}
+setInterval(pollDeletions,5000);
+window.addEventListener('online',pollDeletions);
+window.addEventListener('focus',pollDeletions);
+window.addEventListener('DOMContentLoaded',pollDeletions);
 window.PPMS_EMPLOYEE_DELETE_SERVICE={remove(id){id=String(id);if(running.has(id))return running.get(id);const job=remove(id).finally(()=>running.delete(id));running.set(id,job);return job}};
 })();
