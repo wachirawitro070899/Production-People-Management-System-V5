@@ -7,14 +7,15 @@
   const norm=value=>String(value??'').normalize('NFKC').trim().toLowerCase();
   const today=()=>new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Bangkok',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
   const read=(key,fallback)=>{try{return JSON.parse(localStorage.getItem(key)||'null')??fallback}catch{return fallback}};
-  let active=false, month=today().slice(0,7), section='', data=null, error='', loading=false, requestNumber=0, results=[];
+  let active=false, month=today().slice(0,7), section='', data=null, error='', loading=false, requestNumber=0, results=[], rosterSignature='';
   const style=document.createElement('style');
   style.textContent=`body.section-production-kpi-view #app{display:none!important}#${rootId}{max-width:1500px;margin:auto;padding:24px}#${rootId} .kpi-section-controls{display:flex;align-items:end;flex-wrap:wrap;gap:12px;margin:16px 0}#${rootId} .kpi-section-controls label{display:grid;gap:6px;font-size:14px}#${rootId} input,#${rootId} select{min-height:40px}#${rootId} .kpi-section-head{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;margin:0 0 12px}#${rootId} .kpi-section-head h3{margin:0}#${rootId} .kpi-pass{color:#16734a;font-weight:800}#${rootId} .kpi-pending{color:#876114}#${rootId} .kpi-section-detail{font-size:13px;line-height:1.7;white-space:normal;max-width:420px}#${rootId} .kpi-section-detail summary{cursor:pointer}#${rootId} td,#${rootId} th{padding:10px;vertical-align:top}#${rootId} .panel{margin-bottom:18px}#${rootId} .kpi-summary-note{font-size:14px;color:#526171}#${rootId} .table-wrap{overflow:auto}@media(max-width:700px){#${rootId}{padding:16px}#${rootId} table{min-width:680px}}`;
   document.head.append(style);
   function employees(){
-    const deleted=new Set(read('ppms_v3_deleted_employee_ids',[]).map(norm));
-    const list=read('ppms_v3_employees',[]), seen=new Set();
-    return (Array.isArray(list)?list:[]).filter(e=>{const code=norm(e.id);if(!code||seen.has(code)||deleted.has(code))return false;seen.add(code);return true}).map(e=>({code:String(e.id),name:e.thaiName||e.name||'',section:String(e.section||'ไม่ระบุ Section')}));
+    const runtime=window.PPMS_RUNTIME;
+    const deleted=new Set([...read('ppms_v3_deleted_employee_ids',[]),...read('ppms_v3_pending_employee_deletes',[]),...(runtime?.factoryLayoutDeletedEmployeeIds?.()||[])].map(norm));
+    const list=runtime?.factoryLayoutEmployees?.()||read('ppms_v3_employees',[]), seen=new Set(), invalid=new Set(['meta','deletedemployeeids','employees','shiftschedules','holidays','skilloverrides','nghistoryarchive','formeremployees','attendancerecords']);
+    return (Array.isArray(list)?list:[]).filter(e=>{if(!e||typeof e!=='object'||Array.isArray(e))return false;const code=norm(e.id);if(!code||invalid.has(code)||seen.has(code)||deleted.has(code))return false;seen.add(code);return true}).map(e=>({code:String(e.id),name:e.thaiName||e.name||'',section:String(e.section||'ไม่ระบุ Section')}));
   }
   const scanOnDate = row => { const stamp=new Date(row.scannedAt); return !Number.isNaN(stamp.getTime()) && new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Bangkok',year:'numeric',month:'2-digit',day:'2-digit'}).format(stamp)===row.workDate; };
   function summarize(roster,payload,selectedMonth,isOnline){
@@ -70,7 +71,7 @@
     if(!/^\d{4}-(0[1-9]|1[0-2])$/.test(month)){error='กรุณาเลือกเดือน';renderResults();return;}
     const token=++requestNumber,requestedMonth=month;loading=true;error='';renderResults();
     try{
-      const roster=employees(), histories=[];let cursor=0,complete=0,online=true,asOf='',failed=0;
+      const roster=employees(), histories=[];rosterSignature=JSON.stringify(roster);let cursor=0,complete=0,online=true,asOf='',failed=0;
       await Promise.all(Array.from({length:Math.min(6,roster.length)},async()=>{
         while(cursor<roster.length){
           const employee=roster[cursor++];if(token!==requestNumber)return;
@@ -117,7 +118,9 @@
     }else{active=false;document.body.classList.remove('section-production-kpi-view');document.getElementById(rootId)?.setAttribute('hidden','')}
   },true);
   const nav=document.getElementById('nav');if(nav)new MutationObserver(addButton).observe(nav,{childList:true});
-  window.addEventListener('storage',()=>{if(active)renderResults()});
-  setInterval(()=>{if(active&&!loading)renderResults()},15000);
+  function updateRoster(){if(!active)return;const sig=JSON.stringify(employees());if(sig!==rosterSignature)void load();else if(!loading)renderResults()}
+  window.addEventListener('storage',updateRoster);
+  window.addEventListener('ppms-employees-changed',updateRoster);
+  setInterval(updateRoster,15000);
   addButton();
 })();
