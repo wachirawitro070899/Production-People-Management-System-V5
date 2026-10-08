@@ -154,7 +154,7 @@
       if (!point) { delete target.assignments[targetKey].x; delete target.assignments[targetKey].y; delete target.assignments[targetKey].mapId; }
       sourceKeys.forEach(key => delete source.assignments[key]);
     },'ย้ายพนักงานไปเครื่องปลายทาง · ' + shiftName(value) + 'แล้ว');
-    if (ok) { pendingEmployee = ''; selected = to; placing = false; refresh(); if (!point) zoomMachine(to); }
+    if (ok) { pendingEmployee = ''; selected = to; placing = false; refresh(); }
     return ok;
   }
   function movePerson(id,from = selected) {
@@ -461,7 +461,7 @@
     root.addEventListener('click', async event => {
       const b = event.target.closest('button');
       if (selectingArea && event.target.closest('#flCanvas')) return;
-      if (b?.dataset.flSelect) { selected = b.dataset.flSelect; placing = false; if (pendingEmployee) { await assignEmployee(pendingEmployee,selected); } else { refresh(); zoomMachine(); } return; }
+      if (b?.dataset.flSelect) { selected = b.dataset.flSelect; placing = false; if (pendingEmployee) { await assignEmployee(pendingEmployee,selected); } else { refresh(); } return; }
       if (b?.hasAttribute('data-fl-place')) { if (!busy && ready) { selectingArea = false; drawArea(null); placing = !placing; refresh(); } return; }
       if (b?.hasAttribute('data-fl-edit')) { editMachine(selected); return; }
       if (b?.hasAttribute('data-fl-delete')) {
@@ -483,7 +483,7 @@
     root.querySelector('#flReload').onclick = () => { imageRequests.clear(); load(); };
     root.querySelector('#flUploadSection').onclick = uploadSection;
     root.querySelector('#flZoomMachine').onclick = () => zoomMachine();
-    root.querySelector('#flMachinePicker').onchange = async event => { selected = event.target.value; placing = false; if (pendingEmployee && selected) await assignEmployee(pendingEmployee,selected); refresh(); if (selected) zoomMachine(); };
+    root.querySelector('#flMachinePicker').onchange = async event => { selected = event.target.value; placing = false; if (pendingEmployee && selected) await assignEmployee(pendingEmployee,selected); refresh(); };
     root.addEventListener('error', event => { const img = event.target; if (!img?.classList?.contains('fl-photo')) return; img.hidden = true; const fallback = img.parentElement.querySelector('.fl-photo-fallback'); if (fallback) fallback.hidden = false; },true);
     root.addEventListener('keydown', event => { if (!['Enter',' '].includes(event.key) || !event.target.matches('[data-fl-employee]')) return; event.preventDefault(); event.target.click(); });
     root.addEventListener('dragstart', event => { const card = event.target.closest('[data-fl-employee]'); if (!card || !admin() || busy || !ready) return; if (!selected && card.dataset.flSource) selected = card.dataset.flSource; event.dataTransfer.setData('application/x-ppms-employee',card.dataset.flEmployee); event.dataTransfer.setData('application/x-ppms-shift',shift); if (card.dataset.flSource) event.dataTransfer.setData('application/x-ppms-source-machine',card.dataset.flSource); event.dataTransfer.effectAllowed = card.dataset.flSource ? 'move' : 'copy'; const targets = root.querySelector('#flMoveTargets'); if (card.dataset.flSource) { const sec = data.machines[card.dataset.flSource]?.section; targets.innerHTML = '<b>ลากลงเครื่องปลายทาง</b>' + entries().filter(m => m.id !== card.dataset.flSource && m.section === sec).map(m => `<button type="button" class="fl-machine" data-fl-select="${esc(m.id)}">${esc(m.name)}</button>`).join(''); targets.hidden = false; } else targets.hidden = true; });
