@@ -1,7 +1,7 @@
 /* Monthly production KPI by Section, using the same daily rule as employee cards. */
 (() => {
   'use strict';
-  const endpoint='https://machine-part-kpi.jinrong-tl-1709.chatgpt.site/api/employee-skill-history';
+  const endpoint='https://machine-part-kpi.jinrong-tl-1709.chatgpt.site/api/ppms/employee-kpi';
   const page='sectionProductionKpi', rootId='sectionProductionKpiPage';
   const esc=value=>String(value??'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
   const norm=value=>String(value??'').normalize('NFKC').trim().toLowerCase();
@@ -64,29 +64,19 @@
     const shown=results.filter(e=>!section||e.section===section);
     container.innerHTML=sections.filter(s=>!section||s===section).map(s=>{
       const rows=shown.filter(e=>e.section===s).sort((a,b)=>a.name.localeCompare(b.name,'th')||a.code.localeCompare(b.code));
-      return `<section class="panel"><div class="kpi-section-head"><h3>${esc(s)}</h3><span>${rows.length} คน · วันถึงเกณฑ์รวม ${rows.reduce((sum,e)=>sum+e.passed,0)} คน-วัน</span></div><div class="table-wrap"><table><thead><tr><th>รหัส</th><th>ชื่อพนักงาน</th><th>ถึงเกณฑ์ (วัน)</th><th>ไม่ถึงเกณฑ์ (วัน)</th><th>รอตรวจ (วัน)</th><th>วันที่ถึงเกณฑ์ / รายละเอียด</th></tr></thead><tbody>${rows.map(e=>`<tr><td>${esc(e.code)}</td><td>${esc(e.name)}</td><td class="kpi-pass">${e.passed}</td><td>${e.failed}</td><td class="kpi-pending">${e.waiting}</td><td>${e.days.length?`<details class="kpi-section-detail"><summary>${e.days.filter(d=>d.status==='ถึงเกณฑ์').map(d=>d.date.slice(-2)).join(', ')||'ยังไม่มีวันถึงเกณฑ์'} · ดูรายวัน</summary>${e.days.map(d=>`<div><b>${esc(d.date)} · ${d.status}</b>${!d.scan?' · วันที่สแกน QR ไม่ตรงกับวันที่ผลิต':''}<br>${d.rows.map(r=>`${esc(r.machine)} · ${Number.isFinite(r.rate)?Number(r.rate).toLocaleString('th-TH',{maximumFractionDigits:1})+'%':'—'} · ${esc(r.status)}`).join('<br>')}</div>`).join('')}</details>`:'ไม่มีการผลิต'}</td></tr>`).join('')}</tbody></table></div></section>`;
+      return `<section class="panel"><div class="kpi-section-head"><h3>${esc(s)}</h3><span>${rows.length} คน · วันถึงเกณฑ์รวม ${rows.reduce((sum,e)=>sum+e.passed,0)} คน-วัน</span></div><div class="table-wrap"><table><thead><tr><th>รหัส</th><th>ชื่อพนักงาน</th><th>ถึงเกณฑ์ (วัน)</th><th>ไม่ถึงเกณฑ์ (วัน)</th><th>รอตรวจ (วัน)</th><th>วันที่ถึงเกณฑ์ / รายละเอียด</th></tr></thead><tbody>${rows.map(e=>`<tr><td>${esc(e.code)}</td><td>${esc(e.name)}</td><td class="kpi-pass">${e.passed}</td><td>${e.failed}</td><td class="kpi-pending">${e.waiting}</td><td>${e.days.length?`<details class="kpi-section-detail"><summary>${e.days.filter(d=>d.status==='ถึงเกณฑ์').map(d=>d.date.slice(-2)).join(', ')||'ยังไม่มีวันถึงเกณฑ์'} · ดูรายวัน</summary>${e.days.map(d=>`<div><b>${esc(d.date)} · ${d.status}</b>${!d.scan?' · วันที่สแกน QR ไม่ตรงกับวันที่ผลิต':''}<br>${d.rows.map(r=>`${esc(r.machine)} · ${Number.isFinite(r.rate)?Number(r.rate).toLocaleString('th-TH',{maximumFractionDigits:1})+'%':'—'} · ${esc(r.status)}`).join('<br>')}</div>`).join('')}</details>`:error?'ยังดึงข้อมูล KPI ไม่สำเร็จ':'ไม่มีการผลิต'}</td></tr>`).join('')}</tbody></table></div></section>`;
     }).join('')||'<p>ยังไม่มีพนักงานใน Section นี้</p>';
   }
   async function load(){
+    if(!employees().length){data={histories:[],online:true};error='';loading=false;renderResults();return;}
     if(!/^\d{4}-(0[1-9]|1[0-2])$/.test(month)){error='กรุณาเลือกเดือน';renderResults();return;}
     const token=++requestNumber,requestedMonth=month;loading=true;error='';renderResults();
     try{
-      const roster=employees(), histories=[];rosterSignature=JSON.stringify(roster);let cursor=0,complete=0,online=true,asOf='',failed=0;
-      await Promise.all(Array.from({length:Math.min(6,roster.length)},async()=>{
-        while(cursor<roster.length){
-          const employee=roster[cursor++];if(token!==requestNumber)return;
-          try{
-            const response=await fetch(endpoint+'?code='+encodeURIComponent(employee.code),{cache:'no-store',signal:AbortSignal.timeout(60000)});
-            const payload=await response.json();if(!response.ok||!Array.isArray(payload.history))throw Error('โหลด KPI ไม่สำเร็จ');
-            histories.push({employeeCode:employee.code,history:payload.history});if(payload.online===false)online=false;
-            if(payload.asOf&&payload.asOf>asOf)asOf=payload.asOf;
-          }catch{failed++;online=false;}
-          complete++;
-          if(active&&token===requestNumber){const status=document.getElementById('sectionKpiStatus');if(status)status.textContent='กำลังดึง KPI ล่าสุด '+complete+' / '+roster.length+' คน';}
-        }
-      }));
-      const payload={month:requestedMonth,histories,online,asOf};
-      if(failed&&token===requestNumber)error='เชื่อม KPI ไม่สำเร็จ '+failed+' คน กรุณากดอัปเดตข้อมูลอีกครั้ง';
+      const roster=employees();rosterSignature=JSON.stringify(roster);
+      const params=new URLSearchParams({month:requestedMonth,codes:roster.map(e=>e.code).join(',')});
+      const response=await fetch(endpoint+'?'+params.toString(),{cache:'no-store',signal:AbortSignal.timeout(60000)});
+      const payload=await response.json();
+      if(!response.ok||!Array.isArray(payload.histories))throw Error(payload.error||'เชื่อมข้อมูล KPI ไม่สำเร็จ');
       if(token===requestNumber)data=payload;
     }catch(e){if(token===requestNumber)error=e.message||'เชื่อม KPI ไม่สำเร็จ';}
     finally{if(token===requestNumber){loading=false;renderResults();}}
@@ -122,5 +112,6 @@
   window.addEventListener('storage',updateRoster);
   window.addEventListener('ppms-employees-changed',updateRoster);
   setInterval(updateRoster,15000);
+  setInterval(()=>{if(active&&!loading&&document.visibilityState!=='hidden')void load()},60000);
   addButton();
 })();
