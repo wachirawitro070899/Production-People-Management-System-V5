@@ -48,6 +48,31 @@ async function remove(id){
  if(records(roster.value).some(e=>String(e.id)===id)||!Object.values(deleted.value||{}).map(String).includes(id))throw Error('Firebase ยังไม่ยืนยันการลบ • เก็บรายการรอลบไว้แล้ว');
  return {employees:roster.value,deletedEmployeeIds:Object.values(deleted.value||{}).map(String)};
 }
+// Save the employee collection independently of the large ppms root socket.
+async function upsert(data,originalId=''){
+ const id=String(data.id),oldId=String(originalId||'');
+ const deleted=await request('deletedEmployeeIds');
+ if(oldId===id&&Object.values(deleted.value||{}).map(String).includes(id))throw Error('พนักงานถูกลบแล้ว กรุณาโหลดรายชื่อใหม่');
+ await change('employees',value=>{
+  if(Array.isArray(value)||value==null){
+   const next=records(value).filter(e=>String(e.id)!==id&&(!oldId||String(e.id)!==oldId));
+   return [...next,data];
+  }
+  const next={...value};
+  for(const [key,e] of Object.entries(next))if(e&&(String(e.id)===id||(oldId&&String(e.id)===oldId)))delete next[key];
+  const key=!id.startsWith('__ppmskey__')&&!/[.#$\[\]\/]/.test(id)?id:'__ppmskey__'+encodeURIComponent(id).replace(/\./g,'%2E');
+  next[key]=data;return next;
+ });
+ await change('deletedEmployeeIds',value=>{
+  const ids=new Set(Object.values(value||{}).map(String));
+  ids.delete(id);if(oldId&&oldId!==id)ids.add(oldId);return [...ids];
+ });
+ const [roster,tombstones]=await Promise.all([request('employees'),request('deletedEmployeeIds')]);
+ const saved=records(roster.value).find(e=>String(e.id)===id);
+ if(!saved||saved.updatedAt!==data.updatedAt||Object.values(tombstones.value||{}).map(String).includes(id))throw Error('Firebase ยังไม่ยืนยันรายชื่อใหม่ • เก็บรายการรอส่งไว้แล้ว');
+ return {employees:roster.value,deletedEmployeeIds:Object.values(tombstones.value||{}).map(String)};
+}
+window.PPMS_EMPLOYEE_SAVE_SERVICE={upsert};
 // A small REST read still reaches other devices when the large root socket stalls.
 let deletionPollRunning=false;
 async function pollDeletions(){
@@ -57,6 +82,19 @@ async function pollDeletions(){
  catch(_){/* Retry without replacing confirmed data with an offline cache. */}
  finally{deletionPollRunning=false}
 }
+let rosterPollRunning=false;
+async function pollRoster(){
+ if(rosterPollRunning||navigator.onLine===false||!window.PPMS_RUNTIME?.applyEmployeeRosterSnapshot)return;
+ rosterPollRunning=true;
+ const revision=window.PPMS_RUNTIME.employeeRosterRevision();
+ try{const [roster,deleted]=await Promise.all([request('employees'),request('deletedEmployeeIds')]);window.PPMS_RUNTIME.applyEmployeeRosterSnapshot({employees:roster.value,deletedEmployeeIds:Object.values(deleted.value||{}).map(String)},revision)}
+ catch(_){/* Keep confirmed and pending local rows when offline. */}
+ finally{rosterPollRunning=false}
+}
+setInterval(pollRoster,20000);
+window.addEventListener('online',pollRoster);
+window.addEventListener('focus',pollRoster);
+window.addEventListener('DOMContentLoaded',pollRoster);
 setInterval(pollDeletions,5000);
 window.addEventListener('online',pollDeletions);
 window.addEventListener('focus',pollDeletions);

@@ -10,7 +10,7 @@ assert.deepEqual([...ctx.ids(machine,null)],['1','2']);
 assert.deepEqual(people.filter(e=>!ctx.ids(machine,null).has(e.id)).map(e=>e.id),['3']);
 const app=fs.readFileSync('app-v588.js','utf8'),start=app.indexOf(' applyEmployeeDeletionSnapshot(ids){'),end=app.indexOf('\n async deleteEmployeeNow',start);
 let events=0,renders=0;
-const sync={employees:[...people],organizationRenderMaster:{employees:[...people]},evaluations:[{employeeId:'1'},{employeeId:'3'}],training:[{employeeId:'1'}],deletedEmployeeIds:new Set(),current:'factoryLayout',persistDeletedIds(){},persistCloudToLocal(){},window:{dispatchEvent(){events++}},Event:class{},queueRemoteRender(){renders++}};
+const sync={pendingEmployeeSaves:{},employees:[...people],organizationRenderMaster:{employees:[...people]},evaluations:[{employeeId:'1'},{employeeId:'3'}],training:[{employeeId:'1'}],deletedEmployeeIds:new Set(),current:'factoryLayout',persistDeletedIds(){},persistCloudToLocal(){},window:{dispatchEvent(){events++}},Event:class{},queueRemoteRender(){renders++}};
 vm.createContext(sync);vm.runInContext('this.runtime={'+app.slice(start,end)+'};',sync);
 sync.runtime.applyEmployeeDeletionSnapshot(['1']);assert.deepEqual(sync.employees.map(e=>e.id),['2','3']);assert.deepEqual(sync.organizationRenderMaster.employees.map(e=>e.id),['2','3']);assert.equal(sync.training.length,0);assert(sync.deletedEmployeeIds.has('1'));assert.equal(events,1);assert.equal(renders,0);
 sync.runtime.applyEmployeeDeletionSnapshot(['1']);assert.equal(events,1);
