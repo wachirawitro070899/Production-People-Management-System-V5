@@ -7,8 +7,8 @@ const storageKey=()=>`ppms_org_effective_date_${section().toLowerCase().replace(
 const effectiveDate=()=>localStorage.getItem(storageKey())||today();
 const employeeId=value=>String(value||'').normalize('NFKC').trim().toUpperCase();
 function employeeMeta(){let list=[];try{const raw=JSON.parse(localStorage.getItem('ppms_v3_employees')||'[]');list=Array.isArray(raw)?raw:Object.values(raw||{})}catch(_){}return new Map(list.filter(Boolean).map(item=>[employeeId(item.id),item]))}
-const employmentRank=item=>String(item?.contractType||'').trim().toLowerCase()==='permanent'?0:1;
-const startTime=item=>{const time=Date.parse(item?.startDate||'');return Number.isFinite(time)?time:Number.MAX_SAFE_INTEGER};
+const employmentRank=item=>/^(permanent|พนักงานประจำ)$/i.test(String(item?.contractType||'').trim())?0:1;
+const startTime=item=>{const time=Date.parse((employmentRank(item)===0?item?.permanentStartDate:'')||item?.startDate||'');return Number.isFinite(time)?time:Number.MAX_SAFE_INTEGER};
 const rankOf=node=>{const text=node.textContent||'';if(/supervisor/i.test(text))return['supervisor','Supervisor'];if(/leader|หัวหน้าทีม/i.test(text))return['leader','Leader'];if(/technician/i.test(text))return['technician','Technician'];if(/\b(?:operator|opeartor|operater)\b|\bop\b|พนักงานทั่วไป|พนักงานผลิต/i.test(text))return['operator','Operator'];return['other','Other']};
 function weldingCard(id,node,item,rank,position){
  const visual=node.querySelector('img,.avatar')?.cloneNode(true),photo=visual?visual.outerHTML:'<div class="avatar">?</div>',name=item?.name||node.querySelector('b,strong')?.textContent||'';
@@ -18,7 +18,7 @@ function stampingHierarchy(report,footer){
  let extra=report.querySelector('.stamping-standard-hierarchy');
  if(!/stamping/i.test(section())){extra?.remove();return}
  const unique=new Map();report.querySelectorAll('[data-edit]').forEach(node=>{const id=String(node.dataset.edit||'').trim();if(id&&!node.closest('.stamping-standard-hierarchy')&&!unique.has(id))unique.set(id,node)});
- const meta=employeeMeta(),groups=new Map();for(const [id,node]of unique){const [rank,label]=rankOf(node);if(!groups.has(rank))groups.set(rank,{label,items:[]});groups.get(rank).items.push({id,node,meta:meta.get(employeeId(id))||null})}for(const group of groups.values())group.items.sort((a,b)=>startTime(a.meta)-startTime(b.meta)||String(a.id).localeCompare(String(b.id),undefined,{numeric:true}));
+ const meta=employeeMeta(),groups=new Map();for(const [id,node]of unique){const [rank,label]=rankOf(node);if(!groups.has(rank))groups.set(rank,{label,items:[]});groups.get(rank).items.push({id,node,meta:meta.get(employeeId(id))||null})}for(const group of groups.values())group.items.sort((a,b)=>employmentRank(a.meta)-employmentRank(b.meta)||startTime(a.meta)-startTime(b.meta)||String(a.id).localeCompare(String(b.id),undefined,{numeric:true}));
  const order=['manager','engineer','supervisor','leader','technician','other','operator'];
  const levels=order.filter(rank=>groups.has(rank)).map(rank=>{const group=groups.get(rank);const people=group.items.map(({id,node,meta})=>weldingCard(id,node,meta,rank,meta?.position||group.label)).join('');return`<div class="level level-${rank}"><h4>${group.label}</h4><div class="people">${people}</div></div>`}).join('');
  const html=`<div class="panel hierarchy">${levels||'<div class="empty">ไม่มีข้อมูลพนักงาน</div>'}</div>`;
@@ -31,7 +31,7 @@ function stampingPrintPage(report,header,footer){
  if(!page){page=document.createElement('section');page.className='stamping-print-page unified-section-page';report.append(page)}if(page.innerHTML!==html)page.innerHTML=html;
 }
 function sortAllPeople(report){
- const meta=employeeMeta();report.querySelectorAll('.people').forEach(container=>{if(container.closest('.sorting-print-pages,.stamping-print-page'))return;const nodes=[...container.children].filter(node=>node.matches?.('[data-edit]'));if(!nodes.length)return;const indexed=nodes.map((node,index)=>({node,index,id:String(node.dataset.edit||''),meta:meta.get(employeeId(node.dataset.edit))||null}));const sorted=[...indexed].sort((a,b)=>startTime(a.meta)-startTime(b.meta)||(a.meta&&b.meta?String(a.id).localeCompare(String(b.id),undefined,{numeric:true}):a.index-b.index));if(sorted.some((item,index)=>item.node!==nodes[index]))sorted.forEach(item=>container.append(item.node));container.classList.toggle('people-multi',nodes.length>9);container.classList.toggle('people-wrapped',nodes.length>18)})
+ const meta=employeeMeta();report.querySelectorAll('.people').forEach(container=>{if(container.closest('.sorting-print-pages,.stamping-print-page'))return;const nodes=[...container.children].filter(node=>node.matches?.('[data-edit]'));if(!nodes.length)return;const indexed=nodes.map((node,index)=>({node,index,id:String(node.dataset.edit||''),meta:meta.get(employeeId(node.dataset.edit))||null}));const sorted=[...indexed].sort((a,b)=>employmentRank(a.meta)-employmentRank(b.meta)||startTime(a.meta)-startTime(b.meta)||(a.meta&&b.meta?String(a.id).localeCompare(String(b.id),undefined,{numeric:true}):a.index-b.index));if(sorted.some((item,index)=>item.node!==nodes[index]))sorted.forEach(item=>container.append(item.node));container.classList.toggle('people-multi',nodes.length>9);container.classList.toggle('people-wrapped',nodes.length>18)})
 }
 function sortingPrintPages(report,header,footer){
  let pages=report.querySelector('.sorting-print-pages');
