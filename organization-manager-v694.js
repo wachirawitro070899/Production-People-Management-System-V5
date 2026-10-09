@@ -47,6 +47,31 @@ function scopeTitle(){const select=document.getElementById('globalOrganizationDi
 function neutralFactoryStyle(){if(document.getElementById('neutralFactoryCss'))return;const s=document.createElement('style');s.id='neutralFactoryCss';s.textContent='.factory-chart-person,.factory-chart-person.status-absent,.factory-chart-person.status-waiting{border-color:#9fb8cf;background:#fff}.factory-chart-person.status-leave{border-color:#eab308!important;background:#fef9c3!important;box-shadow:0 0 0 3px rgba(234,179,8,.16)}.factory-status,.factory-shift{display:none}.factory-status-leave{display:block!important;color:#854d0e;font-weight:800;margin-bottom:5px}';document.head.append(s)}
 function sectionPositionStyle(){if(document.getElementById('sectionPositionCss'))return;const s=document.createElement('style');s.id='sectionPositionCss';s.textContent='.section-position-add{display:block;margin:7px auto;padding:6px 10px;font-size:12px}.factory-role:has(.factory-people){padding-bottom:10px}.factory-role{border-top-width:3px}.factory-role>strong{color:#fff;border-color:transparent}.factory-role-leader{border-top-color:#164d84;background:#eef6ff}.factory-role-leader>strong{background:#164d84}.factory-role-supervisor{border-top-color:#7c3aed;background:#f5f3ff}.factory-role-supervisor>strong{background:#7c3aed}.factory-role-engineer{border-top-color:#0284c7;background:#f0f9ff}.factory-role-engineer>strong{background:#0284c7}.factory-role-technician{border-top-color:#d97706;background:#fffbeb}.factory-role-technician>strong{background:#d97706}.factory-role-operator{border-top-color:#059669;background:#ecfdf5}.factory-role-operator>strong{background:#059669}.factory-role-other{border-top-color:#64748b;background:#f8fafc}.factory-role-other>strong{background:#64748b}';document.head.append(s)}
 function defaultFormScope(){const f=document.getElementById('employeeForm');if(!f||f.elements.originalId?.value||f.dataset.orgDefaulted)return;f.dataset.orgDefaulted='1';const division=sessionStorage.getItem('ppms_scope_division'),plant=sessionStorage.getItem('ppms_scope_plant');if(division&&master.divisions.includes(division))f.elements.organizationDivision.value=division;if(plant&&master.plants.includes(plant))f.elements.organizationPlant.value=plant}
+function redrawLiveEmployeeChart(){
+ const select=document.getElementById('factoryDivisionChart'),detail=document.getElementById('factoryDivisionChartDetail');
+ if(select&&detail)renderDivisionChart(select,detail);
+}
+window.addEventListener('ppms-employees-changed',redrawLiveEmployeeChart);
+window.addEventListener('storage',event=>{if(event.key==='ppms_v3_employees'||event.key==='ppms_v3_deleted_employee_ids')redrawLiveEmployeeChart()});
+// The separate Factory Organization page does not load the main app runtime.
+let factoryRosterLoading=false;
+async function refreshFactoryRoster(){
+ if(!FACTORY_PAGE||sessionStorage.getItem('ppms_admin')!=='1'||factoryRosterLoading||navigator.onLine===false)return;
+ const base=String(window.PPMS_FIREBASE_CONFIG?.databaseURL||'').replace(/\/$/,'');if(!base)return;
+ factoryRosterLoading=true;const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),15000);
+ try{
+  const values=await Promise.all(['employees','deletedEmployeeIds'].map(async path=>{
+   const response=await fetch(base+'/ppms/'+path+'.json',{signal:controller.signal,cache:'no-store'});
+   if(!response.ok)throw Error('โหลดรายชื่อไม่สำเร็จ');return response.json();
+  }));
+  const deleted=new Set(Object.values(values[1]||{}).map(String));
+  const rows=Object.values(values[0]||{}).filter(e=>e&&e.id!=null&&!deleted.has(String(e.id)));
+  const encoded=JSON.stringify(rows);
+  if(encoded!==localStorage.getItem('ppms_v3_employees')){localStorage.setItem('ppms_v3_employees',encoded);localStorage.setItem('ppms_v3_deleted_employee_ids',JSON.stringify([...deleted]));redrawLiveEmployeeChart()}
+ }catch(_){/* Keep the last confirmed roster if a network read fails. */}
+ finally{clearTimeout(timer);factoryRosterLoading=false}
+}
+if(FACTORY_PAGE){setInterval(refreshFactoryRoster,10000);window.addEventListener('online',refreshFactoryRoster);window.addEventListener('focus',refreshFactoryRoster);setTimeout(refreshFactoryRoster,500)}
 function factoryLink(){document.querySelector('#nav [data-factory-organization]')?.remove()}
 function enhance(){normalizeMaps();unifyOrganization();mergeCorporateAdministration();mergeBusinessOperations();expandDivisionNames();splitSortingSections();removeGeneratedVacancies();scopeStyle();neutralFactoryStyle();sectionPositionStyle();addStyle();if(FACTORY_PAGE){overview();chartPicker();simplifyOrganization()}else factoryLink();scopeTitle();employeeFields();defaultFormScope();sectionOptions()}
 document.addEventListener('click',e=>{if(e.target.closest('[data-add-factory-section]'))master.sectionMap||={};if(e.target.closest('[data-add-division-position]'))master.positionMap||={}},true);
