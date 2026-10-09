@@ -41,6 +41,8 @@ async function remove(id){
  // back into the roster, even if the connection fails during the next step.
  await change('deletedEmployeeIds',value=>[...new Set([...(Array.isArray(value)?value:Object.values(value||{})).map(String),id])]);
  await change('employees',value=>{
+  const existing=records(value).find(e=>String(e.id)===id);
+  if(options.createOnly&&existing){const error=Error('รหัสพนักงานนี้มีอยู่แล้ว');error.code='employee-exists';error.existing=existing;throw error}
   if(Array.isArray(value))return value.filter(e=>!e||String(e.id)!==id);
   const next={...(value||{})};for(const [key,e] of Object.entries(next))if(e&&String(e.id)===id)delete next[key];return next;
  });
@@ -49,11 +51,13 @@ async function remove(id){
  return {employees:roster.value,deletedEmployeeIds:Object.values(deleted.value||{}).map(String)};
 }
 // Save the employee collection independently of the large ppms root socket.
-async function upsert(data,originalId=''){
+async function upsert(data,originalId='',options={}){
  const id=String(data.id),oldId=String(originalId||'');
  const deleted=await request('deletedEmployeeIds');
  if(oldId===id&&Object.values(deleted.value||{}).map(String).includes(id))throw Error('พนักงานถูกลบแล้ว กรุณาโหลดรายชื่อใหม่');
  await change('employees',value=>{
+  const existing=records(value).find(e=>String(e.id)===id);
+  if(options.createOnly&&existing){const error=Error('รหัสพนักงานนี้มีอยู่แล้ว');error.code='employee-exists';error.existing=existing;throw error}
   if(Array.isArray(value)||value==null){
    const next=records(value).filter(e=>String(e.id)!==id&&(!oldId||String(e.id)!==oldId));
    return [...next,data];

@@ -82,10 +82,25 @@ async function openLeaderEmployeeManager(){
  const master=await loadMaster(),leader=findEmployee(master.employees,sessionStorage.getItem('ppms_leader_id'));
  if(!leader||!isLeader(leader.position))throw Error('กรุณา Login ด้วยรหัส Leader ใหม่');
  const section=String(leader.section||''),division=String(leader.organizationDivision||'Production Division'),plant=String(leader.organizationPlant||'โรง 1'),list=master.employees.filter(item=>sectionKey(item.section)===sectionKey(section)).sort((a,b)=>String(a.id).localeCompare(String(b.id),undefined,{numeric:true}));
- const rows=list.map(emp=>'<tr><td><b>'+esc(emp.id)+'</b></td><td>'+esc(emp.name||emp.thaiName||'')+'</td><td>'+esc(emp.position||'Operator')+'</td><td>'+esc(emp.startDate||'-')+'</td><td>'+(String(emp.id)===String(leader.id)?'<small>Leader ที่ Login</small>':'<button type="button" class="danger compact" data-leader-remove="'+esc(emp.id)+'">พนักงานลาออก</button>')+'</td></tr>').join('');
+ const rows=list.map(emp=>'<tr><td><b>'+esc(emp.id)+'</b></td><td>'+(emp.photoData||emp.photoUrl?'<img src="'+esc(emp.photoData||emp.photoUrl)+'" alt="รูปพนักงาน" style="width:48px;height:48px;object-fit:cover;border-radius:50%;vertical-align:middle;margin-right:8px">':'')+esc(emp.name||emp.thaiName||'')+'<br><button type="button" class="secondary compact" data-leader-photo="'+esc(emp.id)+'">เพิ่ม / เปลี่ยน / ลบรูป</button></td><td>'+esc(emp.position||'Operator')+'</td><td>'+esc(emp.startDate||'-')+'</td><td>'+(String(emp.id)===String(leader.id)?'<small>Leader ที่ Login</small>':'<button type="button" class="danger compact" data-leader-remove="'+esc(emp.id)+'">พนักงานลาออก</button>')+'</td></tr>').join('');
  const responsibility=sectionKey(section).includes('stamping')?'<label>ทีม Stamping<select name="stampingShift"><option value="">ไม่ระบุ</option><option>Team A</option><option>Team B</option></select></label><label>Stamping Group<select name="stampingGroup"><option value="">ไม่ระบุ</option><option value="A">Group A (No.1#–No.6#)</option><option value="B">Group B (No.7#–No.8#)</option><option value="C">Group C (No.9#–No.13#)</option></select></label><label>หน้าที่ในกลุ่ม<select name="stampingRole"><option value="">ไม่ระบุ</option>'+['Operator 1','Operator 2','Operator 3','Operator 4','Operator 5','Operator 6','Operator 7','Operator 8','Operator 9','Operator 10','Spare','Support'].map(value=>'<option>'+value+'</option>').join('')+'</select></label><label>เครื่องที่รับผิดชอบ<input name="stampingMachines" placeholder="เช่น No.1# & No.2#"></label>':(sectionKey(section).includes('sorting')?'<label>กลุ่ม Sorting<select name="sortingGroup"><option value="">ไม่ระบุ</option><option>Sorting 1</option><option>Sorting 2</option></select></label>':'');
- openModal('<h2>เพิ่ม / ลบพนักงาน • '+esc(section)+'</h2><p class="modal-note">แบบฟอร์มเดียวกับหน้า Admin • Leader เพิ่มได้เฉพาะ Section ของตน</p><form id="leaderAddEmployee" class="form-grid"><label>รหัสพนักงาน<input name="id" placeholder="รหัสพนักงาน" required></label><label>ชื่อภาษาอังกฤษ<input name="name" placeholder="ชื่อภาษาอังกฤษ" required></label><label>ชื่อภาษาไทย<input name="thaiName" placeholder="ชื่อภาษาไทย"></label><label>เบอร์โทร<input name="phone" placeholder="เบอร์โทร"></label><label>Division<input value="'+esc(division)+'" readonly><input type="hidden" name="organizationDivision" value="'+esc(division)+'"></label><label>โรงงาน<input value="'+esc(plant)+'" readonly><input type="hidden" name="organizationPlant" value="'+esc(plant)+'"></label><label>Section<input value="'+esc(section)+'" readonly></label><label>ตำแหน่ง<input name="position" value="Operator" placeholder="ตำแหน่ง" required></label><label>วันที่เริ่มงาน<input name="startDate" type="date" required></label><label>ประเภทพนักงาน<select name="contractType"><option value="Permanent">Permanent</option><option value="Subcontractor">Subcontractor</option></select></label><label>กะ Attendance<select name="attendanceShift"><option value="day">กะเช้า / Day Shift</option><option value="night">กะดึก / Night Shift</option></select></label>'+responsibility+'<div class="full actions"><button type="submit">บันทึกข้อมูล</button></div></form><div class="table-wrap" style="margin-top:18px"><table><thead><tr><th>รหัส</th><th>ชื่อ</th><th>ตำแหน่ง</th><th>วันเริ่ม</th><th>จัดการ</th></tr></thead><tbody>'+rows+'</tbody></table></div>');
- const form=document.getElementById('leaderAddEmployee');form.onsubmit=async event=>{event.preventDefault();const data=Object.fromEntries(new FormData(form)),id=String(data.id||'').trim(),name=String(data.name||'').trim();if(!id||!name)return alert('กรุณากรอกรหัสและชื่อพนักงาน');const submit=form.querySelector('[type="submit"]');submit.disabled=true;try{const ref=master.db.ref('ppms/employees'),snap=await ref.once('value'),raw=snap.val(),employees=employeesFrom(decodeFirebase(raw||{}));if(findEmployee(employees,id))throw Error('รหัสพนักงานนี้มีอยู่แล้ว');const employee={id,name,thaiName:'',phone:'',section,position:String(data.position||'Operator'),contractType:String(data.contractType||'Permanent'),startDate:String(data.startDate||dateKey()),currentSkillLevel:1,skillLevels:{},createdAt:new Date().toISOString(),createdByLeader:String(leader.id)};await ref.transaction(raw=>{if(raw==null)return;const latest=employeesFrom(decodeFirebase(raw));if(findEmployee(latest,id))return;return encodeFirebase([...latest,employee])});await master.db.ref('ppms/deletedEmployeeIds').transaction(value=>(Array.isArray(value)?value:Object.values(value||{})).filter(item=>employeeKey(item)!==employeeKey(id)));alert('เพิ่มพนักงาน '+id+' ใน '+section+' เรียบร้อย');await openLeaderEmployeeManager()}catch(error){submit.disabled=false;alert('เพิ่มพนักงานไม่สำเร็จ: '+(error.message||String(error)))}};
+ openModal('<h2>เพิ่ม / ลบพนักงาน • '+esc(section)+'</h2><p class="modal-note">แบบฟอร์มเดียวกับหน้า Admin • Leader เพิ่มได้เฉพาะ Section ของตน</p><form id="leaderAddEmployee" class="form-grid"><label>รหัสพนักงาน<input name="id" placeholder="รหัสพนักงาน" required></label><label>ชื่อภาษาอังกฤษ<input name="name" placeholder="ชื่อภาษาอังกฤษ" required></label><label>ชื่อภาษาไทย<input name="thaiName" placeholder="ชื่อภาษาไทย"></label><label>เบอร์โทร<input name="phone" placeholder="เบอร์โทร"></label><label>Division<input value="'+esc(division)+'" readonly><input type="hidden" name="organizationDivision" value="'+esc(division)+'"></label><label>โรงงาน<input value="'+esc(plant)+'" readonly><input type="hidden" name="organizationPlant" value="'+esc(plant)+'"></label><label>Section<input value="'+esc(section)+'" readonly></label><label>ตำแหน่ง<input name="position" value="Operator" placeholder="ตำแหน่ง" required></label><label>วันที่เริ่มงาน<input name="startDate" type="date" required></label><label>ประเภทพนักงาน<select name="contractType"><option value="Permanent">Permanent</option><option value="Subcontractor">Subcontractor</option></select></label><label>กะ Attendance<select name="attendanceShift"><option value="day">กะเช้า / Day Shift</option><option value="night">กะดึก / Night Shift</option></select></label>'+responsibility+'<label class="full">รูปพนักงาน<input type="file" name="photo" accept="image/*"><small>เลือกรูปจากมือถือหรือคอม รูปจะบันทึกเข้าระบบ PPMS และแชร์ให้ทุกคนเห็น</small></label><div class="full actions"><button type="submit">บันทึกข้อมูล</button></div></form><div class="table-wrap" style="margin-top:18px"><table><thead><tr><th>รหัส</th><th>ชื่อ / รูป</th><th>ตำแหน่ง</th><th>วันเริ่ม</th><th>จัดการ</th></tr></thead><tbody>'+rows+'</tbody></table></div>');
+ document.querySelectorAll('[data-leader-photo]').forEach(button=>button.onclick=()=>{
+  const id=button.dataset.leaderPhoto,employee=list.find(e=>String(e.id)===String(id));
+  if(!employee||sectionKey(employee.section)!==sectionKey(section))return alert('แก้ไขได้เฉพาะพนักงานในแผนกตัวเอง');
+  openModal('<h2>รูปพนักงาน • '+esc(employee.name||id)+'</h2><form id="leaderEmployeePhoto"><label>เลือกรูป<input name="photo" type="file" accept="image/*"></label><label><input name="removePhoto" type="checkbox"> ลบรูปปัจจุบัน</label><div class="actions"><button type="submit">บันทึกรูป</button><button type="button" class="secondary" id="leaderPhotoBack">กลับรายชื่อ</button></div></form>');
+  document.getElementById('leaderPhotoBack').onclick=()=>openLeaderEmployeeManager().catch(error=>alert(error.message));
+  const form=document.getElementById('leaderEmployeePhoto');
+  form.onsubmit=async event=>{
+   event.preventDefault();const submit=form.querySelector('[type="submit"]');if(submit.disabled)return;
+   const file=form.elements.photo.files[0],remove=form.elements.removePhoto.checked;
+   if(!remove&&!file)return alert('กรุณาเลือกรูปหรือเลือกการลบรูป');
+   submit.disabled=true;submit.textContent='กำลังบันทึกรูป...';
+   try{await window.PPMS_RUNTIME.updateLeaderEmployeePhoto(id,file,remove);alert('บันทึกรูปเข้าระบบ PPMS แล้ว • ทุกคนใช้รูปเดียวกัน');await openLeaderEmployeeManager()}
+   catch(error){alert('ยังบันทึกรูปไม่สำเร็จ: '+error.message)}
+   finally{submit.disabled=false;submit.textContent='บันทึกรูป'}
+  };
+ });
  document.querySelectorAll('[data-leader-remove]').forEach(button=>button.onclick=async()=>{
   const id=String(button.dataset.leaderRemove||''),employee=list.find(item=>employeeKey(item.id)===employeeKey(id));
   if(!employee)return alert('ไม่พบพนักงาน');if(sectionKey(employee.section)!==sectionKey(section))return alert('ไม่สามารถลบพนักงานต่างแผนก');
@@ -98,6 +113,7 @@ async function openLeaderEmployeeManager(){
 document.addEventListener('submit',async event=>{
  const form=event.target;if(form?.id!=='leaderAddEmployee')return;
  event.preventDefault();event.stopImmediatePropagation();
+ if(form.querySelector('[type="submit"]')?.disabled)return;
  const data=Object.fromEntries(new FormData(form)),id=String(data.id||'').trim(),name=String(data.name||'').trim();
  if(!id||!name)return alert('กรุณากรอกรหัสและชื่อพนักงาน');
  const submit=form.querySelector('[type="submit"]');submit.disabled=true;submit.textContent='กำลังบันทึก...';
@@ -105,25 +121,11 @@ document.addEventListener('submit',async event=>{
   const master=await loadMaster(),leader=findEmployee(master.employees,sessionStorage.getItem('ppms_leader_id'));
   if(!leader||!isLeader(leader.position))throw Error('กรุณา Login ด้วยรหัส Leader ใหม่');
   const section=String(leader.section||''),employee={id,name:name.toUpperCase(),thaiName:String(data.thaiName||'').trim(),phone:String(data.phone||'').trim(),section,position:String(data.position||'Operator').trim(),contractType:String(data.contractType||'Permanent'),startDate:String(data.startDate||dateKey()),attendanceShift:String(data.attendanceShift||'day'),organizationDivision:String(data.organizationDivision||leader.organizationDivision||'Production Division'),organizationPlant:String(data.organizationPlant||leader.organizationPlant||'โรง 1'),sortingGroup:String(data.sortingGroup||''),stampingShift:String(data.stampingShift||''),stampingGroup:String(data.stampingGroup||''),stampingRole:String(data.stampingRole||''),stampingMachines:String(data.stampingMachines||'').trim(),currentSkillLevel:1,skillLevels:{},createdAt:new Date().toISOString(),updatedAt:new Date().toISOString(),createdByLeader:String(leader.id)};
-  let duplicate=false;
-  await master.db.ref('ppms').transaction(raw=>{
-   if(raw==null)return null;
-   if(typeof raw!=='object')return;
-   duplicate=false;
-   const root=decodeFirebase(raw),list=employeesFrom(root.employees||[]);
-   if(findEmployee(list,id)){duplicate=true;return}
-   root.employees=[...list,employee];
-   const deleted=Array.isArray(root.deletedEmployeeIds)?root.deletedEmployeeIds:Object.values(root.deletedEmployeeIds||{});
-   root.deletedEmployeeIds=deleted.filter(item=>employeeKey(item)!==employeeKey(id));
-   root.meta={...(root.meta||{}),updatedAt:new Date().toISOString(),employeeMaster:'firebase',employeeMasterVersion:'V720',lastLeaderEmployeeAdd:id};
-   return encodeFirebase(root);
-  });
-  if(duplicate)throw Error('รหัสพนักงานนี้มีอยู่แล้ว');
-  const verified=employeesFrom(decodeFirebase((await master.db.ref('ppms/employees').once('value')).val()||{}));
-  if(!findEmployee(verified,id))throw Error('Firebase ยังไม่พบรายชื่อที่เพิ่ม กรุณาลองใหม่');
-  localStorage.setItem('ppms_v3_employees',JSON.stringify(verified));
-  const deletedRaw=(await master.db.ref('ppms/deletedEmployeeIds').once('value')).val();
-  localStorage.setItem('ppms_v3_deleted_employee_ids',JSON.stringify(Array.isArray(deletedRaw)?deletedRaw:Object.values(deletedRaw||{})));
+  if(findEmployee(master.employees,id))throw Error('รหัสพนักงานนี้มีอยู่แล้ว');
+  if(!window.PPMS_RUNTIME?.addLeaderEmployee)throw Error('กรุณารีเฟรชเพื่อใช้ระบบรายชื่อใหม่');
+  const file=form.elements.photo.files[0];
+  employee.photoData=file?await window.PPMS_RUNTIME.employeePhotoData(file):'';employee.photoUrl='';
+  await window.PPMS_RUNTIME.addLeaderEmployee(employee);
   alert('เพิ่มพนักงาน '+id+' ใน '+section+' สำเร็จ และแสดงในระบบแล้ว');
   await openLeaderEmployeeManager();
  }catch(error){submit.disabled=false;submit.textContent='เพิ่มพนักงาน';alert('เพิ่มพนักงานไม่สำเร็จ: '+(error.message||String(error)))}
