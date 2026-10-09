@@ -1,0 +1,14 @@
+const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
+const app=fs.readFileSync('app-v588.js','utf8'),factory=fs.readFileSync('organization-manager-v694.js','utf8'),doc=fs.readFileSync('org-chart-document-v666.js','utf8');
+const extract=(s,start,end)=>s.slice(s.indexOf(start),s.indexOf(end,s.indexOf(start)));
+const ctx={};vm.createContext(ctx);vm.runInContext(extract(app,'function rank(', 'function avatar('),ctx);
+const people=[{id:'new',startDate:'2026-08-01',contractType:'Permanent'},{id:'older',startDate:'2025-01-01',contractType:'Subcontractor'},{id:'10',startDate:'2026-01-01'},{id:'2',startDate:'2026-01-01'},{id:'missing'},{id:'invalid',startDate:'bad'}];
+assert.deepEqual([...people].sort(ctx.orgSeniorityCompare).map(e=>e.id),['older','2','10','new','invalid','missing']);
+for(const position of ['Operator','OP','OP1','Opeartor','Operater','พนักงานทั่วไป'])assert.equal(ctx.rank(position),'operator');
+assert.equal(ctx.rank('Document Control'),'other');assert.equal(ctx.rank('Leader'),'leader');
+vm.runInContext(extract(factory,'function seniorityCompare(', 'function renderDivisionChart('),ctx);assert.deepEqual([...people].sort(ctx.seniorityCompare).map(e=>e.id),['older','2','10','new','invalid','missing']);
+for(const p of ['OP','Opeartor','Operator'])assert.equal(ctx.positionClass(p),'operator');
+assert(factory.includes("positionClass(value)==='operator'?'Operator':value"));
+assert(!doc.includes('employmentRank(a.meta)-employmentRank(b.meta)'));
+assert(app.includes('shiftList.filter(e=>rank(e.position)===r).sort(orgSeniorityCompare)'));
+console.log('Passed: earliest start date first across contract types, same-date numeric ID tie, missing/invalid dates last, ordinary-employee aliases, unchanged management classification, screen/print seniority.');
