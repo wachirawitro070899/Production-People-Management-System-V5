@@ -9,7 +9,7 @@ const employeeId=value=>String(value||'').normalize('NFKC').trim().toUpperCase()
 function employeeMeta(){let list=[];try{const raw=JSON.parse(localStorage.getItem('ppms_v3_employees')||'[]');list=Array.isArray(raw)?raw:Object.values(raw||{})}catch(_){}return new Map(list.filter(Boolean).map(item=>[employeeId(item.id),item]))}
 const employmentRank=item=>String(item?.contractType||'').trim().toLowerCase()==='permanent'?0:1;
 const startTime=item=>{const time=Date.parse(item?.startDate||'');return Number.isFinite(time)?time:Number.MAX_SAFE_INTEGER};
-const rankOf=node=>{const text=node.textContent||'';if(/supervisor/i.test(text))return['supervisor','Supervisor'];if(/leader|หัวหน้าทีม/i.test(text))return['leader','Leader'];if(/technician/i.test(text))return['technician','Technician'];if(/operator/i.test(text))return['operator','Operator'];return['other','Other']};
+const rankOf=node=>{const text=node.textContent||'';if(/supervisor/i.test(text))return['supervisor','Supervisor'];if(/leader|หัวหน้าทีม/i.test(text))return['leader','Leader'];if(/technician/i.test(text))return['technician','Technician'];if(/\boperator\b|\bop\b/i.test(text))return['operator','Operator'];return['other','Other']};
 function weldingCard(id,node,item,rank,position){
  const visual=node.querySelector('img,.avatar')?.cloneNode(true),photo=visual?visual.outerHTML:'<div class="avatar">?</div>',name=item?.name||node.querySelector('b,strong')?.textContent||'';
  return`<div class="person ${rank} person-editable" data-edit="${esc(id)}" role="button" tabindex="0">${photo}<b>${esc(name)}</b><small>${esc(id)}<br>${esc(position)}</small></div>`;
@@ -19,7 +19,7 @@ function stampingHierarchy(report,footer){
  if(!/stamping/i.test(section())){extra?.remove();return}
  const unique=new Map();report.querySelectorAll('[data-edit]').forEach(node=>{const id=String(node.dataset.edit||'').trim();if(id&&!node.closest('.stamping-standard-hierarchy')&&!unique.has(id))unique.set(id,node)});
  const meta=employeeMeta(),groups=new Map();for(const [id,node]of unique){const [rank,label]=rankOf(node);if(!groups.has(rank))groups.set(rank,{label,items:[]});groups.get(rank).items.push({id,node,meta:meta.get(employeeId(id))||null})}for(const group of groups.values())group.items.sort((a,b)=>employmentRank(a.meta)-employmentRank(b.meta)||startTime(a.meta)-startTime(b.meta)||String(a.id).localeCompare(String(b.id),undefined,{numeric:true}));
- const order=['manager','engineer','supervisor','leader','technician','operator','other'];
+ const order=['manager','engineer','supervisor','leader','technician','other','operator'];
  const levels=order.filter(rank=>groups.has(rank)).map(rank=>{const group=groups.get(rank);const people=group.items.map(({id,node,meta})=>weldingCard(id,node,meta,rank,meta?.position||group.label)).join('');return`<div class="level level-${rank}"><h4>${group.label}</h4><div class="people">${people}</div></div>`}).join('');
  const html=`<div class="panel hierarchy">${levels||'<div class="empty">ไม่มีข้อมูลพนักงาน</div>'}</div>`;
  if(!extra){extra=document.createElement('section');extra.className='stamping-standard-hierarchy';report.insertBefore(extra,footer)}
