@@ -1,0 +1,44 @@
+const fs=require('node:fs'),assert=require('node:assert/strict');
+const {JSDOM,VirtualConsole}=require(process.env.JSDOM_MODULE||'jsdom');
+const wait=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+async function settled(w){for(let i=0;i<40;i++){await wait(100);if(w.document.querySelector('#app>.ppms-jd-page-toolbar'))return}}
+const html=fs.readFileSync('index.html','utf8');
+const scripts=[...html.matchAll(/<script[^>]+src=["']([^"']+)["']/g)].map(m=>m[1].split('?')[0]).filter(p=>!/^https?:/.test(p));
+const positions=['Manager','Production Engineer','Supervisor','Leader','Technician','Operator','Document Control','Production Planning','Store','Tooling Engineer','Welding Engineer','Assistant Leader'];
+const sections=['Engineering Support Section','Support Production Section','Machine Maintenance Section','Tooling Maintenance Section','Stamping Section','Welding Section','Sorting Section','CNC Section','Tapping Section','Bending Section'];
+const employees=sections.flatMap((section,s)=>positions.slice(0,8).map((position,i)=>({id:'TEST-'+s+'-'+i,name:'TEST EMPLOYEE '+s+' '+i,position,section,startDate:'2020-01-01',contractType:i%2?'Subcontractor':'Permanent',sortingGroup:i%2?'Sorting 1':'Sorting 2',skillLevels:{},currentSkillLevel:1})));
+async function setup(admin=true,entry='index.html'){
+ const html=fs.readFileSync(entry,'utf8'),scripts=[...html.matchAll(/<script[^>]+src=["']([^"']+)["']/g)].map(m=>m[1].split('?')[0]).filter(p=>!/^https?:/.test(p));
+ const errors=[],warnings=[],vc=new VirtualConsole();vc.on('jsdomError',e=>errors.push(e.message));vc.on('error',e=>errors.push(String(e)));vc.on('warn',e=>warnings.push(String(e)));
+ const dom=new JSDOM(html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi,''),{url:'https://example.test/'+(entry==='index.html'?'':entry),runScripts:'outside-only',pretendToBeVisual:true,virtualConsole:vc,storageQuota:50*1024*1024});
+ const w=dom.window;w.TextEncoder=TextEncoder;w.TextDecoder=TextDecoder;w.structuredClone=structuredClone;w.CSS={escape:s=>String(s).replace(/[^a-zA-Z0-9_-]/g,c=>'\\'+c)};Object.defineProperty(w.crypto,'subtle',{value:require('node:crypto').webcrypto.subtle});
+ w.alert=()=>{};w.confirm=()=>false;w.prompt=()=>null;w.print=()=>{};w.scrollTo=()=>{};w.HTMLElement.prototype.scrollIntoView=()=>{};w.matchMedia=()=>({matches:false,addEventListener(){},removeEventListener(){},addListener(){},removeListener(){}});
+ w.fetch=async url=>({ok:true,status:200,headers:{get:()=>null},json:async()=>String(url).includes('adminAccounts')?[{username:'tester',passwordHash:'test',active:true,owner:false}]:String(url).includes('/employees.json')?employees:String(url).includes('/deletedEmployeeIds.json')?[]:null});
+ w.localStorage.setItem('ppms_v3_employees',JSON.stringify(employees));
+ w.localStorage.setItem('ppms_v768_admin_device_id','test-device');w.sessionStorage.setItem('ppms_device_lock_verified','test-device');
+ if(admin){w.sessionStorage.setItem('ppms_admin','1');w.sessionStorage.setItem('ppms_admin_user','tester')}
+ await wait(0);
+ for(const script of scripts){try{w.eval(fs.readFileSync(script,'utf8')+'\n//# sourceURL='+script)}catch(e){errors.push(script+': '+e.stack)}}
+ w.document.dispatchEvent(new w.Event('DOMContentLoaded'));
+ await wait(400);return {dom,w,errors,warnings};
+}
+(async()=>{
+ const {dom,w,errors,warnings}=await setup();
+ try{
+  const pages=[...w.document.querySelectorAll('#nav [data-page]')].map(b=>b.dataset.page);assert(pages.length>10,'Admin navigation must load');
+  for(const page of pages){const button=w.document.querySelector('#nav [data-page="'+page+'"]');button.click();await wait(300);assert(w.document.querySelector('#app').textContent.trim(),page+' is not blank');assert(!w.document.querySelector('#app').textContent.includes('เกิดข้อผิดพลาดในการแสดง'),page+' render failed');console.log('PAGE',page)}
+  w.document.querySelector('#nav [data-page="sectionChart"]').click();await wait(800);
+  for(const section of ['Stamping Section','Welding Section','Sorting Section','CNC Section']){
+   const select=w.document.querySelector('#sectionSelect');select.value=section;select.dispatchEvent(new w.Event('change',{bubbles:true}));await settled(w);
+   const toolbars=w.document.querySelectorAll('#app>.ppms-jd-page-toolbar');assert.equal(toolbars.length,1,section+': one JD toolbar; admin='+w.sessionStorage.getItem('ppms_admin')+'; errors='+errors.join('; ')+'; page='+w.document.querySelector('#app').textContent.slice(0,300));
+   const report=w.document.querySelector('.section-org-report'),card=report.querySelector('.person[data-edit]');assert(card,'Employee cards load');assert(card.querySelector('[data-jd-employee-id]'),'Employee JD action loads');
+   await wait(400);assert.equal(w.document.querySelector('.section-org-report'),report);assert.equal(report.querySelector('.person[data-edit]'),card,'Idle updates retain employee cards');assert.equal(w.document.querySelectorAll('#app>.ppms-jd-page-toolbar').length,1);
+   const date=w.document.querySelector('#orgEffectiveDate');date.value='2026-10-13';date.dispatchEvent(new w.Event('change',{bubbles:true}));await wait(300);assert.equal(report.querySelector('.person[data-edit]'),card,'Changing the report date retains employee cards/JD');
+   w.PPMSLanguage.setLanguage('en');await wait(250);w.PPMSLanguage.setLanguage('th');await wait(250);assert.equal(w.document.querySelectorAll('#app>.ppms-jd-page-toolbar').length,1,'Language changes do not duplicate controls');
+  }
+  assert.deepEqual(errors,[],errors.join('\n'));console.log('PASSED admin pages, stable Section charts, JD controls, dates, language. Warnings:',warnings.length);
+ }finally{dom.window.close()}
+ const publicPage=await setup(false);try{assert(publicPage.w.document.querySelector('#app').textContent.trim());assert.deepEqual(publicPage.errors,[]);console.log('PASSED public attendance startup')}finally{publicPage.dom.window.close()}
+ const factory=await setup(true,'factory-organization.html');try{await wait(900);assert(factory.w.document.querySelector('.factory-chart-person [data-jd-employee-id]'),'Factory employee cards include JD');assert.deepEqual(factory.errors,[]);console.log('PASSED Factory Organization startup and employee JD actions')}finally{factory.dom.window.close()}
+ const fallback=await setup(false,'404.html');try{assert(fallback.w.document.querySelector('#app').textContent.trim());assert.deepEqual(fallback.errors,[]);console.log('PASSED fallback-page startup')}finally{fallback.dom.window.close()}
+})().catch(e=>{console.error(e);process.exitCode=1});

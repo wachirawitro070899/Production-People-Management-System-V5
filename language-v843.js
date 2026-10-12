@@ -2947,6 +2947,7 @@ Layout โรงงาน|Factory Layout
   'Good Qty':'จำนวนชิ้นดี','Downtime':'เวลาหยุดเครื่อง','Total Score':'คะแนนรวม',
   'Prepared by':'ผู้จัดทำ','Reviewed by':'ผู้ตรวจสอบ','Approved by':'ผู้อนุมัติ'
  };
+ Object.assign(dictionary,{'ใช้เอกสารหน้างานและตรวจ Revision ได้; บันทึกข้อมูลและจัดเก็บเอกสารเป็นระบบ; ใช้โปรแกรมสำนักงานพื้นฐานได้ และประสานงานกับผู้บันทึกหรือหัวหน้าทีมได้':'Able to check shop-floor documents and revisions, record and organize data, use basic office software, and coordinate record authors or leaders.'});
  const reverse={};
  for(const [th,en] of Object.entries(dictionary))if(en&&/[A-Za-z]/.test(en))reverse[en]=th;
  Object.assign(reverse,englishUI,{
@@ -3116,3 +3117,4 @@ Layout โรงงาน|Factory Layout
  window.addEventListener('beforeprint',apply);
  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',apply,{once:true});else apply();
 })();
+

@@ -6,6 +6,9 @@ const section=()=>String(sessionStorage.getItem('chartSec')||document.querySelec
 const storageKey=()=>`ppms_org_effective_date_${section().toLowerCase().replace(/\s+/g,'_')}`;
 const effectiveDate=()=>localStorage.getItem(storageKey())||today();
 const employeeId=value=>String(value||'').normalize('NFKC').trim().toUpperCase();
+// Compare generated source, since language/JD enhancements intentionally change the DOM.
+const renderedHTML=new WeakMap();
+function updateHTML(node,html){if(renderedHTML.get(node)===html)return;renderedHTML.set(node,html);node.innerHTML=html}
 function employeeMeta(){let list=[];try{const raw=JSON.parse(localStorage.getItem('ppms_v3_employees')||'[]');list=Array.isArray(raw)?raw:Object.values(raw||{})}catch(_){}return new Map(list.filter(Boolean).map(item=>[employeeId(item.id),item]))}
 const employmentRank=item=>/^(permanent|พนักงานประจำ)$/i.test(String(item?.contractType||'').trim())?0:1;
 const startTime=item=>{const time=Date.parse((employmentRank(item)===0?item?.permanentStartDate:'')||item?.startDate||'');return Number.isFinite(time)?time:Number.MAX_SAFE_INTEGER};
@@ -23,13 +26,13 @@ function stampingHierarchy(report,footer){
  const levels=order.filter(rank=>groups.has(rank)).map(rank=>{const group=groups.get(rank);const people=group.items.map(({id,node,meta})=>weldingCard(id,node,meta,rank,meta?.position||group.label)).join('');return`<div class="level level-${rank}"><h4>${group.label}</h4><div class="people">${people}</div></div>`}).join('');
  const html=`<div class="panel hierarchy">${levels||'<div class="empty">ไม่มีข้อมูลพนักงาน</div>'}</div>`;
  if(!extra){extra=document.createElement('section');extra.className='stamping-standard-hierarchy';report.insertBefore(extra,footer)}
- if(extra.innerHTML!==html)extra.innerHTML=html;
+ updateHTML(extra,html);
  const source=report.querySelector('.stamping-role-source');if(source){source.hidden=true;source.style.display='none'}
 }
 function stampingPrintPage(report,header,footer){
  let page=report.querySelector('.stamping-print-page');if(!/stamping/i.test(section())){page?.remove();return}
  const chart=report.querySelector('.stamping-standard-hierarchy');if(!chart)return;const html=`${header.outerHTML}${chart.outerHTML}${footer.outerHTML}`;
- if(!page){page=document.createElement('section');page.className='stamping-print-page unified-section-page';report.append(page)}if(page.innerHTML!==html)page.innerHTML=html;
+ if(!page){page=document.createElement('section');page.className='stamping-print-page unified-section-page';report.append(page)}updateHTML(page,html);
 }
 function sortAllPeople(report){
  const meta=employeeMeta();report.querySelectorAll('.people').forEach(container=>{if(container.closest('.sorting-print-pages,.stamping-print-page'))return;const nodes=[...container.children].filter(node=>node.matches?.('[data-edit]'));if(!nodes.length)return;const indexed=nodes.map((node,index)=>({node,index,id:String(node.dataset.edit||''),meta:meta.get(employeeId(node.dataset.edit))||null}));const sorted=[...indexed].sort((a,b)=>employmentRank(a.meta)-employmentRank(b.meta)||startTime(a.meta)-startTime(b.meta)||(a.meta&&b.meta?String(a.id).localeCompare(String(b.id),undefined,{numeric:true}):a.index-b.index));if(sorted.some((item,index)=>item.node!==nodes[index]))sorted.forEach(item=>container.append(item.node));container.classList.toggle('people-multi',nodes.length>9);container.classList.toggle('people-wrapped',nodes.length>18)})
@@ -40,7 +43,7 @@ function sortingPrintPages(report,header,footer){
  const teams=[...report.querySelectorAll('.sorting-split>.sorting-team')];if(!teams.length)return;
  const meta=employeeMeta();const html=teams.slice(0,2).map((team,index)=>{const clone=team.cloneNode(true);clone.querySelectorAll('[data-edit]').forEach(card=>{const id=String(card.dataset.edit||''),item=meta.get(employeeId(id))||null,position=item?.position||card.closest('.level')?.querySelector('h4')?.textContent||'',rank=String(position).toLowerCase().includes('leader')?'leader':'operator';card.outerHTML=weldingCard(id,card,item,rank,position)});const head=header.cloneNode(true),group='Sorting '+(index+1),title=head.querySelector('h1'),subtitle=head.querySelector('p');if(title)title.textContent='SECTION ORGANIZATION CHART — '+group;if(subtitle)subtitle.textContent='Production People Management System · Section: '+group;const levels=[...clone.querySelectorAll(':scope>.level')].map(level=>level.outerHTML).join('');return`<section class="sorting-print-page unified-section-page">${head.outerHTML}<div class="panel hierarchy unified-section-hierarchy">${levels}</div>${footer.outerHTML}</section>`}).join('');
  if(!pages){pages=document.createElement('div');pages.className='sorting-print-pages';report.append(pages)}
- if(pages.innerHTML!==html)pages.innerHTML=html;
+ updateHTML(pages,html);
 }
 function render(){
  const report=document.querySelector('.section-org-report');
@@ -51,10 +54,10 @@ function render(){
  const toolbar=document.querySelector('.top-action-toolbar');if(toolbar)toolbar.remove();
  let header=report.querySelector('.org-document-header');
  if(!header){header=document.createElement('section');header.className='org-document-header';report.prepend(header)}
- const logo=document.querySelector('header .logo img')?.src||'';const headerHtml=`<div class="org-document-logo">${logo?`<img src="${esc(logo)}" alt="JR">`:'<b>JR</b>'}</div><div class="org-document-title"><h1>SECTION ORGANIZATION CHART — ${esc(sec)}</h1><p>Production People Management System · Section: ${esc(sec)}</p></div><dl><div><dt>Revision</dt><dd>00</dd></div><div><dt>Effective Date / วันที่เริ่มใช้งาน</dt><dd>${esc(effectiveDate())}</dd></div></dl>`;if(header.innerHTML!==headerHtml)header.innerHTML=headerHtml;
+ const logo=document.querySelector('header .logo img')?.src||'';const headerHtml=`<div class="org-document-logo">${logo?`<img src="${esc(logo)}" alt="JR">`:'<b>JR</b>'}</div><div class="org-document-title"><h1>SECTION ORGANIZATION CHART — ${esc(sec)}</h1><p>Production People Management System · Section: ${esc(sec)}</p></div><dl><div><dt>Revision</dt><dd>00</dd></div><div><dt>Effective Date / วันที่เริ่มใช้งาน</dt><dd>${esc(effectiveDate())}</dd></div></dl>`;updateHTML(header,headerHtml);
  let footer=report.querySelector('.org-document-approval');
  if(!footer){footer=document.createElement('section');footer.className='org-document-approval';report.append(footer)}
- const footerHtml='<div><b>Prepared by / จัดทำโดย</b><span></span><small>Signature / Date</small></div><div><b>Reviewed by / ตรวจสอบโดย</b><span></span><small>Signature / Date</small></div><div><b>Approved by / อนุมัติโดย</b><span></span><small>Signature / Date</small></div>';if(footer.innerHTML!==footerHtml)footer.innerHTML=footerHtml;
+ const footerHtml='<div><b>Prepared by / จัดทำโดย</b><span></span><small>Signature / Date</small></div><div><b>Reviewed by / ตรวจสอบโดย</b><span></span><small>Signature / Date</small></div><div><b>Approved by / อนุมัติโดย</b><span></span><small>Signature / Date</small></div>';updateHTML(footer,footerHtml);
  stampingHierarchy(report,footer);
  sortAllPeople(report);
  stampingPrintPage(report,header,footer);
@@ -70,3 +73,4 @@ document.addEventListener('click',event=>{if(!event.target.closest?.('[data-acti
 window.addEventListener('afterprint',()=>{document.body.classList.remove('print-section-org','org-paper-a3','org-paper-a4');document.getElementById('orgDynamicPageSize')?.remove()});
 document.addEventListener('DOMContentLoaded',schedule);
 })();
+

@@ -84,8 +84,10 @@
     return true;
   }
   async function refresh() {
-    if (Notification.permission !== 'granted' || localStorage.getItem('ppms_push_enabled') !== '1') return false;
-    try { return await enable(); } catch (error) { console.warn('PPMS push refresh failed', error); return false; }
+    try {
+      if (!supported() || Notification.permission !== 'granted' || localStorage.getItem('ppms_push_enabled') !== '1') return false;
+      return await enable();
+    } catch (error) { console.warn('PPMS push refresh failed', error); return false; }
   }
   window.PPMSPush = { enable, refresh, supported };
   document.addEventListener('change',event=>{if(!event.target?.matches?.('#attendanceEmployeeId,#employeeCode,input[id*="employee"][id*="code"]'))return;const code=String(event.target.value||'').trim();if(!code)return;localStorage.setItem('ppms_employee_code',code);localStorage.setItem('ppms_employee_shift',employeeShift(code));setTimeout(refresh,500)});
@@ -94,3 +96,4 @@
     setInterval(refresh, 10 * 60 * 1000);
   });
 })();
+

@@ -293,7 +293,7 @@ function cardControls(){
 function controls(){if(!admin())return;installStyle();refreshPositionTitles();
  const organizationPage=document.querySelector('.division-org,.section-org-report,.factory-summary');
  if(organizationPage){
-  let toolbar=document.querySelector('#app>.top-action-toolbar .top-action-buttons')||document.querySelector('.factory-summary>.org-config-head');
+  let toolbar=document.querySelector('#app>.top-action-toolbar .top-action-buttons')||document.querySelector('.factory-summary>.org-config-head')||document.querySelector('#app>.ppms-jd-page-toolbar');
   if(!toolbar){toolbar=document.createElement('div');toolbar.className='ppms-jd-page-toolbar no-print';const heading=document.querySelector('#app>.page-head');if(heading)heading.after(toolbar);else organizationPage.before(toolbar)}
   if(!toolbar.querySelector('[data-jd-page-manager]')){const b=document.createElement('button');b.type='button';b.dataset.openJd='1';b.dataset.jdPageManager='1';b.className='no-print';b.textContent='+ เพิ่ม / จัดการ JD';toolbar.append(b)}
  }
@@ -322,3 +322,4 @@ window.addEventListener('ppms-employees-changed',()=>{seedMissingJDs();seedPosit
 let timer;new MutationObserver(()=>{clearTimeout(timer);timer=setTimeout(controls,100)}).observe(document.getElementById('app')||document.body,{childList:true,subtree:true});
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',controls);else controls();
 })();
+
