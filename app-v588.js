@@ -1436,6 +1436,9 @@ function orgSectionDescriptors(){
   const occupied=employees.some(e=>String(e.section||'').trim()===section);
   return occupied||(!removed.includes(section)&&!redundant.test(section));
  });
+ const frontSections=['Engineering Support','Support Production','Machine Maintenance','Tooling Maintenance'];
+ const sectionPriority=value=>{const index=frontSections.indexOf(String(value).trim().replace(/\s+Section$/i,''));return index<0?frontSections.length:index};
+ visibleSections.sort((a,b)=>sectionPriority(a)-sectionPriority(b));
  visibleSections.forEach(section=>{
   if(section==='Sorting Section'){
    out.push({section,title:'Sorting 1',sortingGroup:'Sorting 1'});

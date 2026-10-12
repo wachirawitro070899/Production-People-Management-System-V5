@@ -256,11 +256,9 @@ function openEmployeeJD(id){
 }
 function cardControls(){
  const buttonFor=id=>{const b=document.createElement('button');b.type='button';b.dataset.openJd='1';b.dataset.jdEmployeeId=String(id);b.className='ppms-jd-person-button no-print';b.textContent='เพิ่ม / แก้ไข JD';b.title='JD รายบุคคลของรหัส '+id;return b};
- // Personal JD actions are shown on every employee card in the Section organization chart.
+ // Every organization employee card opens that person's JD, including managers.
  document.querySelectorAll('.person[data-edit],.factory-chart-person[data-edit],.stamp-top-person[data-edit],.stamp-duty-row[data-edit]').forEach(card=>{
-  if(card.closest('.section-org-report')){
-   if(!card.querySelector('[data-jd-employee-id]'))card.append(buttonFor(card.dataset.edit));
-  }else card.querySelectorAll('[data-jd-employee-id]').forEach(b=>b.remove());
+  if(!card.querySelector('[data-jd-employee-id]'))card.append(buttonFor(card.dataset.edit));
  });
  // Put the skill-card action beside the card so its printed dimensions stay intact.
  document.querySelectorAll('.wallet-card-sheet .wallet-front[data-employee-id]').forEach(card=>{

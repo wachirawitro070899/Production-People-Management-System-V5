@@ -11,7 +11,7 @@ const ctx={ORG:"ppms_employee_organization_v1",read:(key,fallback)=>cache[key]||
 vm.createContext(ctx);
 vm.runInContext(source.slice(source.indexOf('function employeeJDContext('),source.indexOf('function controls(')),ctx);
 ctx.cardControls();ctx.cardControls();
-for(const card of orgCards){assert.equal(card.children.length,1,'Only JD actions are removed for every position');assert.equal(card.children[0].dataset.employeeEdit,'1','Employee editing remains available');assert.equal(card.dataset.edit,people[orgCards.indexOf(card)].id,'Employee card and ID are retained');}
+for(const card of orgCards){assert.equal(card.children.length,2,'JD actions appear for every position');assert.equal(card.children[1].dataset.jdEmployeeId,card.dataset.edit);assert.equal(card.children[0].dataset.employeeEdit,'1','Employee editing remains available');assert.equal(card.dataset.edit,people[orgCards.indexOf(card)].id,'Employee card and ID are retained');}
 for(const card of sectionCards){assert.equal(card.children.length,1,'Every Section-chart employee gets exactly one JD button');assert.equal(card.children[0].dataset.jdEmployeeId,card.dataset.edit)}
 assert.equal(wallet.previousElementSibling.children.length,1);assert.equal(wallet.previousElementSibling.children[0].dataset.jdEmployeeId,'A');
 assert.equal(ctx.employeeJDContext('A').plant,'โรง 2');assert.equal(ctx.employeeJDContext('B').plant,'โรง 1');
@@ -22,4 +22,4 @@ ctx.records.personalA={employeeId:'A'};click(formButton);click(wallet.previousEl
 let stopped=false,prevented=false,keyboardClicks=0;listeners.keydown({key:'Enter',target:{closest:()=>({click(){keyboardClicks++}})},preventDefault(){prevented=true},stopImmediatePropagation(){stopped=true}});assert(stopped&&prevented);assert.equal(keyboardClicks,1);
 cache.ppms_v3_deleted_employee_ids=['B'];assert.equal(ctx.employeeJDContext('B'),null);ctx.openEmployeeJD('B');assert.equal(calls.at(-1)[0],'alert');
 assert(source.includes('.ppms-jd-person-button,.ppms-jd-card-toolbar{display:none!important}'));
-console.log('Passed: JD actions scoped to Section-chart employee cards for all positions, overall-chart cards retained, idempotent rendering, skill-card and employee-editor JD entry, correct employee/plant selection, click and keyboard isolation, deleted-employee guard, print actions hidden.');
+console.log('Passed: JD actions on every organization and Section-chart employee card for all positions, idempotent rendering, skill-card and employee-editor JD entry, correct employee/plant selection, click and keyboard isolation, deleted-employee guard, print actions hidden.');
