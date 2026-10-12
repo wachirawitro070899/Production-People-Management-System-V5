@@ -1431,7 +1431,7 @@ function orgSectionDescriptors(){
  const employeeSections=[...new Set(employees.map(e=>String(e.section||'').trim()).filter(Boolean))];
  const baseSections=Array.isArray(master.sectionMap?.[key])?configured:(scope.division==='Production Division'?sections:[]);
  const removed=master.removedSections?.[key]||[];
- const redundant=/^(?:Engineering Support|Support Production|Machine Maintenance|Tooling Maintenance)(?: Section)?$/i;
+ const redundant=/^(?:(?:Engineering Support|Support Production|Machine Maintenance|Tooling Maintenance)(?: Section)?|Sorting(?: Section| ?[12])?|คัดแยก\s*[12])$/i;
  const visibleSections=[...new Set([...baseSections,...employeeSections])].filter(section=>{
   const occupied=employees.some(e=>String(e.section||'').trim()===section);
   return occupied||(!removed.includes(section)&&!redundant.test(section));
