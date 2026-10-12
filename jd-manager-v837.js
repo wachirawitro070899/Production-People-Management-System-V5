@@ -62,14 +62,29 @@ function manager(initial){
  division.onchange=()=>changed(true);plant.onchange=()=>changed(true);section.onchange=()=>{filters.section=section.value;people(true)};employee.onchange=()=>{filters.employeeId=employee.value;drawList()};content.querySelector('[data-jd-new]').onclick=()=>editor(null,{...filters});changed();subscribe();
 }
 
+
+function canonicalPosition(value){
+ const text=normalize(value),key=text.toLowerCase().replace(/[_-]+/g,' ').replace(/\s+/g,' ');
+ const aliases={
+  'stoer':'Store','stroe':'Store','store':'Store','store keeper':'Store','storekeeper':'Store','store staff':'Store','พนักงานห้องเบิกจ่ายของ':'Store',
+  'production planning':'Production Planning','production planner':'Production Planning','วางแผนการผลิต':'Production Planning','การผลิต วางแผน':'Production Planning',
+  'document control':'Document Control','document controller':'Document Control','เจ้าหน้าที่ควบคุมเอกสาร':'Document Control','เอกสาร ควบคุม':'Document Control',
+  'opeartor':'Operator','operater':'Operator','assistant leader':'Assistant Leader',
+  'pe':'Production Engineer','production engineer':'Production Engineer','production manager':'Production Manager'
+ };
+ return aliases[key]||text;
+}
+
 function positionTitle(record){
- const language=window.PPMSLanguage?.language||'th',p=normalize(record.position),lower=p.toLowerCase();
+ const language=window.PPMSLanguage?.language||'th',p=canonicalPosition(record.position),lower=p.toLowerCase();
  const translate=value=>window.PPMSLanguage?.translate(String(value||''),language)||String(value||'');
  const section=normalize(record.section).replace(/\s+Section$/i,'');
  const division=normalize(record.division).replace(/\s+Division$/i,'');
  const known={'Production':['การผลิต','Production'],'Stamping':['ปั๊ม','Stamping'],'Welding':['เชื่อม','Welding'],'Bending':['พับ','Bending'],'Tapping':['ต๊าป','Tapping'],'Taping':['ต๊าป','Taping'],'CNC':['ซีเอ็นซี','CNC'],'Tooling':['แม่พิมพ์','Tooling'],'Sorting1':['คัดแยก 1','Sorting 1'],'Sorting2':['คัดแยก 2','Sorting 2'],'QC':['ควบคุมคุณภาพ','Quality Control'],'WH':['คลังสินค้า','Warehouse'],'HR':['บุคคล','Human Resources']};
  const subject=value=>known[value]?.[language==='en'?1:0]||translate(value);
- const roles=[[/manager|ผู้จัดการ/i,'ผู้จัดการ','Manager'],[/engineer|วิศวกร|^pe$/i,'วิศวกร','Engineer'],[/supervisor|หัวหน้างาน|หัวหน้าแผนก/i,'หัวหน้างาน','Supervisor'],[/leader|หัวหน้าทีม/i,'หัวหน้าทีม','Leader'],[/technician|ช่างเทคนิค/i,'ช่างเทคนิค','Technician'],[/operator|opeartor|operater|^op(?:\b|\d)|พนักงานทั่วไป|พนักงานผลิต|พนักงานปฏิบัติการ/i,'พนักงาน','Operator']];
+ const roles=[[/assistant\s+leader|ผู้ช่วยหัวหน้าทีม/i,'ผู้ช่วยหัวหน้าทีม','Assistant Leader'],[/manager|ผู้จัดการ/i,'ผู้จัดการ','Manager'],[/engineer|วิศวกร|^pe$/i,'วิศวกร','Engineer'],[/supervisor|หัวหน้างาน|หัวหน้าแผนก/i,'หัวหน้างาน','Supervisor'],[/leader|หัวหน้าทีม/i,'หัวหน้าทีม','Leader'],[/technician|ช่างเทคนิค/i,'ช่างเทคนิค','Technician'],[/operator|opeartor|operater|^op(?:\b|\d)|พนักงานทั่วไป|พนักงานผลิต|พนักงานปฏิบัติการ/i,'พนักงาน','Operator']];
+ const special={'Store':['พนักงานห้องเบิกจ่ายของ','Store'],'Production Planning':['วางแผนการผลิต','Production Planning'],'Document Control':['เจ้าหน้าที่ควบคุมเอกสาร','Document Control']};
+ if(special[p])return special[p][language==='en'?1:0];
  const role=roles.find(([pattern])=>pattern.test(p));
  if(!role)return translate(p)+(section?' · '+subject(section):'');
  let area=section||division;
@@ -279,6 +294,7 @@ function controls(){if(!admin())return;installStyle();refreshPositionTitles();
  }
  const bar=document.querySelector('.organization-scope-bar');bar?.querySelector('[data-open-jd]:not([data-jd-employee-id])')?.remove();const field=document.querySelector('#employeeForm [name="position"]')?.closest('label');if(field&&!field.querySelector('[data-open-jd]')){const b=document.createElement('button');b.type='button';b.dataset.openJd='1';b.textContent='JD ของพนักงานคนนี้';field.append(b)}
  document.querySelectorAll('.factory-org-section').forEach(section=>{if(section.querySelector('[data-open-jd]'))return;const b=document.createElement('button');b.type='button';b.dataset.openJd='1';b.dataset.jdSection=window.PPMSLanguage?.sourceText(section.querySelector('h4'))||section.querySelector('h4')?.textContent||'';b.textContent='JD รายบุคคล';b.className='ppms-jd-role';section.querySelector('h4')?.after(b)});cardControls();subscribe();seedMissingJDs();seedPositionJDs();upgradeSectionJDs()}
+window.PPMSNormalizePosition=canonicalPosition;
 window.PPMSPositionTitle=record=>positionTitle({...record,division:record.division||record.organizationDivision||'Production Division'});
 window.addEventListener('ppms-language-changed',()=>refreshPositionTitles());
 // Capture on window before the chart's document handlers that open employee editing.
