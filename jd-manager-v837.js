@@ -1,4 +1,4 @@
-/* V839: open individual JDs from employee cards and organization charts. */
+/* V848: keep individual JD actions in employee editing and skill cards. */
 (()=>{
 'use strict';
 const CACHE='ppms_job_descriptions_v1',MASTER='ppms_organization_master_v1',ORG='ppms_employee_organization_v1';
@@ -193,11 +193,9 @@ function openEmployeeJD(id){
 }
 function cardControls(){
  const buttonFor=id=>{const b=document.createElement('button');b.type='button';b.dataset.openJd='1';b.dataset.jdEmployeeId=String(id);b.className='ppms-jd-person-button no-print';b.textContent='เพิ่ม / แก้ไข JD';b.title='JD รายบุคคลของรหัส '+id;return b};
+ // Organization cards show employees without a JD action, for every position.
  document.querySelectorAll('.person[data-edit],.factory-chart-person[data-edit],.stamp-top-person[data-edit],.stamp-duty-row[data-edit]').forEach(card=>{
-  const employee=roster().find(e=>String(e.id)===String(card.dataset.edit));
-  if(operatorPosition(employee?.position||card.className||'')){card.querySelectorAll('[data-jd-employee-id]').forEach(b=>b.remove());return}
-  if(card.querySelector('[data-jd-employee-id]'))return;
-  card.append(buttonFor(card.dataset.edit));
+  card.querySelectorAll('[data-jd-employee-id]').forEach(b=>b.remove());
  });
  // Put the skill-card action beside the card so its printed dimensions stay intact.
  document.querySelectorAll('.wallet-card-sheet .wallet-front[data-employee-id]').forEach(card=>{
