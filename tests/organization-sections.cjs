@@ -1,0 +1,15 @@
+const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
+const source=fs.readFileSync('organization-manager-v694.js','utf8');
+const context={sectionKey:(division,plant)=>division+'::'+plant};vm.createContext(context);
+vm.runInContext(source.slice(source.indexOf('function sectionName('),source.indexOf('function openSectionForm(')),context);
+const original={sections:['Stamping Section'],sectionMap:{'Production Division::โรง 1':['Stamping Section'],'Quality Division::รวม':['Inspection Section']},positionMap:{'Production Division':['Leader']}};
+const added=context.withNewSection(original,'Production Division','โรง 1',context.sectionName('  Assembly   Section  '));
+assert.deepEqual(Array.from(added.sectionMap['Production Division::โรง 1']),['Stamping Section','Assembly Section']);
+assert.deepEqual(Array.from(added.sectionMap['Quality Division::รวม']),['Inspection Section']);
+assert.deepEqual(Array.from(original.sectionMap['Production Division::โรง 1']),['Stamping Section']);
+assert.equal(context.withNewSection(added,'Production Division','โรง 1','assembly section'),undefined,'Duplicate must abort Firebase transaction, never delete master');
+const concurrent=context.withNewSection({...added,sectionMap:{...added.sectionMap,'Production Division::โรง 1':[...added.sectionMap['Production Division::โรง 1'],'Packing Section']}},'Production Division','โรง 1','Painting Section');
+assert(concurrent.sectionMap['Production Division::โรง 1'].includes('Packing Section'));
+const central=context.withNewSection(concurrent,'Quality Division','รวม','Laboratory Section');
+assert(central.sectionMap['Quality Division::รวม'].includes('Laboratory Section'));
+console.log('Passed: Section creation, whitespace normalization, duplicate transaction abort, existing records retained, concurrent addition retained, central Division scope.');
