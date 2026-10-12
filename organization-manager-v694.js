@@ -81,11 +81,12 @@ function factoryLink(){document.querySelector('#nav [data-factory-organization]'
 // V836: Create a Section from the main system and share it through the organization master.
 function sectionAdmin(){return sessionStorage.getItem('ppms_admin')==='1'}
 function sectionControls(){
+ document.querySelectorAll('#employeeForm [data-create-section]').forEach(button=>button.remove());
  if(!sectionAdmin())return;
  const bar=document.querySelector('.organization-scope-bar');
+ const organizationPage=Boolean(document.querySelector('.division-org,.factory-summary'));
+ if(!organizationPage){bar?.querySelector('[data-create-section]')?.remove();return}
  if(bar&&!bar.querySelector('[data-create-section]')){const b=document.createElement('button');b.type='button';b.dataset.createSection='1';b.textContent='+ เพิ่ม Section';bar.append(b)}
- const field=document.querySelector('#employeeForm select[name="section"]')?.closest('label');
- if(field&&!field.querySelector('[data-create-section]')){const b=document.createElement('button');b.type='button';b.dataset.createSection='1';b.textContent='+ เพิ่ม Section ใหม่';field.append(b)}
 }
 function sectionName(value){return String(value||'').trim().replace(/\s+/g,' ')}
 function withNewSection(source,division,plant,name){
