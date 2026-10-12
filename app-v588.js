@@ -1429,7 +1429,13 @@ function orgSectionDescriptors(){
  const scope=organizationScope(),master=organizationMaster(),key=scope.division+'::'+scope.plant;
  const configured=Array.isArray(master.sectionMap?.[key])?master.sectionMap[key]:[];
  const employeeSections=[...new Set(employees.map(e=>String(e.section||'').trim()).filter(Boolean))];
- const visibleSections=scope.division==='Production Division'?sections:[...new Set([...configured,...employeeSections])];
+ const baseSections=Array.isArray(master.sectionMap?.[key])?configured:(scope.division==='Production Division'?sections:[]);
+ const removed=master.removedSections?.[key]||[];
+ const redundant=/^(?:Engineering Support|Support Production|Machine Maintenance|Tooling Maintenance)(?: Section)?$/i;
+ const visibleSections=[...new Set([...baseSections,...employeeSections])].filter(section=>{
+  const occupied=employees.some(e=>String(e.section||'').trim()===section);
+  return occupied||(!removed.includes(section)&&!redundant.test(section));
+ });
  visibleSections.forEach(section=>{
   if(section==='Sorting Section'){
    out.push({section,title:'Sorting 1',sortingGroup:'Sorting 1'});

@@ -256,9 +256,11 @@ function openEmployeeJD(id){
 }
 function cardControls(){
  const buttonFor=id=>{const b=document.createElement('button');b.type='button';b.dataset.openJd='1';b.dataset.jdEmployeeId=String(id);b.className='ppms-jd-person-button no-print';b.textContent='เพิ่ม / แก้ไข JD';b.title='JD รายบุคคลของรหัส '+id;return b};
- // Organization cards show employees without a JD action, for every position.
+ // Personal JD actions are shown on every employee card in the Section organization chart.
  document.querySelectorAll('.person[data-edit],.factory-chart-person[data-edit],.stamp-top-person[data-edit],.stamp-duty-row[data-edit]').forEach(card=>{
-  card.querySelectorAll('[data-jd-employee-id]').forEach(b=>b.remove());
+  if(card.closest('.section-org-report')){
+   if(!card.querySelector('[data-jd-employee-id]'))card.append(buttonFor(card.dataset.edit));
+  }else card.querySelectorAll('[data-jd-employee-id]').forEach(b=>b.remove());
  });
  // Put the skill-card action beside the card so its printed dimensions stay intact.
  document.querySelectorAll('.wallet-card-sheet .wallet-front[data-employee-id]').forEach(card=>{
@@ -267,7 +269,14 @@ function cardControls(){
   const toolbar=document.createElement('div');toolbar.dataset.jdCardToolbar='1';toolbar.className='ppms-jd-card-toolbar no-print';toolbar.append(buttonFor(card.dataset.employeeId));card.before(toolbar);
  });
 }
-function controls(){if(!admin())return;installStyle();const bar=document.querySelector('.organization-scope-bar');if(bar&&!bar.querySelector('[data-open-jd]')){const b=document.createElement('button');b.type='button';b.dataset.openJd='1';b.textContent='JD รายบุคคล / ตามตำแหน่ง';bar.append(b)}const field=document.querySelector('#employeeForm [name="position"]')?.closest('label');if(field&&!field.querySelector('[data-open-jd]')){const b=document.createElement('button');b.type='button';b.dataset.openJd='1';b.textContent='JD ของพนักงานคนนี้';field.append(b)}
+function controls(){if(!admin())return;installStyle();
+ const organizationPage=document.querySelector('.division-org,.section-org-report,.factory-summary');
+ if(organizationPage){
+  let toolbar=document.querySelector('#app>.top-action-toolbar .top-action-buttons')||document.querySelector('.factory-summary>.org-config-head');
+  if(!toolbar){toolbar=document.createElement('div');toolbar.className='ppms-jd-page-toolbar no-print';const heading=document.querySelector('#app>.page-head');if(heading)heading.after(toolbar);else organizationPage.before(toolbar)}
+  if(!toolbar.querySelector('[data-jd-page-manager]')){const b=document.createElement('button');b.type='button';b.dataset.openJd='1';b.dataset.jdPageManager='1';b.className='no-print';b.textContent='+ เพิ่ม / จัดการ JD';toolbar.append(b)}
+ }
+ const bar=document.querySelector('.organization-scope-bar');bar?.querySelector('[data-open-jd]:not([data-jd-employee-id])')?.remove();const field=document.querySelector('#employeeForm [name="position"]')?.closest('label');if(field&&!field.querySelector('[data-open-jd]')){const b=document.createElement('button');b.type='button';b.dataset.openJd='1';b.textContent='JD ของพนักงานคนนี้';field.append(b)}
  document.querySelectorAll('.factory-org-section').forEach(section=>{if(section.querySelector('[data-open-jd]'))return;const b=document.createElement('button');b.type='button';b.dataset.openJd='1';b.dataset.jdSection=window.PPMSLanguage?.sourceText(section.querySelector('h4'))||section.querySelector('h4')?.textContent||'';b.textContent='JD รายบุคคล';b.className='ppms-jd-role';section.querySelector('h4')?.after(b)});cardControls();subscribe();seedMissingJDs();seedPositionJDs();upgradeSectionJDs()}
 window.addEventListener('ppms-language-changed',()=>refreshPositionTitles());
 // Capture on window before the chart's document handlers that open employee editing.
