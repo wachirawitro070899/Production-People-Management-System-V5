@@ -63,7 +63,7 @@ function drawList(){const content=document.querySelector('#jdDialog [data-jd-con
  list.innerHTML=entries.length?'<div class="ppms-jd-table"><table><thead><tr><th>รหัส / ชื่อพนักงาน</th><th>Section</th><th>ตำแหน่ง</th><th>JD No. / Rev.</th><th>วันที่มีผล</th><th>จัดการ</th></tr></thead><tbody>'+entries.map(([id,r])=>'<tr><td>'+(r.employeeId?esc(r.employeeId)+' · '+esc(r.employeeName):'JD ตามตำแหน่ง')+'</td><td>'+esc(r.section)+'</td><td>'+esc(r.position)+'</td><td>'+esc(r.documentNo||'—')+' / '+esc(r.revision||'—')+'</td><td>'+esc(r.effectiveDate||'—')+'</td><td><button type="button" data-jd-view="'+esc(id)+'">ดู JD</button> <button type="button" class="secondary" data-jd-edit="'+esc(id)+'">แก้ไข</button></td></tr>').join('')+'</tbody></table></div>':'<p>ยังไม่มี JD ใน Section ที่เลือก กด “+ เพิ่ม JD รายบุคคล” เพื่อเพิ่มรายละเอียดงาน</p>';
  list.querySelectorAll('[data-jd-view]').forEach(b=>b.onclick=()=>viewer(b.dataset.jdView));list.querySelectorAll('[data-jd-edit]').forEach(b=>b.onclick=()=>editor(b.dataset.jdEdit));
 }
-function editor(id,initial){if(!admin())return;const existing=id?records[id]:null;if(id&&!existing)return;const draft=existing||{...scope(),...initial},content=shell(existing?'แก้ไข JD รายบุคคล':'เพิ่ม JD รายบุคคล');if(!content)return;const m=master();content.innerHTML='<form id="jdForm"><div class="ppms-jd-grid"><label>Division<select name="division" '+(existing?'disabled':'')+'>'+options(m.divisions,draft.division)+'</select></label><label data-jd-plant-label>โรงงาน<select name="plant" '+(existing?'disabled':'')+'>'+options(m.plants,draft.plant)+'</select></label><label>Section<select name="section" required '+(existing?'disabled':'')+'></select></label><label class="ppms-jd-full">พนักงาน / รหัสพนักงาน<select name="employeeId" '+(existing?'disabled':'required')+'></select></label><label>ตำแหน่ง<input name="position" readonly list="jdPositions" maxlength="150" required value="'+esc(draft.position||'')+'" '+(existing?'readonly':'')+'><datalist id="jdPositions"></datalist></label><label>เลขที่เอกสาร JD<input name="documentNo" maxlength="100" value="'+esc(draft.documentNo||'')+'"></label><label>Revision<input name="revision" maxlength="30" value="'+esc(draft.revision||'')+'"></label><label>วันที่มีผล<input name="effectiveDate" type="date" value="'+esc(draft.effectiveDate||'')+'"></label><label>รายงานต่อ / ผู้บังคับบัญชา<input name="reportsTo" maxlength="150" value="'+esc(draft.reportsTo||'')+'"></label><label class="ppms-jd-full">หน้าที่และความรับผิดชอบ<textarea name="responsibilities" rows="8" maxlength="20000" required placeholder="กรอกหน้าที่งาน แยกแต่ละข้อคนละบรรทัด">'+esc(draft.responsibilities||'')+'</textarea></label><label class="ppms-jd-full">คุณสมบัติ / ทักษะที่จำเป็น<textarea name="qualifications" rows="4" maxlength="10000">'+esc(draft.qualifications||'')+'</textarea></label><label class="ppms-jd-full">ลิงก์ไฟล์ JD (ถ้ามี)<input name="documentUrl" type="url" maxlength="2000" placeholder="https://..." value="'+esc(draft.documentUrl||'')+'"><small class="ppms-jd-hint">ใส่ลิงก์ PDF, Word หรือเอกสารที่ผู้ใช้งานมีสิทธิ์เปิดดู</small></label></div><p data-jd-message class="ppms-jd-message" role="status"></p><div class="ppms-jd-actions"><button type="submit">บันทึก JD</button><button type="button" class="secondary" data-jd-back>กลับรายการ JD</button></div></form>';
+function editor(id,initial){if(!admin())return;const existing=id?records[id]:null;if(id&&!existing)return;const draft=existing||{...scope(),...initial},content=shell(existing&&!existing.employeeId?'JD ตามตำแหน่ง':existing?'แก้ไข JD รายบุคคล':'เพิ่ม JD รายบุคคล');if(!content)return;const m=master();content.innerHTML='<form id="jdForm"><div class="ppms-jd-grid"><label>Division<select name="division" '+(existing?'disabled':'')+'>'+options(m.divisions,draft.division)+'</select></label><label data-jd-plant-label>โรงงาน<select name="plant" '+(existing?'disabled':'')+'>'+options(m.plants,draft.plant)+'</select></label><label>Section<select name="section" required '+(existing?'disabled':'')+'></select></label><label class="ppms-jd-full">พนักงาน / รหัสพนักงาน<select name="employeeId" '+(existing?'disabled':'required')+'></select></label><label>ตำแหน่ง<input name="position" readonly list="jdPositions" maxlength="150" required value="'+esc(draft.position||'')+'" '+(existing?'readonly':'')+'><datalist id="jdPositions"></datalist></label><label>เลขที่เอกสาร JD<input name="documentNo" maxlength="100" value="'+esc(draft.documentNo||'')+'"></label><label>Revision<input name="revision" maxlength="30" value="'+esc(draft.revision||'')+'"></label><label>วันที่มีผล<input name="effectiveDate" type="date" value="'+esc(draft.effectiveDate||'')+'"></label><label>รายงานต่อ / ผู้บังคับบัญชา<input name="reportsTo" maxlength="150" value="'+esc(draft.reportsTo||'')+'"></label><label class="ppms-jd-full">หน้าที่และความรับผิดชอบ<textarea name="responsibilities" rows="8" maxlength="20000" required placeholder="กรอกหน้าที่งาน แยกแต่ละข้อคนละบรรทัด">'+esc(draft.responsibilities||'')+'</textarea></label><label class="ppms-jd-full">คุณสมบัติ / ทักษะที่จำเป็น<textarea name="qualifications" rows="4" maxlength="10000">'+esc(draft.qualifications||'')+'</textarea></label><label class="ppms-jd-full">ลิงก์ไฟล์ JD (ถ้ามี)<input name="documentUrl" type="url" maxlength="2000" placeholder="https://..." value="'+esc(draft.documentUrl||'')+'"><small class="ppms-jd-hint">ใส่ลิงก์ PDF, Word หรือเอกสารที่ผู้ใช้งานมีสิทธิ์เปิดดู</small></label></div><p data-jd-message class="ppms-jd-message" role="status"></p><div class="ppms-jd-actions"><button type="submit">บันทึก JD</button><button type="button" class="secondary" data-jd-back>กลับรายการ JD</button></div></form>';
  const f=content.querySelector('form'),message=f.querySelector('[data-jd-message]'),expected=Number(existing?.version||0);let previousSection=draft.section||employeeList(draft.division,draft.plant).find(e=>String(e.id)===String(draft.employeeId))?.section||'';
  const syncEmployee=()=>{
   if(existing)return;
@@ -140,7 +140,40 @@ async function seedMissingJDs(){
  finally{seeding=false}
 }
 
-function subscribe(){if(subscribed)return;const instance=database();if(!instance)return;subscribed=true;instance.ref('.info/connected').on('value',s=>{connected=s.val()===true;drawList();seedMissingJDs()});instance.ref('settings/jobDescriptions').on('value',s=>{records=s.val()||{};jdLoaded=true;loadError='';localStorage.setItem(CACHE,JSON.stringify(records));drawList();seedMissingJDs()},error=>{loadError='โหลด JD ไม่สำเร็จ: '+error.message;drawList()})}
+// Position templates also cover vacant roles configured in the organization master.
+function positionJDContexts(){
+ const m=master(),contexts=new Map();
+ const add=c=>{if(c?.division&&c.plant&&c.section&&c.position){const clean={division:c.division,plant:c.plant,section:c.section,position:normalize(c.position)};const key=JSON.stringify(Object.values(clean).map(x=>normalize(x).toLowerCase()));if(!contexts.has(key))contexts.set(key,clean)}};
+ for(const [key,positions] of Object.entries(m.sectionPositions||{})){
+  const [division,plant,...section]=key.split('::');
+  for(const position of Array.isArray(positions)?positions:[])add({division,plant,section:section.join('::'),position});
+ }
+ for(const person of roster())add(employeeJDContext(person.id));
+ for(const [key,sections] of Object.entries(m.sectionMap||{})){
+  const [division,plant]=key.split('::');
+  for(const section of Array.isArray(sections)?sections:[])for(const position of m.positionMap?.[division]||[])add({division,plant,section,position});
+ }
+ return [...contexts.values()];
+}
+let seedingPositions=false;
+async function seedPositionJDs(){
+ if(seedingPositions||!admin()||!connected||!jdLoaded||!window.PPMSJDTemplates)return;
+ const instance=database();if(!instance)return;seedingPositions=true;let created=false;
+ try{
+  for(const context of positionJDContexts()){
+   if(!admin()||!connected)break;
+   if(Object.values(records).some(r=>r&&!r.employeeId&&['division','plant','section','position'].every(k=>normalize(r[k]).toLowerCase()===normalize(context[k]).toLowerCase())))continue;
+   const key=await recordKey(context),now=new Date().toISOString();
+   const draft={...window.PPMSJDTemplates.draft(context),draft:true,createdAt:now,updatedAt:now,updatedBy:'PPMS · Position JD draft'};
+   const result=await instance.ref('settings/jobDescriptions/'+key).transaction(current=>current==null?draft:undefined,undefined,false);
+   if(result.committed){records[key]=result.snapshot.val();created=true}
+  }
+  if(created){localStorage.setItem(CACHE,JSON.stringify(records));drawList()}
+ }catch(error){loadError='เพิ่ม JD ตั้งต้นไม่สำเร็จ กรุณาเปิดหน้าใหม่เพื่อลองอีกครั้ง: '+error.message;drawList()}
+ finally{seedingPositions=false}
+}
+
+function subscribe(){if(subscribed)return;const instance=database();if(!instance)return;subscribed=true;instance.ref('.info/connected').on('value',s=>{connected=s.val()===true;drawList();seedMissingJDs();seedPositionJDs()});instance.ref('settings/jobDescriptions').on('value',s=>{records=s.val()||{};jdLoaded=true;loadError='';localStorage.setItem(CACHE,JSON.stringify(records));drawList();seedMissingJDs();seedPositionJDs()},error=>{loadError='โหลด JD ไม่สำเร็จ: '+error.message;drawList()})}
 function employeeJDContext(id){
  const key=String(id||'').trim(),deleted=new Set(read('ppms_v3_deleted_employee_ids',[]).map(String));
  const employee=roster().find(e=>String(e.id)===key&&!deleted.has(key));if(!employee)return null;
@@ -168,8 +201,8 @@ function cardControls(){
   const toolbar=document.createElement('div');toolbar.dataset.jdCardToolbar='1';toolbar.className='ppms-jd-card-toolbar no-print';toolbar.append(buttonFor(card.dataset.employeeId));card.before(toolbar);
  });
 }
-function controls(){if(!admin())return;installStyle();const bar=document.querySelector('.organization-scope-bar');if(bar&&!bar.querySelector('[data-open-jd]')){const b=document.createElement('button');b.type='button';b.dataset.openJd='1';b.textContent='JD รายบุคคล / เพิ่ม JD';bar.append(b)}const field=document.querySelector('#employeeForm [name="position"]')?.closest('label');if(field&&!field.querySelector('[data-open-jd]')){const b=document.createElement('button');b.type='button';b.dataset.openJd='1';b.textContent='JD ของพนักงานคนนี้';field.append(b)}
- document.querySelectorAll('.factory-org-section').forEach(section=>{if(section.querySelector('[data-open-jd]'))return;const b=document.createElement('button');b.type='button';b.dataset.openJd='1';b.dataset.jdSection=window.PPMSLanguage?.sourceText(section.querySelector('h4'))||section.querySelector('h4')?.textContent||'';b.textContent='JD รายบุคคล';b.className='ppms-jd-role';section.querySelector('h4')?.after(b)});cardControls();subscribe();seedMissingJDs()}
+function controls(){if(!admin())return;installStyle();const bar=document.querySelector('.organization-scope-bar');if(bar&&!bar.querySelector('[data-open-jd]')){const b=document.createElement('button');b.type='button';b.dataset.openJd='1';b.textContent='JD รายบุคคล / ตามตำแหน่ง';bar.append(b)}const field=document.querySelector('#employeeForm [name="position"]')?.closest('label');if(field&&!field.querySelector('[data-open-jd]')){const b=document.createElement('button');b.type='button';b.dataset.openJd='1';b.textContent='JD ของพนักงานคนนี้';field.append(b)}
+ document.querySelectorAll('.factory-org-section').forEach(section=>{if(section.querySelector('[data-open-jd]'))return;const b=document.createElement('button');b.type='button';b.dataset.openJd='1';b.dataset.jdSection=window.PPMSLanguage?.sourceText(section.querySelector('h4'))||section.querySelector('h4')?.textContent||'';b.textContent='JD รายบุคคล';b.className='ppms-jd-role';section.querySelector('h4')?.after(b)});cardControls();subscribe();seedMissingJDs();seedPositionJDs()}
 // Capture on window before the chart's document handlers that open employee editing.
 window.addEventListener('click',e=>{
  const button=e.target.closest?.('[data-open-jd]');if(!button)return;
@@ -186,7 +219,7 @@ window.addEventListener('keydown',e=>{
 window.addEventListener('afterprint',()=>document.body.classList.remove('ppms-jd-print'));
 window.addEventListener('storage',e=>{if(e.key===CACHE){records=read(CACHE,{});drawList()}if(e.key===MASTER)controls()});
 window.addEventListener('ppms-organization-changed',controls);
-window.addEventListener('ppms-employees-changed',()=>{seedMissingJDs();if(document.querySelector('#jdDialog [data-jd-list]'))manager(filters)});
+window.addEventListener('ppms-employees-changed',()=>{seedMissingJDs();seedPositionJDs();if(document.querySelector('#jdDialog [data-jd-list]'))manager(filters)});
 let timer;new MutationObserver(()=>{clearTimeout(timer);timer=setTimeout(controls,100)}).observe(document.getElementById('app')||document.body,{childList:true,subtree:true});
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',controls);else controls();
 })();
