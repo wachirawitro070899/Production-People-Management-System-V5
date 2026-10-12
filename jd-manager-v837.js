@@ -1,4 +1,4 @@
-/* V838: individual job descriptions linked to each employee ID. */
+/* V839: open individual JDs from employee cards and organization charts. */
 (()=>{
 'use strict';
 const CACHE='ppms_job_descriptions_v1',MASTER='ppms_organization_master_v1',ORG='ppms_employee_organization_v1';
@@ -39,6 +39,7 @@ function validateRecord(record,legacy=false){
 }
 function nextRevision(current,draft,expected){if(Number(current?.version||0)!==expected)return undefined;return {...draft,version:expected+1,createdAt:current?.createdAt||draft.updatedAt}}
 function installStyle(){if(document.getElementById('jdManagerStyle'))return;const style=document.createElement('style');style.id='jdManagerStyle';style.textContent=`
+.ppms-jd-person-button{display:block;margin:8px auto 0;padding:6px 10px;font-size:12px;border-radius:7px}.ppms-jd-card-toolbar{grid-column:1/-1;text-align:left;margin:8px 0}.ppms-jd-card-toolbar .ppms-jd-person-button{margin:0}@media print{.ppms-jd-person-button,.ppms-jd-card-toolbar{display:none!important}}
 .ppms-jd-overlay{position:fixed;inset:0;background:#0f172acc;z-index:10040;display:grid;place-items:center;padding:16px}.ppms-jd-dialog{width:min(1000px,96vw);max-height:92vh;overflow:auto;background:white;border-radius:16px;padding:22px;color:#17334f}.ppms-jd-dialog h2{margin:0 0 6px}.ppms-jd-heading{display:flex;justify-content:space-between;align-items:start;gap:12px}.ppms-jd-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:16px 0}.ppms-jd-dialog label{display:flex;flex-direction:column;gap:5px;font-weight:600}.ppms-jd-dialog input,.ppms-jd-dialog select,.ppms-jd-dialog textarea{width:100%;font:inherit;padding:9px;border:1px solid #a8bfd3;border-radius:8px;color:#17334f;background:#fff}.ppms-jd-dialog textarea{resize:vertical;line-height:1.6}.ppms-jd-full{grid-column:1/-1}.ppms-jd-dialog table{width:100%;border-collapse:collapse}.ppms-jd-dialog th,.ppms-jd-dialog td{border-bottom:1px solid #dbe6ef;padding:10px;text-align:left}.ppms-jd-table{overflow:auto}.ppms-jd-actions{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0}.ppms-jd-message{color:#9a3412;white-space:pre-wrap}.ppms-jd-text{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.7}.ppms-jd-meta{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;padding:14px;background:#eef5fb;border-radius:10px;margin:18px 0}.ppms-jd-document{overflow-wrap:anywhere}.ppms-jd-role{display:block;margin:7px auto;font-size:12px}.ppms-jd-hint{font-size:13px;color:#526c82}@media(max-width:650px){.ppms-jd-grid,.ppms-jd-meta{grid-template-columns:1fr}.ppms-jd-dialog{padding:16px}}@media print{body.ppms-jd-print> *:not(#jdDialog){display:none!important}body.ppms-jd-print #jdDialog{position:static;display:block;padding:0;background:white}body.ppms-jd-print .ppms-jd-dialog{width:100%;max-height:none;overflow:visible;border-radius:0;padding:0}body.ppms-jd-print .ppms-jd-no-print{display:none!important}body.ppms-jd-print .ppms-jd-text{orphans:3;widows:3}body.ppms-jd-print h3{break-after:avoid}}
 `;document.head.append(style)}
 function close(){document.getElementById('jdDialog')?.remove();document.body.classList.remove('ppms-jd-print');lastFocus?.focus?.()}
@@ -91,9 +92,48 @@ function viewer(id){const record=records[id];if(!record||!admin())return;const c
  content.querySelector('[data-jd-edit]').onclick=()=>editor(id);content.querySelector('[data-jd-back]').onclick=()=>manager(filters);content.querySelector('[data-jd-print]').onclick=()=>{document.body.classList.add('ppms-jd-print');window.print()};
 }
 function subscribe(){if(subscribed)return;const instance=database();if(!instance)return;subscribed=true;instance.ref('.info/connected').on('value',s=>{connected=s.val()===true;drawList()});instance.ref('settings/jobDescriptions').on('value',s=>{records=s.val()||{};loadError='';localStorage.setItem(CACHE,JSON.stringify(records));drawList()},error=>{loadError='โหลด JD ไม่สำเร็จ: '+error.message;drawList()})}
+function employeeJDContext(id){
+ const key=String(id||'').trim(),deleted=new Set(read('ppms_v3_deleted_employee_ids',[]).map(String));
+ const employee=roster().find(e=>String(e.id)===key&&!deleted.has(key));if(!employee)return null;
+ const organization=read(ORG,{})[key]||{},division=organization.division||employee.organizationDivision||'Production Division';
+ return {employeeId:key,division,plant:division==='Production Division'?(organization.plant||employee.organizationPlant||master().plants[0]):'รวม',section:employee.section||'',position:employee.position||''};
+}
+function openEmployeeJD(id){
+ if(!admin())return;
+ const existing=Object.entries(records).find(([,record])=>String(record?.employeeId||'')===String(id));
+ const context=employeeJDContext(id);
+ if(!context&&!existing){alert('ไม่พบพนักงานคนนี้ กรุณาบันทึกข้อมูลพนักงานก่อนเพิ่ม JD');return}
+ filters=context||{...existing[1]};
+ if(existing)viewer(existing[0]);else editor(null,filters);
+}
+function cardControls(){
+ const buttonFor=id=>{const b=document.createElement('button');b.type='button';b.dataset.openJd='1';b.dataset.jdEmployeeId=String(id);b.className='ppms-jd-person-button no-print';b.textContent='เพิ่ม / แก้ไข JD';b.title='JD รายบุคคลของรหัส '+id;return b};
+ document.querySelectorAll('.person[data-edit],.factory-chart-person[data-edit],.stamp-top-person[data-edit],.stamp-duty-row[data-edit]').forEach(card=>{
+  if(card.querySelector('[data-jd-employee-id]'))return;
+  card.append(buttonFor(card.dataset.edit));
+ });
+ // Put the skill-card action beside the card so its printed dimensions stay intact.
+ document.querySelectorAll('.wallet-card-sheet .wallet-front[data-employee-id]').forEach(card=>{
+  if(card.closest('.wallet-print-page'))return;
+  if(card.previousElementSibling?.matches('[data-jd-card-toolbar]'))return;
+  const toolbar=document.createElement('div');toolbar.dataset.jdCardToolbar='1';toolbar.className='ppms-jd-card-toolbar no-print';toolbar.append(buttonFor(card.dataset.employeeId));card.before(toolbar);
+ });
+}
 function controls(){if(!admin())return;installStyle();const bar=document.querySelector('.organization-scope-bar');if(bar&&!bar.querySelector('[data-open-jd]')){const b=document.createElement('button');b.type='button';b.dataset.openJd='1';b.textContent='JD รายบุคคล / เพิ่ม JD';bar.append(b)}const field=document.querySelector('#employeeForm [name="position"]')?.closest('label');if(field&&!field.querySelector('[data-open-jd]')){const b=document.createElement('button');b.type='button';b.dataset.openJd='1';b.textContent='JD ของพนักงานคนนี้';field.append(b)}
- document.querySelectorAll('.factory-org-section').forEach(section=>{if(section.querySelector('[data-open-jd]'))return;const b=document.createElement('button');b.type='button';b.dataset.openJd='1';b.dataset.jdSection=section.querySelector('h4')?.textContent||'';b.textContent='JD รายบุคคล';b.className='ppms-jd-role';section.querySelector('h4')?.after(b)});subscribe()}
-document.addEventListener('click',e=>{const button=e.target.closest('[data-open-jd]');if(!button)return;e.preventDefault();e.stopImmediatePropagation();const initial=scope();if(button.dataset.jdSection)initial.section=button.dataset.jdSection;manager(initial)},true);
+ document.querySelectorAll('.factory-org-section').forEach(section=>{if(section.querySelector('[data-open-jd]'))return;const b=document.createElement('button');b.type='button';b.dataset.openJd='1';b.dataset.jdSection=section.querySelector('h4')?.textContent||'';b.textContent='JD รายบุคคล';b.className='ppms-jd-role';section.querySelector('h4')?.after(b)});cardControls();subscribe()}
+// Capture on window before the chart's document handlers that open employee editing.
+window.addEventListener('click',e=>{
+ const button=e.target.closest?.('[data-open-jd]');if(!button)return;
+ e.preventDefault();e.stopImmediatePropagation();
+ if(!admin())return;
+ if(button.dataset.jdEmployeeId){openEmployeeJD(button.dataset.jdEmployeeId);return}
+ const initial=scope();if(button.dataset.jdSection)initial.section=button.dataset.jdSection;
+ if(initial.employeeId&&!button.dataset.jdSection)openEmployeeJD(initial.employeeId);else manager(initial);
+},true);
+window.addEventListener('keydown',e=>{
+ const button=e.target.closest?.('[data-open-jd]');if(!button||!['Enter',' '].includes(e.key))return;
+ e.preventDefault();e.stopImmediatePropagation();button.click();
+},true);
 window.addEventListener('afterprint',()=>document.body.classList.remove('ppms-jd-print'));
 window.addEventListener('storage',e=>{if(e.key===CACHE){records=read(CACHE,{});drawList()}if(e.key===MASTER)controls()});
 window.addEventListener('ppms-organization-changed',controls);
