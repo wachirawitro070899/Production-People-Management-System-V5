@@ -1,12 +1,13 @@
 const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
 const source=fs.readFileSync('jd-manager-v837.js','utf8');
-const people=[{id:'A',name:'Employee A',section:'Stamping Section',position:'Operator'},{id:'B',name:'Employee B',section:'Stamping Section',position:'Operator'}];
+const people=[{id:'A',name:'Employee A',section:'Stamping Section',position:'Leader'},{id:'B',name:'Employee B',section:'Stamping Section',position:'Technician'}];
 const cache={ppms_employee_organization_v1:{A:{division:'Production Division',plant:'โรง 2'}},ppms_v3_deleted_employee_ids:[]};
 function node(dataset={}){return {dataset,children:[],append(child){this.children.push(child)},querySelector(){return this.children.find(b=>b.dataset.jdEmployeeId)},matches(){return Boolean(this.dataset.jdCardToolbar)}}}
 const chart=node({edit:'A'}),factory=node({edit:'B'}),wallet=node({employeeId:'A'});
 wallet.closest=()=>null;wallet.before=toolbar=>{wallet.previousElementSibling=toolbar};
 const calls=[],listeners={};
 const ctx={ORG:"ppms_employee_organization_v1",read:(key,fallback)=>cache[key]||fallback,roster:()=>people,master:()=>({plants:['โรง 1']}),admin:()=>true,records:{},filters:null,viewer:id=>calls.push(['view',id]),editor:(id,scope)=>calls.push(['edit',scope.employeeId]),manager:()=>calls.push(['manager']),scope:()=>({division:'Production Division',plant:'โรง 1'}),alert:message=>calls.push(['alert',message]),document:{createElement:()=>node(),querySelectorAll:selector=>selector.includes('wallet-card-sheet')?[wallet]:[chart,factory]},window:{addEventListener:(type,handler,capture)=>{assert.equal(capture,true);listeners[type]=handler}}};
+ctx.operatorPosition=position=>/operator|^op(?:\b|\d)/i.test(String(position||''));
 vm.createContext(ctx);
 vm.runInContext(source.slice(source.indexOf('function employeeJDContext('),source.indexOf('function controls(')),ctx);
 ctx.cardControls();ctx.cardControls();assert.equal(chart.children.length,1);assert.equal(factory.children.length,1);assert.equal(wallet.previousElementSibling.children.length,1);
