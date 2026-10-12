@@ -2399,6 +2399,511 @@ Layout โรงงาน|Factory Layout
 ยังไม่เชื่อมต่อ|Not connected
 รายการเดิมที่ยังไม่ระบุกะแสดงในกะเช้า|Legacy unshifted assignments appear in day shift
 `.trim().split('\n').map(line=>{const i=line.indexOf('|');return [line.slice(0,i),line.slice(i+1)]})));
+
+ Object.assign(dictionary,{
+ "โดยตรง กรุณากด": "directly. Please click",
+ "ม.ค.": "Jan",
+ "ก.พ.": "Feb",
+ "มี.ค.": "Mar",
+ "เม.ย.": "Apr",
+ "พ.ค.": "May",
+ "มิ.ย.": "Jun",
+ "ก.ค.": "Jul",
+ "ส.ค.": "Aug",
+ "ก.ย.": "Sep",
+ "ต.ค.": "Oct",
+ "พ.ย.": "Nov",
+ "ธ.ค.": "Dec",
+ "สามารถเลือกไฟล์รูปจากเครื่องแล้วกดบันทึกได้ทันที ระบบจะเก็บรูปแบบบีบอัดไว้ใน": "Choose an image on your device and save it. Compressed images are stored in",
+ "ไม่พบรูปในโฟลเดอร์แผนกนี้ กรุณาตรวจชื่อโฟลเดอร์หรืออัปโหลดรูปเข้า": "No images found in this section folder. Check the folder name or upload images to",
+ "พร้อมบันทึกรูปเข้าระบบ": "Ready to save the photo to",
+ "น. กรุณาเช็คชื่อเมื่อถึงเวลา": ". Please check in when the window opens",
+ "ยังไม่ได้รับพิกัดโรงงานจากข้อมูลกลาง กรุณาตรวจอินเทอร์เน็ตแล้วลองใหม่ หรือให้": "Factory coordinates have not been received. Check your connection and retry, or contact",
+ "น. กรุณาระบุสาเหตุการเข้าสาย": ". Please enter the reason for being late",
+ "ม. (อนุญาตไม่เกิน": "m (maximum allowed:",
+ "ม.)": "m)",
+ "ม. ระบบบันทึกเวลาแล้วและทำเครื่องหมายรอตรวจสอบ": "m. Your time has been recorded and marked for review",
+ "เลยเวลาแจ้งเข้าสายล่วงหน้าของ": "The advance lateness reporting deadline has passed for",
+ "น. ของวันนั้น": "on that day",
+ "น. ระบบจะบังคับให้พิมพ์สาเหตุการเข้าสายตอนเช็คชื่อ": ". A lateness reason will be required at check-in",
+ "เลยเวลา": "After",
+ "น. แล้ว ไม่สามารถแจ้งเข้าสายล่วงหน้าได้": ". Advance lateness reporting is no longer available",
+ "กรณีลาป่วยที่แจ้งในวันลาและเดิมถูกหัก": "For same-day sick leave originally deducted",
+ "เมื่อแนบสำเร็จจะปรับเป็น": "After successful attachment, this changes to",
+ "ลากิจวันเดียวกันหรือล่วงหน้าไม่เกิน 7 วัน -1": "Same-day personal leave or up to 7 days in advance: -1",
+ "ลาป่วยวันเดียวกันมีใบรับรอง 0 / ไม่มี -1 และแนบภายใน 3 วัน": "Same-day sick leave: 0 with a medical certificate; -1 without one. Attach within 3 days",
+ "น. เช็คชื่อได้แต่ระบบตัดเป็นสายและบังคับพิมพ์สาเหตุ": ". Check-in is allowed but marked late, with a reason required",
+ "แสดงสถานะของพนักงานในแต่ละวัน ข้อมูลใช้ชุดเดียวกับ": "Displays daily employee status using the same data as",
+ "จึงเห็นตรงกันทุกเครื่องเมื่อซิงก์สำเร็จ": "so all devices match after successful synchronization",
+ "มุมมองนี้รวมผลรายเดือนของพนักงานทุกคนในขอบเขตที่เลือก ใช้ข้อมูล": "This view summarizes monthly results for all employees in the selected scope, using data from",
+ "ชุดเดียวกับ": "the same dataset as",
+ "และสามารถสลับกลับไปดูรายบุคคลเพื่อดูรายละเอียดรายวันได้": "Switch to an individual employee to see daily details",
+ "ในช่วงวันที่และขอบเขตที่เลือก ได้แก่ เช็คชื่อ / มาสาย / ลาป่วย / ลากิจ / ขาดงาน และคะแนนที่เกิดจาก": "Within the selected dates and scope: check-ins, lateness, sick leave, personal leave, absences, and scores from",
+ "วันที่ที่ล้างจะถูกล็อกเป็นช่วงทดลองเพื่อไม่ให้ข้อมูล": "Cleared dates are locked as a trial period to prevent data from",
+ "จากมือถือหรือขาดงานอัตโนมัติกลับมาหลัง": "mobile devices or automatic absences returning after",
+ "ทั้งหมดช่วงนี้": "all records in this period",
+ "จะลบ เช็คชื่อ / มาสาย / ลา / ขาดงาน และคะแนน": "This deletes check-ins, lateness, leave, absences, and scores",
+ "ลบทั้งเช็คชื่อ / มาสาย / ลา / ขาดงาน และคะแนน": "Delete check-ins, lateness, leave, absences, and scores",
+ "ถูกป้องกันไม่ให้ข้อมูลเก่าหรือขาดงานอัตโนมัติกลับมาหลัง": "Old data and automatic absences are prevented from returning after",
+ "ใหม่ตั้งแต่": "restarts from",
+ "ที่ต้องการลบ": "to delete",
+ "ยังไม่พร้อม การลบถูกเก็บคิวในเครื่องแล้ว": "is not ready. The deletion is queued on this device",
+ "ปลดล็อกวันเริ่มใช้งานจริงและซิงก์": "Unlock the production start date and sync",
+ "บันทึกการยกเลิกขาดงานลง": "Save absence cancellation to",
+ "อัปเดตการผูกเครื่องและซิงก์": "Update device binding and sync",
+ "แก้ข้อมูลเครื่องในเครื่องแล้ว แต่ซิงก์": "Device details updated locally, but synchronization with",
+ "แก้ข้อมูลในเครื่องแล้ว แต่ซิงก์": "Data updated locally, but synchronization with",
+ "ซิงก์การล้างข้อมูลทดลองไป": "Sync trial data cleanup to",
+ "ล้างในเครื่องแล้ว แต่ซิงก์": "Cleared locally, but synchronization with",
+ "สามารถกู้เวลาเช็คชื่อของวันนี้จากคลังสำรองได้ และเมื่อพนักงานเปิดเว็บ เครื่องจะส่งเวลาเช็คชื่อวันนี้ที่ค้างอยู่กลับ": "Today's check-ins can be restored from backup. When employees open the site, pending check-ins are resubmitted to",
+ "รายการนี้ถูก": "This record was",
+ "บริษัทจินร้งอิเล็กทรอนิกส์ เทคโนโลยี (ไทยแลนด์) จำกัด": "Jinrong Electronics Technology (Thailand) Co., Ltd.",
+ "หากยังไม่มีสามารถแนบภายหลังได้ภายใน 3 วัน และรายการลาป่วยวันนั้นที่เดิมหัก -1 จะปรับเป็น 0 เมื่อแนบภายใน 3 วัน": "If unavailable, attach within 3 days. The original same-day sick leave deduction of -1 changes to 0 when attached within 3 days",
+ "หากไม่แนบเกิน 3 วันจะปรับเป็น -2": "Without an attachment after 3 days, the deduction changes to -2",
+ "กำหนด 50–500 เมตร ระบบจะจับ": "Set 50–500 meters. The system captures",
+ "ตั้งกะ 4 รอบปัจจุบันให้พนักงานทุกแผนกหรือไม่?": "Assign the current 4 shift cycles to employees in all sections?",
+ "ตั้งกะ 4 รอบปัจจุบันให้ทุกแผนกเรียบร้อย": "Current 4 shift cycles assigned to all sections",
+ "ถ้าเครื่องหลักกับเครื่องอื่นแสดงกะไม่ตรงกัน ให้เปิดหน้านี้จากเครื่องหลักแล้วกด": "If shifts differ between devices, open this page on the primary device and click",
+ "ครั้ง ระบบจะส่งกะที่เครื่องหลักมีอยู่ก่อนรับข้อมูล": "time(s). The primary device uploads its shifts before receiving data",
+ "และให้ทุกเครื่องตาม": "and aligns all devices with",
+ "ระบบเช็คชื่อจะหา": "The attendance system finds",
+ "ตามวันที่จริง และเก็บกะไว้ใน": "by the actual date and stores the shift in",
+ "บันทึกไว้ในเครื่องแล้ว แต่": "Saved on this device, but",
+ "บันทึกข้อมูลพนักงานขึ้น": "Upload employee data to",
+ "ไว้ในเครื่องเรียบร้อยแล้ว ขณะนี้": "saved on this device. Currently,",
+ "ยังไม่ได้ตอบข้อ:": "Unanswered questions:",
+ "ต้องมีข้อกา 20 ข้อ กรุณาติดต่อ": "20 multiple-choice questions are required. Please contact",
+ "กรุณาตอบข้อเขียน": "Please answer the written questions",
+ "ให้ครบทั้ง 10 ข้อ": "Complete all 10 questions",
+ "ไม่สามารถกลับมาทำข้อสอบชุดนี้ต่อได้": "You cannot return to continue this exam",
+ "บันทึกข้อสอบแล้ว": "Exam saved",
+ "ระบบจะส่งเข้า": "The system will submit to",
+ "อัตโนมัติเมื่อสัญญาณพร้อม": "automatically when connected",
+ "บันทึกแล้วและเข้าคิวส่ง": "Saved and queued for submission to",
+ "ระบบอัปสกิลอัตโนมัติ": "Automatic skill advancement",
+ "ตรวจข้อเขียนและอนุมัติการอัปสกิล": "Grade written answers and approve skill advancement",
+ "นำเข้าข้อมูลและรูปภาพสำเร็จแล้ว เครื่องนี้จะแสดงข้อมูลเหมือนเครื่องหลัก": "Data and photos imported. This device now shows the same data as the primary device",
+ "ใช้ได้เฉพาะ": "Only supports",
+ "จุด, ขีดกลาง และขีดล่าง จำนวน 3–40 ตัว": "periods, hyphens, and underscores; 3–40 characters",
+ "ไฟล์ที่เลือกไม่ใช่รูปภาพ": "The selected file is not an image",
+ "อ่านไฟล์ไม่ได้": "Unable to read the file",
+ "รูปภาพเสียหรือไม่รองรับ": "The image is damaged or unsupported",
+ "ดึงจาก": "From",
+ "มีทั้งหมด": "Total",
+ "แผนเข้ากะรายบุคคล": "Individual shift plan",
+ "ของพนักงานคนนี้สำหรับ 4 รอบปัจจุบันได้ทันที": "for this employee across the current 4 cycles",
+ "ปรับแผนกะ 4 รอบ": "Adjust the 4-cycle shift plan",
+ "ใช้ค่า": "Use value",
+ "ปรับแผนเข้ากะรายบุคคล": "Adjust individual shift plan",
+ "ตั้งเฉพาะพนักงานคนนี้ โดยไม่กระทบพนักงานคนอื่น": "Apply only to this employee without affecting others",
+ "บันทึกแผนกะ 4 รอบของ": "Save the 4-cycle shift plan for",
+ "สามารถลงสถานะ": "You can record the status",
+ "ให้พนักงานคนนี้ได้โดยตรงจากรายชื่อ": "for this employee directly from the roster",
+ "แก้ไขข้อมูลและเพิ่ม เปลี่ยน หรือลบรูปภาพได้จากหน้านี้": "Edit details and add, replace, or remove the photo on this page",
+ "รายการนี้บันทึกเข้าประวัติ": "This record is saved in the history of",
+ "เวลาเข้าจริง": "Actual arrival time",
+ "ระบบจะคำนวณคะแนนมาสายจากเวลาเข้าจริงตามกะของพนักงาน": "Lateness deductions are calculated from actual arrival time and the assigned shift",
+ "ระบุเหตุผลหรือหมายเหตุ": "Enter a reason or note",
+ "กรุณาระบุวันที่ที่ถูกต้องและเหตุผล": "Enter a valid date and reason",
+ "กรุณาระบุเวลาเข้าจริง": "Enter the actual arrival time",
+ "เวลาที่เลือกยังไม่ถือว่ามาสาย": "The selected time is not considered late",
+ "เริ่มนับสายหลัง": "Lateness starts after",
+ "บันทึกในเครื่องแล้ว แต่ส่งขึ้น": "Saved locally, but upload to",
+ "ระบบจะนำรายการที่เคยบันทึกไว้กลับมารวมกับข้อมูลปัจจุบัน โดยไม่ลบรายการใหม่": "Previously saved records are merged with current data without deleting new records",
+ "ขาดงาน / ลา / มาสาย / คะแนนหักเดิมทั้งหมด": "all previous absences, leave, lateness, and deductions",
+ "รายการ และรีเซ็ต": "records, and reset",
+ "ของทุกคนกลับเป็น 100 คะแนน": "everyone's score to 100",
+ "จะถูกยกเลิกและเปลี่ยนเป็น": "will be canceled and changed to",
+ "คลังข้อสอบ จะไม่ถูกลบ": "The question bank will not be deleted",
+ "เพื่อยืนยันการรีเซ็ตและเริ่มใช้งานจริง": "to confirm the reset and start live operation",
+ "ยกเลิกการเริ่มใช้งานจริง": "Cancel live operation",
+ "ไม่นับข้อมูลก่อนวันเริ่มใช้งานจริงใหม่": "Exclude data before the new live start date",
+ "รีเซ็ตและเริ่มใช้งานจริงเรียบร้อย": "Reset completed and live operation started",
+ "ทุกคนเริ่มใหม่ 100 คะแนน": "Everyone restarts at 100 points",
+ "ข้อมูลและคะแนนก่อนวันนี้จะไม่ถูกสร้างย้อนกลับมาอีก": "Data and scores before today will not be recreated",
+ "ตั้งค่าในเครื่องแล้ว แต่": "Settings saved locally, but",
+ "ขณะนี้เป็นโหมดทดลองอยู่แล้ว": "Trial mode is already active",
+ "ที่มีอยู่จะไม่ถูกลบทันที แต่หลังจากนี้ควรใช้ปุ่ม": "Existing data is not deleted immediately. When ready, use the button",
+ "เพื่อเคลียร์ข้อมูลทดลองและเริ่มนับใหม่เมื่อพร้อม": "to clear trial data and restart",
+ "เปลี่ยนเป็นโหมดทดลองแล้ว": "Switched to trial mode",
+ "ยกเลิกการไม่นับคะแนนช่วง": "Cancel score exclusion for the period",
+ "หลังยกเลิก ระบบอาจสร้างขาดงานอัตโนมัติย้อนหลังตามกติกาปกติ": "After cancellation, retrospective automatic absences may be created under the normal rules",
+ "ลบวันหยุด": "Delete holiday",
+ "ไม่พบการลงทะเบียนเครื่อง": "Device registration not found",
+ "เรียบร้อย และบันทึก": "completed and saved to",
+ "แล้ว พนักงานสามารถลงทะเบียนเครื่องใหม่ได้": ". The employee can now register a new device",
+ "ในเครื่องแล้ว แต่": "on this device, but",
+ "แบบถาวรหรือไม่?": "permanently?",
+ "รายการนี้จะถูกลบจาก": "This record will be deleted from",
+ "และทำเครื่องหมายกัน": "and marked to prevent",
+ "มือถือส่งข้อมูลเก่ากลับมาอีก": "mobile devices from resending old data",
+ "ถาวรเรียบร้อย": "permanently deleted",
+ "แล้วข้อมูลจะไม่กลับมา": "and the data will not return",
+ "ของรหัส": "for employee ID",
+ "ทุกวันที่บันทึกของรหัส": "all recorded dates for employee ID",
+ "ทุกปี ทุกแผนก จำนวน": "all years and sections, total",
+ "ระบบจะเริ่มนับ": "The system starts counting",
+ "และจะไม่สร้างขาดงานย้อนหลังจากช่วงทดลอง": "and will not create retrospective absences for the trial period",
+ "ข้อมูลพนักงานและการผูกเครื่องจะยังอยู่": "Employee data and device bindings are retained",
+ "ทั้งหมด / ช่วงทดลองก่อน": "all records / trial period before",
+ "ระบบจะไม่สร้างขาดงานย้อนหลังจากข้อมูลช่วงทดลอง": "No retrospective absences will be created from trial data",
+ "ไม่มีข้อมูลการผูกเครื่องให้ล้าง": "No device bindings to clear",
+ "พนักงานจะต้องลงทะเบียนเครื่องใหม่ในการเช็คชื่อครั้งถัดไป": "Employees must register their device again at the next check-in",
+ "ล้างการผูกเครื่องทั้งหมดเรียบร้อย และบันทึก": "All device bindings cleared and saved to",
+ "คืนข้อสอบชุดนี้เป็นค่าเริ่มต้นหรือไม่?": "Restore this exam to its defaults?",
+ "กำลังคืนค่า...": "Restoring...",
+ "คืนค่าไว้ในเครื่องแล้ว แต่": "Restored locally, but",
+ "ไม่มีประวัติผลสอบให้ล้าง": "No exam results to clear",
+ "จะล้างประวัติผลสอบ/คะแนน/สถานะอนุมัติทั้งหมด": "All exam history, scores, and approval statuses will be cleared",
+ "ไม่ลบคลังข้อสอบและข้อมูลพนักงาน": "The question bank and employee data will be retained",
+ "โหมดทดลอง: จะล้างข้อมูลต่อไปนี้ทั้งหมด": "Trial mode: all the following data will be cleared",
+ "ใหม่ตั้งแต่วันนี้": "starting again today",
+ "โหมดทดลอง: จะล้าง": "Trial mode: clear",
+ "รายการ และการผูกเครื่อง": "records and device bindings",
+ "จะไม่ถูกลบ": "will not be deleted",
+ "กรอกวันที่ที่ต้องการล้าง": "Enter the date to clear",
+ "รูปแบบวันที่ไม่ถูกต้อง กรุณาใช้": "Invalid date format. Use",
+ "วันที่นี้จะถูกบันทึกว่า": "This date will be marked as",
+ "ลบแล้ว และ": "deleted, and",
+ "จากเครื่องพนักงานจะกู้กลับมาไม่ได้": "cannot be restored from employees' devices",
+ "ไม่ถูกกู้กลับหลังอัปเดต": "will not be restored after an update",
+ "ลบในเครื่องและเก็บคิวลบแล้ว แต่": "Deleted locally and queued for deletion, but",
+ "ตามตัวกรองนี้": "matching these filters",
+ "การลบนี้ไม่ลบข้อมูลพนักงาน": "Employee data will not be deleted",
+ "ระบบจะไม่กู้วันที่ที่ลบกลับมาอีก": "Deleted dates will not be restored",
+ "กำลังกู้ข้อมูล...": "Restoring data...",
+ "วันนี้ถูก": "Today was",
+ "ตั้งเป็นวันที่ล้าง": "marked as cleared",
+ "จึงไม่กู้ข้อมูลกลับอัตโนมัติ": "so data is not restored automatically",
+ "ไม่พบรายการที่หายจากคลังสำรองวันนี้": "No missing records found in today's backup",
+ "หากเวลายังค้างอยู่เฉพาะมือถือพนักงาน ให้พนักงานเปิดเว็บ": "If check-in times remain only on an employee's phone, ask them to open the site",
+ "อีกครั้ง ระบบจะส่งกลับ": "again. The system will resubmit to",
+ "ไม่พบประวัติการสอบที่ต้องการลบ กรุณา": "Exam history to delete was not found. Please",
+ "แล้วลองใหม่": "and try again",
+ "ลบประวัติการเข้าสอบรายการนี้หรือไม่?": "Delete this exam history record?",
+ "เมื่อลบแล้ว พนักงานจะสามารถเข้าสอบ": "After deletion, the employee can retake",
+ "หัวข้อนี้ใหม่ได้": "this topic",
+ "หมายเหตุ: การลบประวัติสอบจะไม่ย้อนระดับ": "Note: deleting exam history does not revert the level",
+ "ที่เคยอัปเดตจากผลสอบ": "previously updated from exam results",
+ "คืนสิทธิ์สอบทันที พนักงานสามารถสอบใหม่ได้ในเดือนนี้": "Exam access is restored immediately. The employee can retake the exam this month",
+ "ลบประวัติการเข้าสอบเรียบร้อยแล้ว": "Exam history deleted",
+ "ข้อกา 20 ข้อ:": "20 multiple-choice questions:",
+ "รายการนี้ได้รับการอนุมัติแล้ว": "This record has already been approved",
+ "ระบบปรับอัตโนมัติ ไม่ต้องใช้การอนุมัติ": "Updated automatically; approval is not required",
+ "กรอกรหัสอนุมัติสำหรับ": "Enter the approval code for",
+ "รหัสอนุมัติไม่ถูกต้อง": "Incorrect approval code",
+ "ไม่สามารถอัปสกิลได้ หรือระดับปัจจุบันเท่ากับ/สูงกว่าเป้าหมายแล้ว": "Cannot advance the skill, or the current level already meets or exceeds the target",
+ "อนุมัติและอัปสกิลอัตโนมัติ": "Approve and advance the skill automatically",
+ "เปิดแบบประเมิน": "Open assessment",
+ "ระบบเวอร์ชันนี้ใช้": "This version uses",
+ "เป็นฐานข้อมูลหลักแล้ว ไม่ต้องสร้างหรืออัปโหลด": "as the primary database. There is no need to create or upload",
+ "ปิดการคืนค่ารายชื่อจากไฟล์แล้ว เพื่อป้องกันรายชื่อเก่ากลับมาอีก กรุณาเพิ่ม/ลบ/แก้ไขพนักงานผ่านระบบ ซึ่งจะบันทึกที่": "Roster restoration from files is disabled to prevent old records returning. Add, remove, or edit employees in the system, which saves to",
+ "ลบพนักงานคนนี้ถาวรหรือไม่? ข้อมูลจะถูกลบจาก": "Permanently delete this employee? Data will be deleted from",
+ "และจะไม่กลับมาหลังอัปเดตเวอร์ชัน": "and will not return after a version update",
+ "ลบข้อมูลพนักงานจาก": "Delete employee data from",
+ "อัปเดตเวอร์ชันใหม่ชื่อจะไม่กลับมา": "The employee will not reappear after a version update",
+ "ลบในเครื่องแล้ว": "Deleted locally",
+ "ยังไม่พร้อม ระบบจะซิงก์เมื่อเชื่อมต่อได้": "is not ready. Synchronization resumes when connected",
+ "กรอกรหัส": "Enter code",
+ "หรือรหัสพนักงาน": "or employee ID",
+ "ตรวจพบข้อผิดพลาด:": "Error detected:",
+ "แบบหน้าหลัง": "front and back",
+ "ระบบจัดเอกสารให้แล้ว:": "Document prepared:",
+ "หน้าแรกเป็นด้านหน้าบัตร และหน้าถัดไปเป็นด้านหลังที่วางตำแหน่งตรงกัน ขนาด": "The first page contains card fronts and the next contains matching backs. Size:",
+ "แนวตั้ง จำนวนสูงสุด 10 ใบต่อด้าน": "portrait, up to 10 cards per side",
+ "ที่หน้าต่างเครื่องพิมพ์ ให้เลือก:": "In the print dialog, select:",
+ "พิมพ์สองด้าน /": "Two-sided printing /",
+ "พลิกขอบยาว /": "Flip on long edge /",
+ "ตัวเลือกนี้ขึ้นอยู่กับเครื่องพิมพ์ เว็บไม่สามารถเปิด": "This option depends on the printer. The website cannot enable",
+ "ของเครื่องแทนผู้ใช้ได้": "on the device for you",
+ "ตั้งค่าการพิมพ์ /": "Print settings /",
+ "แนวกระดาษ": "Orientation",
+ "การจัดขนาด": "Scaling",
+ "พอดีความกว้างกระดาษ": "Fit to page width",
+ "ระบบจะพิมพ์เฉพาะ": "Prints only",
+ "โดยตัดแถบเมนูและหัวข้อหน้าเว็บด้านบนออก รองรับ": "without the navigation bar and website heading. Supports",
+ "หลังจากกดพิมพ์ สามารถเลือกเครื่องพิมพ์ หรือ": "After clicking Print, choose a printer or",
+ "พิมพ์ตอนนี้": "Print now",
+ "ไม่ใช่ไฟล์รูปภาพ": "Not an image file",
+ "จะมีเฉพาะ": "Contains only",
+ "บัตรทั้ง": "both card sides",
+ "การลา และแผนกะพร้อมใช้งาน": "leave and shift plans are ready",
+ "การตรวจสอบใช้เวลานานเกินไป กรุณากด": "Verification timed out. Please click",
+ "บันทึกเครื่องเจ้าของไม่ได้ กรุณาลองอีกครั้ง": "Unable to save the owner's device. Please retry",
+ "ต้องเปิดจากเบราว์เซอร์เดิมบนเครื่อง": "Open with the original browser on the device",
+ "ที่เคยผูกไว้": "previously registered",
+ "กู้ได้เฉพาะบัญชี": "Recovery is available only for the account",
+ "หลักเดิม": "original primary account",
+ "เครื่องนี้ไม่ตรงกับเครื่อง": "This device does not match the",
+ "เดิม กรุณาใช้เครื่องและเบราว์เซอร์ที่เคย": "original device. Use the device and browser previously used to",
+ "บัญชีนี้ไม่ใช่": "This account is not",
+ "หลัก จึงไม่สามารถกู้ด้วยวิธีนี้ได้": "the primary account and cannot be recovered this way",
+ "เครื่องนี้ไม่ตรงกับเครื่องที่ผูกกับบัญชี": "This device does not match the one bound to the account",
+ "เดิมครบ": "all original records",
+ "ใช้ได้เฉพาะเครื่องและเบราว์เซอร์เดิมที่ผูกบัญชี": "Use only the original device and browser bound to the account",
+ "ไว้ ตั้งรหัสผ่านใหม่เพื่อกลับเข้าใช้งาน": ". Set a new password to restore access",
+ "ใหม่ต้องมีอย่างน้อย 8 ตัว": "must have at least 8 characters",
+ "หลักใช้ได้เฉพาะเครื่องเจ้าของ": "The primary account works only on the owner's device",
+ "ที่เพิ่มใช้จากเครื่องอื่นได้": "Additional accounts can use other devices",
+ "ระบบจัดการ": "Management system",
+ "ไม่ได้": "unavailable",
+ "เทียบ": "compared with",
+ "โหลดจาก": "Loaded from",
+ "เลือกรูปจากมือถือหรือคอม รูปจะบันทึกเข้าระบบ": "Choose a photo from your phone or computer. It will be saved to",
+ "และแชร์ให้ทุกคนเห็น": "and shared with all users",
+ "ยืนยันว่า": "Confirm that",
+ "รายชื่อจะถูกนำออก แต่ประวัติ": "The employee is removed from the roster, but the history of",
+ "จะยังคงเก็บไว้": "is retained",
+ "ระบบรายชื่อหลักยังไม่พร้อม กรุณารีเฟรชหน้าเว็บ": "The employee master is not ready. Refresh the page",
+ "ออกจากรายชื่อปัจจุบันและเก็บประวัติแล้ว": "removed from the current roster; history retained",
+ "กรุณารีเฟรชเพื่อใช้ระบบรายชื่อใหม่": "Refresh to use the updated roster system",
+ "หน้าจอย้ายแล้ว แต่": "Moved on screen, but",
+ "ยังบันทึกไม่สำเร็จ ระบบจะลองใหม่เมื่อเชื่อมต่อ:": "not saved yet. The system retries when connected:",
+ "ย้ายตำแหน่งไว้ในเครื่องแล้ว แต่": "Position saved locally, but",
+ "เข้าพื้นที่": "Area entry",
+ "รายบุคคล / ตามตำแหน่ง": "Individual / By position",
+ "ตามตำแหน่ง": "By position",
+ "ตั้งต้นไม่สำเร็จ กรุณาเปิดหน้าใหม่เพื่อลองอีกครั้ง:": "starter creation failed. Reopen the page to retry:",
+ "ปฏิบัติตาม WI, Control Plan และมาตรฐานคุณภาพ ความปลอดภัย และสิ่งแวดล้อม": "Follow the WI, Control Plan, quality, safety, and environmental standards.",
+ "บันทึกผลการทำงานให้ถูกต้อง และแจ้งผู้บังคับบัญชาเมื่อพบความผิดปกติ": "Keep accurate records and report abnormalities to the supervisor.",
+ "ร่วมกิจกรรม 5S, Kaizen และการฝึกอบรมที่เกี่ยวข้องกับหน้าที่": "Participate in 5S, Kaizen, and relevant training.",
+ "วางแผนและบริหารกำลังคน เครื่องจักร งบประมาณ และกำลังการผลิต": "Plan and manage manpower, machines, budget, and production capacity.",
+ "กำหนดและติดตาม KPI ด้านคุณภาพ ต้นทุน การส่งมอบ ประสิทธิภาพ และความปลอดภัย": "Set and monitor quality, cost, delivery, efficiency, and safety KPIs.",
+ "ประสานงาน Planning, Quality, Warehouse และหน่วยงานสนับสนุนให้ผลิตได้ตามแผน": "Coordinate with Planning, Quality, Warehouse, and support functions to meet production plans.",
+ "ทบทวนปัญหาหลัก อนุมัติแผนแก้ไข และติดตามประสิทธิผล": "Review major issues, approve corrective plans, and verify effectiveness.",
+ "พัฒนาทีมงาน ประเมินผล และกำหนดแผนทดแทนบุคลากร": "Develop the team, assess performance, and plan succession.",
+ "วิเคราะห์กระบวนการ Cycle Time, Capacity และปัญหาการผลิตเพื่อกำหนดแนวทางปรับปรุง": "Analyze processes, cycle time, capacity, and production problems to define improvements.",
+ "จัดทำและปรับปรุง WI, ค่าตั้งเครื่อง และมาตรฐานการทำงานร่วมกับหน่วยงานที่เกี่ยวข้อง": "Develop and update WIs, machine settings, and work standards with relevant functions.",
+ "ทดลองและยืนยันกระบวนการ ชิ้นงาน เครื่องมือ และการเปลี่ยนแปลงก่อนใช้งานจริง": "Trial and validate processes, parts, tools, and changes before implementation.",
+ "วิเคราะห์สาเหตุของเสียและ Downtime และติดตามมาตรการป้องกันซ้ำ": "Analyze defects and downtime and follow up recurrence prevention measures.",
+ "สนับสนุนการฝึกอบรมและประเมินทักษะพนักงาน": "Support employee training and skill assessments.",
+ "ควบคุมแผนการผลิตประจำวันและจัดสรรกำลังคนตามความสามารถ": "Control daily production plans and allocate manpower based on competence.",
+ "กำกับ Leader และทีมงานให้ผลิตตาม WI และ Control Plan": "Supervise leaders and teams to follow the WI and Control Plan.",
+ "ติดตาม Output, KPI, ของเสีย และ Downtime พร้อมรายงานปัญหา": "Monitor output, KPIs, defects, and downtime and report issues.",
+ "ควบคุมการเปลี่ยนรุ่น การส่งมอบระหว่างกะ และการตอบสนองความผิดปกติ": "Control changeovers, shift handovers, and abnormality response.",
+ "ประเมินทักษะและวางแผนพัฒนาพนักงานร่วมกับ Leader": "Assess skills and plan employee development with leaders.",
+ "จัดกะและกำหนดพนักงานประจำเครื่องตามแผนและ Skill Matrix": "Assign shifts and machine operators according to the plan and Skill Matrix.",
+ "ตรวจความพร้อมคน เครื่องจักร เครื่องมือ และเอกสารก่อนเริ่มกะ": "Check manpower, machine, tool, and document readiness before the shift.",
+ "ติดตามผลผลิตและคุณภาพระหว่างกะ พร้อมแจ้งปัญหาให้ Supervisor": "Monitor output and quality during the shift and report issues to the supervisor.",
+ "สอนงานและตรวจยืนยันว่าพนักงานปฏิบัติตาม WI": "Coach employees and verify compliance with the WI.",
+ "จัดทำข้อมูลส่งมอบกะและดูแลข้อมูลพนักงานในแผนกตามสิทธิ์": "Prepare shift handover records and maintain authorized employee data for the section.",
+ "ตรวจสอบ บำรุงรักษา และซ่อมเครื่องจักรหรือแม่พิมพ์ตามความรับผิดชอบ": "Inspect, maintain, and repair assigned machines or dies.",
+ "วิเคราะห์อาการเสียและแก้ไขภายใต้มาตรฐานความปลอดภัยและ LOTO": "Diagnose faults and repair safely according to safety and LOTO standards.",
+ "ตั้งเครื่องหรือปรับเครื่องตามค่าที่อนุมัติ และตรวจยืนยันก่อนผลิต": "Set or adjust machines using approved parameters and verify before production.",
+ "บันทึกงานซ่อม อะไหล่ Downtime และติดตามปัญหาซ้ำ": "Record repairs, spare parts, and downtime and follow up recurring faults.",
+ "ตรวจความพร้อมเครื่องจักร วัตถุดิบ และชิ้นงานก่อนเริ่มผลิต": "Check machine, material, and part readiness before production.",
+ "ผลิตหรือคัดแยกงานตาม WI, Control Plan และแผนการผลิต": "Produce or sort parts according to the WI, Control Plan, and production plan.",
+ "ตรวจชิ้นแรกและตรวจระหว่างผลิตตามจุดตรวจและความถี่ที่กำหนด": "Perform first-piece and in-process checks at specified points and frequencies.",
+ "แยกงาน OK/NG ระบุชิ้นงาน และหยุดแจ้งเมื่อพบความผิดปกติ": "Separate and identify OK/NG parts; stop and report abnormalities.",
+ "บันทึกจำนวนผลิต ของเสีย Downtime และส่งมอบงานระหว่างกะ": "Record output, defects, and downtime and hand over work between shifts.",
+ "ควบคุมเลขที่เอกสาร Revision การอนุมัติ และวันที่มีผล": "Control document numbers, revisions, approvals, and effective dates.",
+ "แจกจ่ายเอกสารฉบับล่าสุดและเรียกคืนเอกสารล้าสมัย": "Distribute current documents and recall obsolete copies.",
+ "จัดเก็บ WI, แบบฟอร์ม และบันทึกให้ค้นหาและสอบย้อนกลับได้": "Store WIs, forms, and records for retrieval and traceability.",
+ "ติดตามการทบทวนเอกสารและสนับสนุนการตรวจประเมิน": "Follow up document reviews and support audits.",
+ "จัดทำและปรับแผนการผลิตตามคำสั่งซื้อ วัตถุดิบ และ Capacity": "Prepare and adjust production plans based on orders, material availability, and capacity.",
+ "ประสานงานกำลังคน เครื่องจักร และวัตถุดิบกับหน่วยงานที่เกี่ยวข้อง": "Coordinate manpower, machines, and materials with relevant functions.",
+ "ติดตามความคืบหน้า WIP การส่งมอบ และงานคงค้าง": "Track progress, WIP, delivery, and backlog.",
+ "รายงานความเสี่ยงการส่งมอบและปรับแผนเมื่อเกิดความผิดปกติ": "Report delivery risks and revise plans when abnormalities occur.",
+ "รับ จัดเก็บ และจ่ายวัตถุดิบ ชิ้นงาน และอุปกรณ์ตามรายการที่อนุมัติ": "Receive, store, and issue materials, parts, and supplies against approved records.",
+ "ควบคุมการบ่งชี้ Lot, FIFO และตำแหน่งจัดเก็บ": "Control lot identification, FIFO, and storage locations.",
+ "บันทึกยอดรับจ่ายและตรวจนับสต๊อกให้ตรงกับข้อมูล": "Record receipts and issues and reconcile stock counts.",
+ "ป้องกันชิ้นงานปะปน เสียหาย และสนับสนุนการส่งมอบให้การผลิต": "Prevent mixing or damage and support timely delivery to production.",
+ "ดำเนินงานตามขอบเขตตำแหน่งและแผนงานของแผนก": "Perform work within the position scope and section plan.",
+ "ประสานงานกับหน่วยงานที่เกี่ยวข้องและติดตามงานที่ได้รับมอบหมาย": "Coordinate with relevant functions and follow up assigned work.",
+ "ปรับปรุงขั้นตอนการทำงานและรักษาคุณภาพของข้อมูลหรือผลงาน": "Improve work procedures and maintain the quality of data or output.",
+ "ออกแบบ ปรับปรุง และตรวจยืนยันแม่พิมพ์/เครื่องมือ รวมถึงอายุการใช้งานและอะไหล่": "Design, improve, and validate dies/tools, including service life and spare parts.",
+ "กำหนดและยืนยันพารามิเตอร์การเชื่อม คุณภาพรอยเชื่อม และแผนควบคุมกระบวนการ": "Define and validate welding parameters, weld quality, and process controls.",
+ "ผู้บริหารโรงงาน": "Plant Management",
+ "ประสบการณ์บริหารการผลิตและทีมงาน; ทักษะวางแผน วิเคราะห์ KPI และแก้ปัญหา": "Production and team management experience; planning, KPI analysis, and problem-solving skills.",
+ "ผู้จัดการ": "Manager",
+ "ความรู้วิศวกรรมที่เกี่ยวข้อง; อ่าน Drawing และวิเคราะห์กระบวนการได้": "Relevant engineering knowledge; ability to read drawings and analyze processes.",
+ "ผู้จัดการหรือวิศวกร": "Manager or Engineer",
+ "ประสบการณ์ควบคุมการผลิต; ภาวะผู้นำและทักษะแก้ปัญหาหน้างาน": "Production supervision experience; leadership and shop-floor problem-solving skills.",
+ "หัวหน้างาน": "Supervisor",
+ "เข้าใจกระบวนการของแผนก; สื่อสาร จัดคน และสอนงานได้": "Understand section processes; able to communicate, assign manpower, and coach.",
+ "หัวหน้างานหรือวิศวกร": "Supervisor or Engineer",
+ "ความรู้เครื่องจักรหรือแม่พิมพ์ที่เกี่ยวข้อง; ใช้เครื่องมือและอ่านเอกสารเทคนิคได้": "Relevant machine or die knowledge; able to use tools and read technical documents.",
+ "หัวหน้าทีม": "Leader",
+ "ผ่านการฝึกอบรมและประเมินทักษะของงานที่ได้รับมอบหมาย": "Trained and assessed as competent for assigned work.",
+ "เข้าใจการควบคุมเอกสารและใช้โปรแกรมสำนักงานได้": "Understand document control and use office software.",
+ "ทักษะวางแผน วิเคราะห์ข้อมูล และประสานงาน": "Planning, data analysis, and coordination skills.",
+ "หัวหน้างานหรือผู้จัดการ": "Supervisor or Manager",
+ "เข้าใจการควบคุมสต๊อก FIFO และการบ่งชี้ชิ้นงาน": "Understand inventory control, FIFO, and part identification.",
+ "ผู้บังคับบัญชาตามโครงสร้างองค์กร": "Supervisor in the organization structure",
+ "ความรู้และทักษะที่เหมาะกับงานในตำแหน่งนี้ — กรุณาปรับรายละเอียด": "Relevant knowledge and skills for this position — please customize.",
+ "กำหนดเป้าหมายและแผนงานของหน่วยงาน": "Set department objectives and operating plans",
+ "บริหารกำลังคน งบประมาณ และทรัพยากร": "Manage staffing, budget and resources",
+ "ติดตาม KPI คุณภาพ ต้นทุน การส่งมอบ และความปลอดภัย": "Review quality, cost, delivery and safety KPIs",
+ "พัฒนาทีมและติดตามการแก้ไขปัญหาข้ามหน่วยงาน": "Develop the team and follow up cross-functional corrective actions",
+ "ทักษะบริหารทีม วางแผน วิเคราะห์ข้อมูล และตัดสินใจ": "Team management, planning, data analysis and decision-making",
+ "ควบคุมการปฏิบัติงานให้เป็นไปตามแผนของหน่วยงาน": "Supervise operations against the department plan",
+ "จัดสรรกำลังคนและติดตามผลแต่ละกะ": "Allocate staff and monitor each shift",
+ "ตรวจติดตามมาตรฐานงานและแก้ไขปัญหาหน้างาน": "Verify work standards and resolve operational issues",
+ "ประเมินทักษะและวางแผนฝึกอบรมพนักงาน": "Assess skills and plan employee training",
+ "ทักษะควบคุมงาน บริหารคน และวิเคราะห์ปัญหา": "Supervision, people management and problem analysis",
+ "วิเคราะห์และปรับปรุงกระบวนการในหน่วยงาน": "Analyze and improve department processes",
+ "จัดทำและทบทวนมาตรฐานงานและข้อมูลทางเทคนิค": "Prepare and review work standards and technical data",
+ "วิเคราะห์สาเหตุปัญหาและยืนยันผลการแก้ไข": "Analyze root causes and verify corrective actions",
+ "สนับสนุนการทดลองงาน การเปลี่ยนแปลง และฝึกอบรม": "Support trials, changes and technical training",
+ "ความรู้ทางวิศวกรรมที่เกี่ยวข้อง การวิเคราะห์ข้อมูล และการแก้ไขปัญหา": "Relevant engineering knowledge, data analysis and problem-solving",
+ "มอบหมายงานและตรวจความพร้อมก่อนเริ่มกะ": "Assign work and verify shift readiness",
+ "ติดตามผลผลิต คุณภาพ และความผิดปกติระหว่างกะ": "Monitor output, quality and abnormalities during the shift",
+ "สอนงานและตรวจการปฏิบัติตาม WI": "Coach employees and verify WI compliance",
+ "ส่งมอบงานระหว่างกะและรายงานปัญหาต่อผู้บังคับบัญชา": "Complete shift handover and escalate issues",
+ "ทักษะหน้างาน การสอนงาน และการประสานงาน": "Operational skills, coaching and coordination",
+ "ตรวจเช็ค ตั้งค่า และดูแลอุปกรณ์ตามงานที่ได้รับมอบหมาย": "Inspect, set up and maintain assigned equipment",
+ "วิเคราะห์และแก้ไขความผิดปกติตามขอบเขตที่ได้รับอนุญาต": "Diagnose and correct faults within authorized scope",
+ "บันทึกการซ่อม การตั้งค่า และผลการตรวจสอบ": "Record repairs, settings and inspection results",
+ "ตรวจยืนยันความพร้อมและความปลอดภัยก่อนส่งมอบ": "Verify readiness and safety before handover",
+ "ทักษะเครื่องมือ งานเทคนิค และความปลอดภัยของอุปกรณ์": "Tool use, technical work and equipment safety",
+ "ปฏิบัติงานตามหน้าที่ที่ได้รับมอบหมายและมาตรฐานที่อนุมัติ": "Perform assigned duties according to approved standards",
+ "ตรวจความพร้อมของงาน อุปกรณ์ และเอกสารก่อนเริ่มงาน": "Check work, equipment and document readiness",
+ "ตรวจสอบและบันทึกผลการทำงานให้ครบถ้วน": "Check and accurately record work results",
+ "รายงานความผิดปกติและปฏิบัติตามขั้นตอนการแก้ไข": "Report abnormalities and follow the response procedure",
+ "ความรู้ในงานที่รับผิดชอบ การใช้เครื่องมือ และการบันทึกข้อมูล": "Job knowledge, tool use and accurate recordkeeping",
+ "ปฏิบัติตามข้อกำหนดความปลอดภัย คุณภาพ และ 5ส ที่เกี่ยวข้อง": "Follow applicable safety, quality and 5S requirements",
+ "ฉบับร่างตั้งต้น โปรดทบทวนให้ตรงกับงานจริงก่อนอนุมัติ": "Starter draft: review against actual duties before approval",
+ "ระบุวุฒิ ประสบการณ์ และการฝึกอบรมตามความจำเป็นของตำแหน่ง": "Specify education, experience and training required for this role"
+});
+ Object.assign(dictionary,{
+ "เครื่องปั๊ม — จุดอันตรายของ": "Stamping machine — hazards of",
+ "และวิธีหยุดเครื่องฉุกเฉิน": "and emergency stopping procedures",
+ "งานปั๊ม — ลำดับการทำงาน จุดตรวจสำคัญ ความถี่ตรวจ และค่ามาตรฐานของ": "Stamping — work sequence, key inspection points, frequency, and standard values for",
+ "การตั้งเครื่องและ": "Machine setup and",
+ "และค่าที่อนุญาตก่อนเริ่มผลิต": "and approved settings before production",
+ "ตรวจชิ้นแรกตาม": "Inspect the first piece against",
+ "บันทึกผล และรออนุมัติก่อนผลิตต่อ": "Record results and wait for approval before continuing production",
+ "งานปั๊ม — วิธีแยก": "Stamping — how to segregate",
+ "งานเชื่อม — อันตรายจากไฟฟ้า สะเก็ดไฟ ความร้อน ควันเชื่อม": "Welding — electrical, spark, heat, and fume hazards",
+ "และเงื่อนไขก่อนเริ่มงาน": "and conditions before starting work",
+ "การตรวจจุดเชื่อม — ตำแหน่งและจำนวนจุดเชื่อม ลักษณะรอยเชื่อม และ": "Weld inspection — location, number, appearance, and",
+ "การตรวจสภาพหัวเชื่อม การเจียร การเปลี่ยน และการบันทึกอายุการใช้งาน": "Electrode inspection, dressing, replacement, and service-life records",
+ "และวิธีกักงาน": "and containment procedures",
+ "การจัดโต๊ะ แสงสว่าง": "Workstation layout and lighting",
+ "และการป้องกัน": "and prevention of",
+ "ตำแหน่งตรวจ วิธีจับชิ้นงาน ระยะมอง และลำดับการตรวจครบทุกจุด": "Inspection locations, part handling, viewing distance, and complete inspection sequence",
+ "และงานประกอบผิด": "and incorrect assembly",
+ "เลือกและใช้เครื่องมือวัดให้เหมาะกับจุดตรวจ พร้อมตรวจ": "Select and use suitable measuring equipment; verify",
+ "ก่อนใช้งาน": "before use",
+ "จำนวนบรรจุ และป้องกัน": "packing quantities, and prevention of",
+ "ต่างรุ่นปะปน": "mixed models",
+ "ตัดแยกพลังงาน ล็อกแหล่งพลังงาน ทดสอบ": "Isolate and lock energy sources, test",
+ "และคืนเครื่องอย่างปลอดภัย": "and safely return the machine to service",
+ "จุดตรวจรายวัน/เดือน วิธีตรวจสภาพ และเกณฑ์ตัดสินก่อนเกิด": "Daily/monthly inspection points, condition checks, and criteria before",
+ "รับแจ้ง วิเคราะห์อาการ แยกสาเหตุ ซ่อม ทดสอบ และส่งมอบเครื่อง": "Receive reports, diagnose faults, identify causes, repair, test, and hand over equipment",
+ "อ่านวงจร ตรวจ": "Read circuits, check",
+ "และใช้อุปกรณ์วัดอย่างปลอดภัย": "and use measuring equipment safely",
+ "และความแน่นของอุปกรณ์": "and secure fastening of equipment",
+ "งานแม่พิมพ์ — การยกเคลื่อนย้าย การค้ำยัน จุดหนีบคม และการใช้เครื่องมืออย่างปลอดภัย": "Tooling — lifting, transport, support, pinch/sharp-edge hazards, and safe tool use",
+ "และบันทึกจำนวน": "and record the quantity",
+ "และการซ่อม — วิเคราะห์": "and repair — analyze",
+ "ที่สัมพันธ์กับแม่พิมพ์ ซ่อม ประกอบ ทดลอง และยืนยันชิ้นงาน": "related to the die; repair, assemble, trial, and validate parts",
+ "และตั้ง": "and set",
+ "ให้ตรงมาตรฐาน": "to meet the standard",
+ "อายุใช้งาน และการเบิกคืนให้สอบย้อนกลับได้": "service life and traceable issue/return records",
+ "และข้อกำหนดกระบวนการ — ประเมินความเสี่ยงและกำหนด": "and process requirements — assess risks and define",
+ "ให้สอดคล้อง": "consistently",
+ "และกำหนด": "and define",
+ "เพื่อวางแผนปรับปรุงที่วัดผลได้": "to plan measurable improvements",
+ "จัดทำเนื้อหา สาธิต ประเมินความเข้าใจ และติดตามผลหลังอบรม": "Prepare content, demonstrate, assess understanding, and follow up after training",
+ "และการประสานงาน — ข้อควรระวังในการสนับสนุนหน้างานและช่องทางแจ้งเหตุผิดปกติ": "and coordination — precautions for operational support and abnormality reporting channels",
+ "จัดลำดับผลิต ตรวจ": "Sequence production, check",
+ "และติดตาม": "and monitor",
+ "จำนวน และป้องกัน": "quantities, and prevent",
+ "หรือปะปน": "or mixing",
+ "บันทึกรับ-จ่าย ผลผลิต": "Record receipts, issues, output",
+ "ใช้เอกสาร": "Use documents",
+ "จุดหมุน เศษโลหะ ประตูนิรภัย": "Rotating parts, metal chips, safety doors",
+ "และใช้": "and use",
+ "ตามจุดตรวจ": "at the inspection points",
+ "และวิธีหยุด/กักงาน": "and stopping/containment procedures",
+ "จุดหมุน จุดหนีบ เศษโลหะ การใช้": "Rotating parts, pinch points, metal chips, and use of",
+ "ให้ตรง": "to match",
+ "ตรวจความลึก ตำแหน่ง และเกลียวเสีย": "Check depth, position, and defective threads",
+ "การควบคุมอายุ": "Service-life control",
+ "กำหนดจำนวนใช้งาน ตรวจการสึก และเปลี่ยนก่อนเกิด": "Set usage limits, check wear, and replace before",
+ "เกลียวไม่เต็ม เกลียวหวาน": "Incomplete or stripped threads",
+ "หัก รูเอียง และวิธีกักงาน": "breakage, tilted holes, and containment procedures",
+ "จุดหนีบ การวางมือ": "Pinch points and hand positioning",
+ "และการตั้งเครื่อง — เลือก": "and machine setup — select",
+ "อ่านมุม ระยะ ความสูง และใช้": "Read angles, distances, heights, and use",
+ "มุมผิด ระยะผิด": "Incorrect angles or distances",
+ "อันตรายของพื้นที่": "Area hazards",
+ "จุดฉุกเฉิน และช่องทางแจ้งเหตุ": "Emergency points and reporting channels",
+ "ลำดับงาน เงื่อนไขสำคัญ และข้อห้ามของตำแหน่ง": "Work sequence, key conditions, and role-specific prohibitions",
+ "ตัวอย่างมาตรฐาน และการกักงาน": "Reference samples and containment",
+ "แยกของ จัดวาง ทำความสะอาด รักษามาตรฐาน และสร้างวินัย": "Sort, set in order, clean, standardize, and sustain",
+ "ประจำพื้นที่ — รู้จุดอันตราย จุดหนีบ/จุดหมุน แหล่งพลังงาน เส้นทางหนีไฟ และปุ่ม": "for the area — identify hazards, pinch/rotating points, energy sources, escape routes, and buttons",
+ "ประจำงาน — เลือก สวม ตรวจสภาพ และเปลี่ยน": "for the job — select, wear, inspect, and replace",
+ "ให้เหมาะกับความเสี่ยงของงาน": "according to job risks",
+ "อ่านเอกสาร": "Read documents",
+ "ล่าสุด เข้าใจลำดับงาน เงื่อนไขควบคุม และข้อห้าม": "in the latest revision; understand the work sequence, controls, and prohibitions",
+ "ระบุจุดตรวจ วิธีตรวจ ความถี่": "Identify inspection points, methods, and frequency",
+ "ที่รับผิดชอบ": "under your responsibility",
+ "แยกสิ่งของ จัดตำแหน่ง ทำความสะอาด ตรวจมาตรฐาน และรักษาวินัยประจำพื้นที่": "Sort, organize, clean, check standards, and maintain area discipline",
+ "เมื่อพบเครื่อง/": "When a machine or",
+ "ชิ้นงานผิดปกติ ให้หยุด แยก แจ้ง และบันทึกก่อนเริ่มงานต่อ": "part is abnormal, stop, segregate, report, and record before restarting",
+ "ฝึกเริ่มงาน ผลิต ตรวจ บันทึก และจบงานตามขั้นตอนโดยมีผู้สอนประเมิน": "Practice startup, production, inspection, recording, and shutdown under trainer assessment",
+ "และตำแหน่งอุปกรณ์ฉุกเฉิน": "and emergency equipment locations",
+ "และปฏิบัติงานพื้นฐานถูกต้องทุก": "and perform all basic operations correctly",
+ "และสภาพพื้นที่ก่อนเปิดงาน": "and area conditions before starting work",
+ "บันทึกผล และขออนุมัติก่อนผลิตต่อ": "Record results and request approval before continuing production",
+ "ฝึกเปรียบเทียบของจริง อธิบายสาเหตุ และตัดสินงานตาม": "Practice comparing actual parts, explaining causes, and judging parts against",
+ "หยุดผลิต แยกกัก ติดป้าย ระบุ": "Stop production, contain, label, and identify",
+ "จำนวน แจ้งหัวหน้า และป้องกันงานหลุด": "the quantity; notify the leader and prevent escapes",
+ "และจุดควบคุมที่ห้ามเปลี่ยนเอง รวมถึง": "and controls that must not be changed without authorization, including",
+ "เมื่อค่าเกินมาตรฐาน": "when values exceed the standard",
+ "ขั้นตอนกักและรายงาน": "Containment and reporting procedures",
+ "กับเครื่อง/กระบวนการจริง + ฝึกตัดสิน": "on actual machines/processes, plus judgment practice",
+ "ตั้งงาน/ตรวจ": "Set up / inspect",
+ "ตามหน้าที่ได้": "within assigned duties",
+ "แยกและควบคุม": "Segregate and control",
+ "เลือกเครื่องมือวัดให้ตรงจุด ตรวจ": "Select suitable measuring equipment and check",
+ "ทำความสะอาด จับวัด และอ่านค่าอย่างถูกต้อง": "Clean, position, measure, and read correctly",
+ "ที่ใช้กับ": "used with",
+ "วัดตามลำดับและตำแหน่งใน": "Measure in the sequence and locations specified in",
+ "พร้อมควบคุมแรงวัดและสภาพชิ้นงาน": "while controlling measuring force and part condition",
+ "และผู้ตรวจให้ครบ ห้ามบันทึกย้อนหลังโดยไม่มีเหตุผล": "and inspector details; do not backdate records without justification",
+ "เชื่อมโยง": "Link",
+ "หยุดงาน กักตั้งแต่": "Stop work and contain from",
+ "แจ้งผู้เกี่ยวข้อง ตรวจยืนยัน และบันทึกผลการจัดการ": "Notify relevant personnel, verify, and record the disposition",
+ "วิธีวัดตาม": "Measurement method according to",
+ "เมื่อค่าตรวจเกินมาตรฐาน": "when measurements exceed the standard",
+ "สาธิต 1 ชั่วโมง + ฝึกวัดชิ้นงานจริงอย่างน้อย 5 ชิ้น + ฝึกอ่าน": "1-hour demonstration, measurement practice on at least 5 actual parts, and reading practice for",
+ "ผลวัดตรงกับ": "Measurements agree with",
+ "บันทึกและสอบย้อนกลับได้ครบถ้วน": "Complete records and traceability",
+ "ศึกษาปัญหาจริง ผลกระทบ จุดที่ควรตรวจพบ และข้อกำหนดใหม่หลังแก้ไข": "Study actual problems, impacts, detection points, and revised requirements",
+ "แยกอาการกับสาเหตุ ใช้ 5": "Separate symptoms from causes using 5",
+ "และตรวจหลักฐานก่อนสรุป": "and verify evidence before concluding",
+ "กำหนดวิธีแก้ ผู้รับผิดชอบ กำหนดเสร็จ และวิธีตรวจประสิทธิผลเพื่อป้องกันซ้ำ": "Define corrective actions, owners, due dates, and effectiveness checks to prevent recurrence",
+ "ฝึกตอบสนองไฟไหม้ อุบัติเหตุ เครื่องเสีย สารเคมีรั่ว หรือ": "Practice responses to fire, accidents, breakdowns, chemical spills, or",
+ "เปรียบเทียบทักษะปัจจุบันกับเป้าหมาย ระบุ": "Compare current skills against targets; identify",
+ "และแผน": "and plans",
+ "แชร์ปัญหาและวิธีป้องกันให้พนักงานใน": "Share problems and prevention methods with employees in",
+ "นำไปใช้กับงานคล้ายกัน": "for application to similar work",
+ "และภาคปฏิบัติผ่าน": "and pass the practical assessment",
+ "มีผลประเมินและแผนพัฒนาปีถัดไป": "Have assessment results and a development plan for the next year",
+ "ต้องมีขนาดไม่เกิน 1.5": "must not exceed 1.5",
+ "อ่านไฟล์": "Read file",
+ "กดดูรายละเอียด": "View details",
+ "ไม่ต้องเพิ่มเอง และจะไม่ถูกตัดขาดงาน/ไม่หัก": "No manual entry required; no automatic absence or deduction of",
+ "หากไม่มีการเช็คชื่อ หากมี": "when there is no check-in. If there is",
+ "วันอาทิตย์และพนักงานเช็คชื่อ ระบบยังเก็บ": "on Sunday and the employee checks in, the system still records",
+ "ได้ตามปกติ ส่วนวันหยุดโรงงานเพิ่มเติมให้เพิ่มด้านล่าง": "as usual. Add other factory holidays below",
+ "ไม่สามารถเปิดหน้าจัดการอื่น เปลี่ยน": "Cannot open other management pages or change",
+ "ไฟล์เวอร์ชันใหม่กลับเข้ามา และยังสำรองเพิ่มใน": "a new file version, with an additional backup in",
+ "ตรวจชิ้นงานปั๊ม แม่พิมพ์ และอุปกรณ์ป้องกันตาม WI": "Check stamped parts, dies and safeguards per WI",
+ "ควบคุมงานเชื่อม จิ๊ก และตรวจแนวเชื่อมตามมาตรฐาน": "Control welding work, fixtures and weld inspection",
+ "ตรวจโปรแกรม เครื่องมือตัด และขนาดชิ้นงานตามมาตรฐาน": "Verify programs, cutting tools and part dimensions",
+ "ตรวจเครื่องมือต๊าปและคุณภาพเกลียวตามมาตรฐาน": "Check tapping tools and thread quality",
+ "ตรวจการตั้งงาน มุมพับ และขนาดชิ้นงาน": "Check bending setup, angles and dimensions",
+ "ตรวจและคัดแยกชิ้นงานตามเกณฑ์ พร้อมระบุและแยกงาน NG": "Inspect and sort parts against criteria; identify and segregate NG parts",
+ "ดำเนินงานบำรุงรักษาตามแผนและบันทึกประวัติอุปกรณ์": "Perform planned maintenance and record equipment history",
+ "ตรวจรับ จัดเก็บ และเบิกจ่ายโดยรักษาการสอบกลับของสินค้า": "Receive, store and issue goods with traceability",
+ "ติดตามแผนงาน กำลังการผลิต และความพร้อมของวัสดุ": "Track schedules, capacity and material availability",
+ "ติดตามความต้องการจัดซื้อและกำหนดส่งมอบกับผู้ขาย": "Track purchase requirements and supplier delivery dates",
+ "ดูแลข้อมูลบุคลากรและประสานงานตามขั้นตอนของหน่วยงาน": "Maintain personnel data and coordinate department procedures"
+});
  const englishUI={
   'Admin Login':'เข้าสู่ระบบผู้ดูแล','Logout':'ออกจากระบบ','Login':'เข้าสู่ระบบ','Sign in':'เข้าสู่ระบบ',
   'Attendance':'เช็คชื่อ','Examination':'ระบบสอบ','Attendance & KPI':'เช็คชื่อและ KPI',
@@ -2442,49 +2947,118 @@ Layout โรงงาน|Factory Layout
   'Good Qty':'จำนวนชิ้นดี','Downtime':'เวลาหยุดเครื่อง','Total Score':'คะแนนรวม',
   'Prepared by':'ผู้จัดทำ','Reviewed by':'ผู้ตรวจสอบ','Approved by':'ผู้อนุมัติ'
  };
+ const reverse={};
+ for(const [th,en] of Object.entries(dictionary))if(en&&/[A-Za-z]/.test(en))reverse[en]=th;
+ Object.assign(reverse,englishUI,{
+  'Stamping Section':'แผนกปั๊ม','Welding Section':'แผนกเชื่อม','Bending Section':'แผนกพับ',
+  'Tapping Section':'แผนกต๊าป','Taping Section':'แผนกต๊าป','CNC Section':'แผนกซีเอ็นซี',
+  'Engineering Support Section':'แผนกสนับสนุนวิศวกรรม','Support Production Section':'แผนกสนับสนุนการผลิต',
+  'Machine Maintenance Section':'แผนกซ่อมบำรุงเครื่องจักร','Tooling Maintenance Section':'แผนกซ่อมบำรุงแม่พิมพ์',
+  'Sorting1':'คัดแยก 1','Sorting2':'คัดแยก 2','Sorting Section':'แผนกคัดแยก',
+  'Stamping':'ปั๊ม','Welding':'เชื่อม','Bending':'พับ','Tapping':'ต๊าป','Taping':'ต๊าป',
+  'Sorting':'คัดแยก','Engineering Support':'สนับสนุนวิศวกรรม','Support Production':'สนับสนุนการผลิต',
+  'Machine Maintenance':'ซ่อมบำรุงเครื่องจักร','Tooling Maintenance':'ซ่อมบำรุงแม่พิมพ์',
+  'Production Division':'ฝ่ายผลิต','Planning':'วางแผน','Purchasing':'จัดซื้อ','Marketing':'การตลาด',
+  'Warehouse':'คลังสินค้า','Human Resources':'ทรัพยากรบุคคล','HR':'บุคคล',
+  'Quality Control':'ควบคุมคุณภาพ','Quality Assurance':'ประกันคุณภาพ',
+  'Admin':'ผู้ดูแลระบบ','Dashboard':'หน้าสรุป','Skill Matrix':'ตารางทักษะ','Skill':'ทักษะ',
+  'Factory':'โรงงาน','Group':'กลุ่ม','Team':'ทีม','Training':'การฝึกอบรม','Assessment':'การประเมิน',
+  'Draft':'ฉบับร่าง','Document':'เอกสาร','Plant Management':'ผู้บริหารโรงงาน',
+  'Control Plan':'แผนควบคุม','Cycle Time':'รอบเวลาผลิต','Drawing':'แบบงาน','Specification':'ข้อกำหนด',
+  'Output':'ผลผลิต','Input':'ข้อมูลเข้า','Process':'กระบวนการ','Support':'สนับสนุน','Spare':'สำรอง',
+  'Quality System':'ระบบคุณภาพ','Process Improvement':'การปรับปรุงกระบวนการ',
+  'Problem Solving':'การแก้ไขปัญหา','Training & Coaching':'การฝึกอบรมและสอนงาน',
+  'Project Management':'การบริหารโครงการ','Part':'ชิ้นงาน','Step':'ขั้นตอน','Shift':'กะ',
+  'Day':'วัน','Night':'กลางคืน','Online':'ออนไลน์','Offline':'ออฟไลน์','Refresh':'รีเฟรช',
+  'Rev.':'ฉบับแก้ไข','JD No.':'เลขที่รายละเอียดงาน','No data':'ไม่มีข้อมูล','Check-in':'เช็คชื่อ','Check-out':'ลงเวลาออก','Skill Card':'การ์ดทักษะ','merge':'รวมข้อมูล','cache':'ข้อมูลชั่วคราว'
+ });
+ Object.assign(reverse,{"Audit": "การตรวจประเมิน", "Cumulative": "สะสม", "Go-Live": "เริ่มใช้งานจริง", "Quarter": "ไตรมาส", "Upskill": "ยกระดับทักษะ", "Baseline": "ข้อมูลตั้งต้น", "Job Observation": "การสังเกตการทำงาน", "Skill Proficiency Levels": "ระดับความเชี่ยวชาญ", "Checked by": "ผู้ตรวจสอบ", "User": "ผู้ใช้งาน", "Hash": "แฮช", "Live Sync": "ซิงก์แบบทันที", "Card": "การ์ด", "Master": "ข้อมูลหลัก", "Duplex": "พิมพ์สองด้าน", "Leader Login": "เข้าสู่ระบบหัวหน้าทีม", "Training & Examination Plan": "แผนฝึกอบรมและการสอบ", "JINRONG ELECTRONIC TECHNOLOGY (THAILAND) COMPANY LIMITED": "บริษัทจินร้งอิเล็กทรอนิกส์ เทคโนโลยี (ไทยแลนด์) จำกัด", "KPI": "ตัวชี้วัด", "JD": "รายละเอียดงาน", "OJT": "การฝึกปฏิบัติงาน", "NG": "งานเสีย", "QC Division": "ฝ่ายควบคุมคุณภาพ", "WH Division": "ฝ่ายคลังสินค้า", "HR Division": "ฝ่ายบุคคล", "Safety Division": "ฝ่ายความปลอดภัย", "Planning Division": "ฝ่ายวางแผน", "Purchasing Division": "ฝ่ายจัดซื้อ", "Marketing Division": "ฝ่ายการตลาด", "Sorting 1": "คัดแยก 1", "Sorting 2": "คัดแยก 2"});
+ for(const [en,th] of Object.entries(reverse))if(!dictionary[th])dictionary[th]=en;
+ const reverseLower=Object.fromEntries(Object.entries(reverse).map(([k,v])=>[k.toLowerCase(),v]));
  const escape=s=>s.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
  const keys=Object.keys(dictionary).sort((a,b)=>b.length-a.length);
  const phrases=new RegExp(keys.map(escape).join('|'),'g');
- const englishKeys=Object.keys(englishUI).sort((a,b)=>b.length-a.length);
- const englishPattern=new RegExp('(?<![A-Za-z0-9])(?:'+englishKeys.map(escape).join('|')+')(?![A-Za-z0-9])','g');
+ const englishKeys=Object.keys(reverse).sort((a,b)=>b.length-a.length);
+ const englishPattern=new RegExp('(?<![A-Za-z0-9_#-])(?:'+englishKeys.map(escape).join('|')+')(?![A-Za-z0-9_#-])','gi');
+ function bilingual(source,target){
+  // Handle explicit Thai / English pairs and numbered two-line JD templates.
+  const lines=source.split('\n'),out=[];
+  for(let i=0;i<lines.length;i++){
+   const line=lines[i],next=lines[i+1];
+   if(/[ก-๙]/.test(line)&&next&&/^\s{2,}[A-Za-z]/.test(next)&&!/[ก-๙]/.test(next)){
+    out.push(target==='th'?line:(line.match(/^\s*\d+[.)]\s*/)?.[0]||'')+next.trim());i++;continue;
+   }
+   const parts=line.split(/\s+\/\s+/);
+   if(parts.length===2){
+    const leftThai=/[ก-๙]/.test(parts[0]),rightThai=/[ก-๙]/.test(parts[1]);
+    if(leftThai!==rightThai&&/[A-Za-z]/.test(parts[leftThai?1:0])){
+     const thaiPart=parts[leftThai?0:1],englishPart=parts[leftThai?1:0];
+     // Only collapse a documented translation pair, not two different controls.
+     const thClean=thaiPart.replace(/^\s*\d+[.)]\s*/, '').trim();
+     if(dictionary[thClean]?.toLowerCase()===englishPart.trim().toLowerCase()||reverseLower[englishPart.trim().toLowerCase()]===thClean){
+      out.push(target==='th'?thaiPart:((thaiPart.match(/^\s*\d+[.)]\s*/)||[''])[0]+englishPart));continue;
+     }
+    }
+   }
+   out.push(line);
+  }
+  return out.join('\n');
+ }
  function translate(source,target=language){
   if(typeof source!=='string'||!source.trim())return source;
+  source=bilingual(source,target);
   const value=source.trim(),leading=source.match(/^\s*/)[0],trailing=source.match(/\s*$/)[0];
-  // Existing bilingual labels collapse to the chosen language.
   const aliases={
-   'Attendance / เช็คชื่อ':['เช็คชื่อ','Attendance'], 'Examination / ระบบสอบ':['ระบบสอบ','Examination'],
-   'กะเช้า / Day Shift':['กะเช้า','Day Shift'], 'กะดึก / Night Shift':['กะดึก','Night Shift'],
-   'กระเช้า / Day Shift':['กะเช้า','Day Shift'], 'Production Division Organization Chart':['ผังองค์กร','Organization Chart']
+   'Attendance / เช็คชื่อ':['เช็คชื่อ','Attendance'],'Examination / ระบบสอบ':['ระบบสอบ','Examination'],
+   'กะเช้า / Day Shift':['กะเช้า','Day Shift'],'กะดึก / Night Shift':['กะดึก','Night Shift'],
+   'กระเช้า / Day Shift':['กะเช้า','Day Shift'],'Production Division Organization Chart':['ผังองค์กร','Organization Chart'],
+   'JOB DESCRIPTION / JD รายบุคคล':['รายละเอียดงานรายบุคคล','Individual Job Description'],
+   'Job Description · รายละเอียดงานรายบุคคล':['รายละเอียดงานรายบุคคล','Individual Job Description']
   };
   if(aliases[value])return leading+aliases[value][target==='en'?1:0]+trailing;
   if(target==='th'){
-   if(/[ก-๙]/.test(value))return source;
-   return source.replace(englishPattern,match=>englishUI[match]);
+   if(reverseLower[value.toLowerCase()])return leading+reverseLower[value.toLowerCase()].replace(englishPattern,match=>reverseLower[match.toLowerCase()]||match)+trailing;
+   return source.replace(englishPattern,match=>reverseLower[match.toLowerCase()]||match).replace(/\bNo\.(?=\d)/g,'เครื่อง ');
   }
   if(dictionary[value])return leading+dictionary[value]+trailing;
-  // Leave names and unrecognized data intact. Short Thai words require boundaries.
   return source.replace(phrases,(match,offset,whole)=>{
    if(match.length<=4&&(/[ก-๙]/.test(whole[offset-1]||'')||/[ก-๙]/.test(whole[offset+match.length]||'')))return match;
-   const before=whole[offset-1]||'',after=whole[offset+match.length]||'';return (/[A-Za-zก-๙]/.test(before)?' ':'')+dictionary[match]+(/[A-Za-zก-๙]/.test(after)?' ':'');
+   const before=whole[offset-1]||'',after=whole[offset+match.length]||'';
+   return (/[A-Za-zก-๙]/.test(before)?' ':'')+dictionary[match]+(/[A-Za-zก-๙]/.test(after)?' ':'');
   }).replace(/([A-Za-z])(?=[ก-๙])/g,'$1 ').replace(/([ก-๙])(?=[A-Za-z])/g,'$1 ');
  }
- const ignored=el=>!el||el.closest('script,style,textarea,code,pre,[contenteditable="true"],[data-i18n-ignore],.ppms-language-control,.person b,.factory-chart-person b,.stamping-card-name,.sorting-card-name,.ppms-jd-text');
+ const ignored=el=>!el||el.closest('script,style,textarea,code,pre,[contenteditable="true"],[data-i18n-ignore],.ppms-language-control,.person b,.factory-chart-person b,.stamping-card-name,.sorting-card-name');
+ let employeeNames=[],rosterSource='';
+ function refreshProtectedNames(){
+  try{const raw=localStorage.getItem('ppms_v3_employees')||'[]';if(raw===rosterSource)return;rosterSource=raw;
+   employeeNames=[...new Set(JSON.parse(raw).flatMap(e=>[e.name,e.thaiName,e.englishName,e.nameEn,e.nameTh]).filter(n=>typeof n==='string'&&n.trim().length>1))].sort((a,b)=>b.length-a.length);
+  }catch{employeeNames=[]}
+ }
+ function displayText(source){
+  const protectedValues=[];
+  const hold=value=>{const token='\uE000'+protectedValues.length+'\uE001';protectedValues.push(value);return token};
+  let safe=source;
+  for(const name of employeeNames)safe=safe.split(name).join(hold(name));
+  safe=safe.replace(/\b[A-Za-z0-9]+(?:[-_][A-Za-z0-9]+)+\b/g,value=>/[0-9]/.test(value)?hold(value):value);
+  safe=safe.replace(/https?:\/\/[^\s<>]+|\b[\w.-]+\.(?:js|json|csv|xlsx?|pdf|png|jpe?g|html)\b/gi,hold);
+  return translate(safe).replace(/\uE000(\d+)\uE001/g,(_,i)=>protectedValues[Number(i)]);
+ }
  function textNode(node){
   if(ignored(node.parentElement))return;
   const current=node.nodeValue,state=texts.get(node);
   const original=state&&current===state.rendered?state.original:current;
   if(node.parentElement.tagName==='OPTION'&&!node.parentElement.hasAttribute('value'))node.parentElement.setAttribute('value',node.parentElement.value);
-  const rendered=translate(original);
+  const rendered=displayText(original);
   texts.set(node,{original,rendered});
   if(current!==rendered)node.nodeValue=rendered;
  }
  function elementAttributes(el){
   if(el.closest('script,style,[data-i18n-ignore],.ppms-language-control'))return;
   let states=attributes.get(el);if(!states){states={};attributes.set(el,states)}
-  for(const name of ['placeholder','title','aria-label','alt']){
+  for(const name of ['placeholder','title','aria-label','alt',...(el.matches('input[type=button],input[type=submit],input[type=reset]')?['value']:[])]){
    if(!el.hasAttribute(name))continue;
    const current=el.getAttribute(name),state=states[name],original=state&&current===state.rendered?state.original:current;
-   const rendered=translate(original);states[name]={original,rendered};
+   const rendered=displayText(original);states[name]={original,rendered};
    if(current!==rendered)el.setAttribute(name,rendered);
   }
  }
@@ -2505,10 +3079,10 @@ Layout โรงงาน|Factory Layout
   if(!document.body||applying)return;
   applying=true;scheduled=false;observer.disconnect();
   try{
-   document.documentElement.lang=language;controls();
+   refreshProtectedNames();document.documentElement.lang=language;controls();
    const walker=document.createTreeWalker(document.body,NodeFilter.SHOW_TEXT);
    let node;while((node=walker.nextNode()))textNode(node);
-   document.body.querySelectorAll('[placeholder],[title],[aria-label],[alt]').forEach(elementAttributes);
+   document.body.querySelectorAll('[placeholder],[title],[aria-label],[alt],input[type=button],input[type=submit],input[type=reset]').forEach(elementAttributes);
    // Browser title is UI too; it has no effect on data.
    document.title=language==='th'?'PPMS — ระบบจัดการพนักงานและการผลิต':'PPMS — People & Production Management';
   }finally{applying=false;watch()}
@@ -2524,10 +3098,17 @@ Layout โรงงาน|Factory Layout
  document.head.append(style);
  for(const name of ['alert','confirm','prompt']){
   const native=window[name].bind(window);
-  window[name]=function(message,...rest){return native(translate(String(message)),...rest)};
+  window[name]=function(message,...rest){return native(displayText(String(message)),...rest)};
  }
  function sourceText(element){if(!element)return '';const walker=document.createTreeWalker(element,NodeFilter.SHOW_TEXT);let node,out='';while((node=walker.nextNode())){const state=texts.get(node);out+=state&&node.nodeValue===state.rendered?state.original:node.nodeValue}return out}
- window.PPMSLanguage={translate,setLanguage,sourceText,get language(){return language},refresh:apply};
+ function translateDocument(doc){
+  if(!doc?.body)return;refreshProtectedNames();doc.documentElement.lang=language;
+  const walker=doc.createTreeWalker(doc.body,NodeFilter.SHOW_TEXT);let node;
+  while((node=walker.nextNode()))textNode(node);
+  doc.body.querySelectorAll('[placeholder],[title],[aria-label],[alt],input[type=button],input[type=submit]').forEach(elementAttributes);
+  doc.title=displayText(doc.title);
+ }
+ window.PPMSLanguage={translate,setLanguage,sourceText,translateDocument,get language(){return language},refresh:apply};
  window.addEventListener('storage',event=>{if(event.key===KEY)setLanguage(event.newValue,false)});
  window.addEventListener('beforeprint',apply);
  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',apply,{once:true});else apply();

@@ -83,6 +83,7 @@
       return;
     }
 
+    window.PPMSLanguage?.refresh();
     const printWindow=window.open('about:blank','ppmsSkillCardPrint');
     if(!printWindow){
       alert('เบราว์เซอร์บล็อกหน้าพิมพ์ กรุณาอนุญาต Pop-ups สำหรับเว็บไซต์นี้แล้วลองใหม่');
@@ -125,6 +126,7 @@
       if(typeof closeModal==='function')closeModal();
       printWindow.focus();
       printWindow.addEventListener('afterprint',()=>setTimeout(()=>printWindow.close(),300),{once:true});
+      window.PPMSLanguage?.translateDocument(printWindow.document);
       printWindow.print();
     }catch(error){
       printWindow.close();

@@ -1,0 +1,20 @@
+// Run with JSDOM_MODULE pointing to jsdom when it is installed outside this repository.
+const fs=require('node:fs'),assert=require('node:assert/strict');
+const {JSDOM}=require(process.env.JSDOM_MODULE||'jsdom');
+const dom=new JSDOM('<html><head></head><body><header></header><main><button id="mixed">เพิ่ม Section / Position</button><select id="section"><option>Stamping Section</option></select><p id="code">JR-HR-SM-001</p><p id="person">Quality Leader</p><textarea id="draft">ข้อความที่ผู้ใช้กรอกเอง</textarea><div class="ppms-jd-text" id="jd">1. วางแผนและบริหารกำลังคน เครื่องจักร งบประมาณ และกำลังการผลิต\n   Plan and manage manpower, machines, budget, and production capacity.</div></main></body></html>',{url:'https://example.com',runScripts:'outside-only',pretendToBeVisual:true});
+const w=dom.window;let alertText='';w.alert=value=>{alertText=value};w.confirm=()=>false;w.prompt=()=>'';
+w.localStorage.setItem('ppms_v3_employees',JSON.stringify([{id:'EMP-1',name:'Quality Leader'}]));
+w.eval(fs.readFileSync('language-v843.js','utf8'));w.eval(fs.readFileSync('jd-role-templates-v843.js','utf8'));
+const el=id=>w.document.getElementById(id),api=w.PPMSLanguage;
+(async()=>{
+ for(let i=0;i<3;i++){
+  api.setLanguage('th');assert.equal(el('mixed').textContent,'เพิ่ม แผนก / ตำแหน่ง');assert.equal(el('section').value,'Stamping Section');assert.equal(el('section').selectedOptions[0].textContent,'แผนกปั๊ม');assert(!/[A-Za-z]/.test(el('jd').textContent));
+  api.setLanguage('en');assert(!/[ก-๙]/.test(el('mixed').textContent));assert(!/[ก-๙]/.test(el('jd').textContent));assert.equal(el('section').value,'Stamping Section');assert.equal(el('code').textContent,'JR-HR-SM-001');assert.equal(el('person').textContent,'Quality Leader');assert.equal(el('draft').value,'ข้อความที่ผู้ใช้กรอกเอง');
+ }
+ el('mixed').textContent='กรุณาระบุเวลาเข้าจริง';await new Promise(r=>setTimeout(r,60));assert.equal(el('mixed').textContent,'Enter the actual arrival time');
+ w.alert('กรุณาระบุเวลาเข้าจริง');assert.equal(alertText,'Enter the actual arrival time');
+ for(const position of ['Manager','Engineer','Supervisor','Leader','Technician','Operator','Document','Planning','Warehouse','Other']){const d=w.PPMSJDTemplates.draft({position,section:'Stamping Section'});for(const key of ['responsibilities','qualifications','reportsTo'])assert(!/[ก-๙]/.test(api.translate(d[key],'en')),position+': '+key);}
+ const print=new JSDOM('<html><head><title>Employee Skill Card</title></head><body><p>หน้าที่และความรับผิดชอบ</p><p>JR-HR-SM-001</p></body></html>');api.translateDocument(print.window.document);assert.equal(print.window.document.documentElement.lang,'en');assert(!/[ก-๙]/.test(print.window.document.body.textContent));assert(print.window.document.body.textContent.includes('JR-HR-SM-001'));
+ assert.equal(w.localStorage.getItem('ppms_ui_language'),'en');assert.equal(api.sourceText(el('mixed')),'กรุณาระบุเวลาเข้าจริง');
+ print.window.close();dom.window.close();console.log('Passed: repeated Thai/English switching, mixed labels, stable option values, protected names and IDs, editable data, dynamic messages, alerts, every JD role, and print document language.');
+})().catch(e=>{dom.window.close();throw e});
