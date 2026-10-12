@@ -67,7 +67,7 @@ function canonicalPosition(value){
  const text=normalize(value),key=text.toLowerCase().replace(/[_-]+/g,' ').replace(/\s+/g,' ');
  const aliases={
   'stoer':'Store','stroe':'Store','store':'Store','store keeper':'Store','storekeeper':'Store','store staff':'Store','พนักงานห้องเบิกจ่ายของ':'Store',
-  'production planning':'Production Planning','production planner':'Production Planning','วางแผนการผลิต':'Production Planning','การผลิต วางแผน':'Production Planning',
+  'production planning':'Production Planning','production planner':'Production Planning','วางแผนการผลิต':'Production Planning','เจ้าหน้าที่วางแผนการผลิต':'Production Planning','การผลิต วางแผน':'Production Planning',
   'document control':'Document Control','document controller':'Document Control','เจ้าหน้าที่ควบคุมเอกสาร':'Document Control','เอกสาร ควบคุม':'Document Control',
   'opeartor':'Operator','operater':'Operator','assistant leader':'Assistant Leader',
   'pe':'Production Engineer','production engineer':'Production Engineer','production manager':'Production Manager'
@@ -83,7 +83,7 @@ function positionTitle(record){
  const known={'Production':['การผลิต','Production'],'Stamping':['ปั๊ม','Stamping'],'Welding':['เชื่อม','Welding'],'Bending':['พับ','Bending'],'Tapping':['ต๊าป','Tapping'],'Taping':['ต๊าป','Taping'],'CNC':['ซีเอ็นซี','CNC'],'Tooling':['แม่พิมพ์','Tooling'],'Sorting1':['คัดแยก 1','Sorting 1'],'Sorting2':['คัดแยก 2','Sorting 2'],'QC':['ควบคุมคุณภาพ','Quality Control'],'WH':['คลังสินค้า','Warehouse'],'HR':['บุคคล','Human Resources']};
  const subject=value=>known[value]?.[language==='en'?1:0]||translate(value);
  const roles=[[/assistant\s+leader|ผู้ช่วยหัวหน้าทีม/i,'ผู้ช่วยหัวหน้าทีม','Assistant Leader'],[/manager|ผู้จัดการ/i,'ผู้จัดการ','Manager'],[/engineer|วิศวกร|^pe$/i,'วิศวกร','Engineer'],[/supervisor|หัวหน้างาน|หัวหน้าแผนก/i,'หัวหน้างาน','Supervisor'],[/leader|หัวหน้าทีม/i,'หัวหน้าทีม','Leader'],[/technician|ช่างเทคนิค/i,'ช่างเทคนิค','Technician'],[/operator|opeartor|operater|^op(?:\b|\d)|พนักงานทั่วไป|พนักงานผลิต|พนักงานปฏิบัติการ/i,'พนักงาน','Operator']];
- const special={'Store':['พนักงานห้องเบิกจ่ายของ','Store'],'Production Planning':['วางแผนการผลิต','Production Planning'],'Document Control':['เจ้าหน้าที่ควบคุมเอกสาร','Document Control']};
+ const special={'Store':['พนักงานห้องเบิกจ่ายของ','Store'],'Production Planning':['เจ้าหน้าที่วางแผนการผลิต','Production Planning'],'Document Control':['เจ้าหน้าที่ควบคุมเอกสาร','Document Control']};
  if(special[p])return special[p][language==='en'?1:0];
  const role=roles.find(([pattern])=>pattern.test(p));
  if(!role)return translate(p)+(section?' · '+subject(section):'');
@@ -144,7 +144,7 @@ function editor(id,initial){if(!admin())return;const existing=id?records[id]:nul
  f.elements.division.onchange=()=>{previousSection='';f.elements.employeeId.value='';sync()};f.elements.plant.onchange=()=>{previousSection='';f.elements.employeeId.value='';sync()};f.elements.section.onchange=()=>{previousSection=f.elements.section.value;f.elements.employeeId.value='';sync()};f.elements.employeeId.onchange=()=>{syncEmployee();refreshPositionTitles()};sync();f.querySelector('[data-jd-back]').onclick=()=>manager(filters);(existing?f.elements.responsibilities:f.elements.employeeId).focus();
  f.onsubmit=async e=>{e.preventDefault();if(!admin())return;const databaseInstance=database();if(!databaseInstance||!connected||navigator.onLine===false){message.textContent='กรุณาเชื่อมต่อฐานข้อมูลก่อนบันทึก JD';return}
  const button=f.querySelector('[type="submit"]');let record;
- try{const person=existing?null:employeeList(f.elements.division.value,f.elements.division.value==='Production Division'?f.elements.plant.value:'รวม',f.elements.section.value).find(e=>String(e.id)===f.elements.employeeId.value);if(!existing&&!person)throw Error('ไม่พบพนักงานใน Section ที่เลือก กรุณาตรวจสอบรายชื่ออีกครั้ง');record=validateRecord({...existing,templateVersion:3,employeeId:existing?.employeeId||String(person?.id||''),employeeName:existing?.employeeName||employeeName(person),division:f.elements.division.value,plant:f.elements.division.value==='Production Division'?f.elements.plant.value:'รวม',section:f.elements.section.value,position:normalize(f.elements.position.value),documentNo:f.elements.documentNo.value.trim(),revision:f.elements.revision.value.trim(),effectiveDate:f.elements.effectiveDate.value,reportsTo:f.elements.reportsTo.value.trim(),responsibilities:f.elements.responsibilities.value.trim(),qualifications:f.elements.qualifications.value.trim(),documentUrl:f.elements.documentUrl.value.trim(),updatedAt:new Date().toISOString(),updatedBy:sessionStorage.getItem('ppms_admin_user')||'Admin'},Boolean(existing&&!existing.employeeId));
+ try{const person=existing?null:employeeList(f.elements.division.value,f.elements.division.value==='Production Division'?f.elements.plant.value:'รวม',f.elements.section.value).find(e=>String(e.id)===f.elements.employeeId.value);if(!existing&&!person)throw Error('ไม่พบพนักงานใน Section ที่เลือก กรุณาตรวจสอบรายชื่ออีกครั้ง');record=validateRecord({...existing,templateVersion:4,employeeId:existing?.employeeId||String(person?.id||''),employeeName:existing?.employeeName||employeeName(person),division:f.elements.division.value,plant:f.elements.division.value==='Production Division'?f.elements.plant.value:'รวม',section:f.elements.section.value,position:normalize(f.elements.position.value),documentNo:f.elements.documentNo.value.trim(),revision:f.elements.revision.value.trim(),effectiveDate:f.elements.effectiveDate.value,reportsTo:f.elements.reportsTo.value.trim(),responsibilities:f.elements.responsibilities.value.trim(),qualifications:f.elements.qualifications.value.trim(),documentUrl:f.elements.documentUrl.value.trim(),updatedAt:new Date().toISOString(),updatedBy:sessionStorage.getItem('ppms_admin_user')||'Admin'},Boolean(existing&&!existing.employeeId));
  button.disabled=true;message.textContent='กำลังบันทึก JD...';const key=id||await recordKey(record);const result=await databaseInstance.ref('settings/jobDescriptions/'+key).transaction(current=>nextRevision(current,record,expected),undefined,false);
  if(!result.committed)throw Error(existing?'JD ถูกแก้ไขจากเครื่องอื่นแล้ว กรุณากลับรายการและเปิดฉบับล่าสุดก่อนแก้ไข':'มี JD ของพนักงานคนนี้แล้ว กรุณาเปิดรายการของบุคคลนี้และใช้ปุ่มแก้ไข');
  records[key]=result.snapshot.val();localStorage.setItem(CACHE,JSON.stringify(records));viewer(key);
@@ -156,7 +156,7 @@ function viewer(id){const record=records[id];if(!record||!admin())return;const c
 }
 // Starter drafts are created only for missing individual JDs; existing records win.
 function starterJD(person,context){
- if(typeof window!=='undefined'&&window.PPMSJDTemplates){const template=window.PPMSJDTemplates.draft(context);return {...template,...context,employeeName:employeeName(person),draft:true,templateVersion:3};}
+ if(typeof window!=='undefined'&&window.PPMSJDTemplates){const template=window.PPMSJDTemplates.draft(context);return {...template,...context,employeeName:employeeName(person),draft:true,templateVersion:4};}
  const role=String(context.position||'').toLowerCase();
  const pair=(th,en)=>th+' / '+en;
  let duties,skills,reportsTo='';
@@ -233,7 +233,7 @@ async function seedPositionJDs(){
 
 
 function canUpgradeJD(record){
- return record&&Number(record.templateVersion||0)<3&&Boolean(record.section&&record.position);
+ return record&&Number(record.templateVersion||0)<4&&Boolean(record.section&&record.position);
 }
 let upgradingJDs=false;
 async function upgradeSectionJDs(){
@@ -248,7 +248,7 @@ async function upgradeSectionJDs(){
     if(!canUpgradeJD(current)||Number(current.version||0)!==Number(record.version||0)||current.updatedAt!==record.updatedAt)return undefined;
     // A concurrent change to the scope or content must not be overwritten.
     if(['division','plant','section','position','responsibilities','qualifications'].some(k=>current[k]!==record[k]))return undefined;
-    return {...current,...context,draft:true,status:'draft',previousResponsibilities:current.previousResponsibilities||current.responsibilities||'',responsibilities:template.responsibilities,qualifications:current.qualifications||template.qualifications,reportsTo:current.reportsTo||template.reportsTo,templateVersion:3,templateSource:template.templateSource,version:Number(current.version||0)+1,updatedAt:now,updatedBy:'PPMS · Detailed Section JD'};
+    return {...current,...context,draft:true,status:'draft',previousResponsibilities:current.previousResponsibilities||current.responsibilities||'',previousQualifications:current.previousQualifications||current.qualifications||'',responsibilities:template.responsibilities,qualifications:template.qualifications,previousReportsTo:current.previousReportsTo||current.reportsTo||'',reportsTo:template.reportsTo,templateVersion:4,templateSource:template.templateSource,version:Number(current.version||0)+1,updatedAt:now,updatedBy:'PPMS · Detailed Section JD'};
    },undefined,false);
    if(result.committed){records[id]=result.snapshot.val();changed=true}
   }
