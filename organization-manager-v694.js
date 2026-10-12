@@ -43,7 +43,7 @@ function seniorityCompare(a,b){
 }
 function positionRank(name){const x=String(name||'').toLowerCase();if(/leader/.test(x))return 0;if(/supervisor/.test(x))return 1;if(/engineer/.test(x))return 2;if(/technician/.test(x))return 3;if(/\b(?:operator|opeartor|operater)\b|^op(?:\b|\d)|พนักงานทั่วไป|พนักงานผลิต/.test(x.trim()))return 5;return 4}
 function positionClass(name){const x=String(name||'').toLowerCase();if(/leader/.test(x))return'leader';if(/supervisor/.test(x))return'supervisor';if(/engineer/.test(x))return'engineer';if(/technician/.test(x))return'technician';if(/\b(?:operator|opeartor|operater)\b|^op(?:\b|\d)|พนักงานทั่วไป|พนักงานผลิต/.test(x.trim()))return'operator';return'other'}
-function renderDivisionChart(select,detail){const division=select.value,plant=division==='Production Division'?(document.getElementById('factoryPlantChart')?.value||master.plants[0]):'รวม',members=chartPeople().filter(e=>{const x=divisionOf(e);return x.division===division&&(division!=='Production Division'||x.plant===plant)}),managers=members.filter(e=>/manager/i.test(String(e.position||''))),workers=members.filter(e=>!managers.includes(e)),sections=[...new Set([...sectionsFor(division,plant),...workers.map(e=>String(e.section||'')).filter(Boolean)])];let chart='';for(const section of sections){const sectionMembers=workers.filter(e=>String(e.section||'')===section),saved=master.sectionPositions[positionKey(division,plant,section)]||[],positions=[...new Set([...saved,...sectionMembers.map(e=>String(e.position||'')).filter(Boolean)].map(value=>positionClass(value)==='operator'?'Operator':value))].sort((a,b)=>positionRank(a)-positionRank(b)||String(a).localeCompare(String(b)));let roles='';for(const position of positions){const group=sectionMembers.filter(e=>position==='Operator'?positionClass(e.position)==='operator':String(e.position||'')===position).sort(seniorityCompare),roleClass=positionClass(position);roles+='<div class="factory-role factory-role-'+roleClass+'"><strong>'+esc(position)+'</strong>'+(group.length?'<div class="factory-people">'+group.map(personCard).join('')+'</div>':'')+'</div>'}chart+='<section class="factory-org-section"><h4>'+esc(section)+'</h4><div class="factory-org-meta">'+sectionMembers.length+' Employees</div><button type="button" class="section-position-add" data-add-section-position data-section="'+esc(section)+'">+ เพิ่มตำแหน่งใน Section</button>'+(roles||'<div class="factory-section-empty">ยังไม่มีตำแหน่ง</div>')+'</section>'}const managerHtml=managers.length?'<div class="factory-manager"><div class="factory-people">'+managers.map(personCard).join('')+'</div></div>':'';detail.innerHTML='<div class="org-config-head"><h3 class="factory-chart-title">'+esc(division)+(division==='Production Division'?' — '+esc(plant):'')+'</h3><button type="button" data-add-factory-section>+ เพิ่ม Section</button></div>'+managerHtml+'<div class="factory-org-sections">'+(chart||'<div class="factory-chart-empty">ยังไม่มี Section — กด “+ เพิ่ม Section”</div>')+'</div>'}
+function renderDivisionChart(select,detail){const division=select.value,plant=division==='Production Division'?(document.getElementById('factoryPlantChart')?.value||master.plants[0]):'รวม',members=chartPeople().filter(e=>{const x=divisionOf(e);return x.division===division&&(division!=='Production Division'||x.plant===plant)}),managers=members.filter(e=>/manager/i.test(String(e.position||''))),workers=members.filter(e=>!managers.includes(e)),sections=[...new Set([...sectionsFor(division,plant),...workers.map(e=>String(e.section||'')).filter(Boolean)])];let chart='';for(const section of sections){const sectionMembers=workers.filter(e=>String(e.section||'')===section),saved=master.sectionPositions[positionKey(division,plant,section)]||[],positions=[...new Set([...saved,...sectionMembers.map(e=>String(e.position||'')).filter(Boolean)].map(value=>positionClass(value)==='operator'?'Operator':value))].sort((a,b)=>positionRank(a)-positionRank(b)||String(a).localeCompare(String(b)));let roles='';for(const position of positions){const group=sectionMembers.filter(e=>position==='Operator'?positionClass(e.position)==='operator':String(e.position||'')===position).sort(seniorityCompare),roleClass=positionClass(position);roles+='<div class="factory-role factory-role-'+roleClass+'"><strong>'+esc(position)+'</strong>'+(group.length?'<div class="factory-people">'+group.map(personCard).join('')+'</div>':'')+'</div>'}chart+='<section class="factory-org-section"><h4>'+esc(section)+'</h4><div class="factory-org-meta">'+sectionMembers.length+' Employees</div><button type="button" class="section-position-add" data-add-section-position data-section="'+esc(section)+'">+ เพิ่มตำแหน่งใน Section</button>'+(roles||'<div class="factory-section-empty">ยังไม่มีตำแหน่ง</div>')+'</section>'}const managerHtml=managers.length?'<div class="factory-manager"><div class="factory-people">'+managers.map(personCard).join('')+'</div></div>':'';detail.innerHTML='<div class="org-config-head"><h3 class="factory-chart-title">'+esc(division)+(division==='Production Division'?' — '+esc(plant):'')+'</h3><button type="button" data-add-factory-section>+ เพิ่ม Section</button></div>'+managerHtml+'<div class="factory-org-sections">'+(chart||'<div class="factory-chart-empty">ยังไม่มี Section — กด “+ เพิ่ม Section”</div>')+'</div>';deleteSectionControls()}
 function chartPicker(){const box=document.querySelector('.factory-summary');if(!box||box.querySelector('.factory-chart-picker'))return;chartStyle();const area=document.createElement('section');area.className='factory-chart-picker';area.innerHTML='<div class="org-config-add"><label>Division<select id="factoryDivisionChart">'+master.divisions.map(x=>'<option>'+esc(x)+'</option>').join('')+'</select></label><label id="factoryPlantChartLabel">โรงงาน<select id="factoryPlantChart">'+master.plants.map(x=>'<option>'+esc(x)+'</option>').join('')+'</select></label></div><div id="factoryDivisionChartDetail"></div>';box.append(area);const select=area.querySelector('#factoryDivisionChart'),plant=area.querySelector('#factoryPlantChart'),plantLabel=area.querySelector('#factoryPlantChartLabel'),detail=area.querySelector('#factoryDivisionChartDetail');select.value=sessionStorage.getItem('ppms_scope_division')||master.divisions[0];if(!master.divisions.includes(select.value))select.selectedIndex=0;plant.value=master.plants.includes(sessionStorage.getItem('ppms_scope_plant'))?sessionStorage.getItem('ppms_scope_plant'):master.plants[0];const draw=()=>{plantLabel.style.display=select.value==='Production Division'?'':'none';renderDivisionChart(select,detail)};select.addEventListener('change',()=>{sessionStorage.setItem('ppms_scope_division',select.value);draw()});plant.addEventListener('change',()=>{sessionStorage.setItem('ppms_scope_plant',plant.value);draw()});draw()}
 function simplifyOrganization(){const box=document.querySelector('.factory-summary');if(!box)return;box.querySelector('[data-org-settings]')?.remove();box.querySelector('.factory-plants')?.remove();box.querySelector('.factory-central')?.remove();[...box.children].filter(x=>x.tagName==='H3').forEach(x=>x.remove());document.querySelector('.division-org')?.remove();document.querySelector('.org-current-shift-banner')?.remove();document.querySelector('.org-attendance-legend')?.remove();document.querySelector('#app>.cards')?.remove();const title=document.querySelector('#app>.page-head h2');if(title)title.textContent='Factory Organization Chart'}
 function scopeStyle(){if(document.getElementById('orgScopeCss'))return;const s=document.createElement('style');s.id='orgScopeCss';s.textContent='.organization-scope-bar{display:flex;align-items:end;gap:12px;flex-wrap:wrap;background:#eaf3ff;border:1px solid #9fc1e8;border-radius:12px;padding:10px 14px;margin:0 0 12px}.organization-scope-bar label{min-width:190px}.organization-scope-bar b{padding:10px;color:#164d84}';document.head.append(s)}
@@ -88,12 +88,85 @@ function sectionControls(){
  if(!organizationPage){bar?.querySelector('[data-create-section]')?.remove();return}
  if(bar&&!bar.querySelector('[data-create-section]')){const b=document.createElement('button');b.type='button';b.dataset.createSection='1';b.textContent='+ เพิ่ม Section';bar.append(b)}
 }
+
+function sectionMembers(people,organization,division,plant,name,deleted=[]){
+ const gone=new Set(deleted.map(String));
+ return people.filter(e=>{
+  if(!e||e.id==null||gone.has(String(e.id))||e.section!==name)return false;
+  const org=organization[String(e.id)]||{};
+  return (org.division||e.organizationDivision||'Production Division')===division&&
+   (division!=='Production Division'||(org.plant||e.organizationPlant||master.plants[0])===plant);
+ });
+}
+function withoutSection(source,division,plant,name){
+ if(!source)return undefined;
+ const next=JSON.parse(JSON.stringify(source)),key=sectionKey(division,plant),values=next.sectionMap?.[key]||[];
+ if(!values.includes(name))return undefined;
+ next.sectionMap[key]=values.filter(x=>x!==name);
+ if(next.sectionPositions)delete next.sectionPositions[key+'::'+name];
+ if(!Object.values(next.sectionMap).some(list=>Array.isArray(list)&&list.includes(name)))next.sections=(next.sections||[]).filter(x=>x!==name);
+ next.removedSections||={};next.removedSections[key]=[...new Set([...(next.removedSections[key]||[]),name])];
+ next._updatedAt=Date.now();return next;
+}
+async function deleteSection(division,plant,name,button){
+ if(!sectionAdmin())return;
+ const database=db();if(!database||navigator.onLine===false){alert('กรุณาเชื่อมต่อฐานข้อมูลก่อนลบ Section');return}
+ button.disabled=true;
+ try{
+  const snapshots=await Promise.all(['ppms/employees','employeeOrganization','ppms/deletedEmployeeIds'].map(path=>database.ref(path).once('value')));
+  const people=Object.values(snapshots[0].val()||{}),organization=snapshots[1].val()||{},deleted=Object.values(snapshots[2].val()||{});
+  const count=sectionMembers(people,organization,division,plant,name,deleted).length+
+   sectionMembers(chartPeople(),emap,division,plant,name,read('ppms_v3_deleted_employee_ids',[])).length;
+  if(count){alert('Section นี้ยังมีพนักงาน กรุณาย้ายพนักงานไป Section ที่ถูกต้องก่อนลบ');return}
+  if(!confirm('ลบ Section '+name+' ใน '+division+' หรือไม่?'))return;
+  const result=await database.ref('settings/organizationMaster').transaction(current=>withoutSection(current,division,plant,name),undefined,false);
+  if(!result.committed)throw Error('ไม่พบ Section ในรายการล่าสุด กรุณาเปิดหน้าใหม่');
+  master=result.snapshot.val();localStorage.setItem(MK,JSON.stringify(master));
+  document.getElementById('deleteSectionDialog')?.remove();
+  enhance();redrawLiveEmployeeChart();window.dispatchEvent(new Event('ppms-organization-changed'));
+  alert('ลบ Section เรียบร้อยแล้ว');
+ }catch(error){alert('ลบ Section ไม่สำเร็จ: '+error.message)}
+ finally{button.disabled=false}
+}
+function deleteSectionControls(){
+ if(!sectionAdmin())return;
+ const division=document.getElementById('factoryDivisionChart')?.value||document.getElementById('globalOrganizationDivision')?.value||sessionStorage.getItem('ppms_scope_division')||master.divisions[0],
+ plant=division==='Production Division'?(document.getElementById('factoryPlantChart')?.value||sessionStorage.getItem('ppms_scope_plant')||master.plants[0]):'รวม';
+ document.querySelectorAll('.factory-org-section').forEach(card=>{
+  if(card.querySelector('[data-delete-section]'))return;
+  const name=window.PPMSLanguage?.sourceText(card.querySelector('h4'))||card.querySelector('h4')?.textContent||'';
+  if(!sectionsFor(division,plant).includes(name))return;
+  const button=document.createElement('button');button.type='button';button.className='secondary section-position-add no-print';button.dataset.deleteSection=name;button.dataset.division=division;button.dataset.plant=plant;button.textContent='ลบ Section';card.querySelector('h4')?.after(button);
+ });
+ const bar=document.querySelector('.organization-scope-bar');
+ if(bar&&!bar.querySelector('[data-delete-section-picker]')){
+  const button=document.createElement('button');button.type='button';button.className='secondary no-print';button.dataset.deleteSectionPicker='1';button.textContent='ลบ Section';bar.append(button);
+ }
+}
+function openDeleteSectionPicker(){
+ if(!sectionAdmin())return;
+ document.getElementById('deleteSectionDialog')?.remove();
+ const division=document.getElementById('factoryDivisionChart')?.value||document.getElementById('globalOrganizationDivision')?.value||sessionStorage.getItem('ppms_scope_division')||master.divisions[0],
+ plant=division==='Production Division'?(document.getElementById('factoryPlantChart')?.value||sessionStorage.getItem('ppms_scope_plant')||master.plants[0]):'รวม';
+ const names=sectionsFor(division,plant);if(!names.length){alert('ยังไม่มี Section');return}
+ const dialog=document.createElement('div');dialog.id='deleteSectionDialog';dialog.className='org-config';
+ dialog.innerHTML='<section style="max-width:580px" role="dialog" aria-modal="true"><h2>ลบ Section</h2><p>'+esc(division)+'</p><label>Section<select>'+names.map(name=>'<option value="'+esc(name)+'">'+esc(name)+'</option>').join('')+'</select></label><div class="actions"><button type="button" data-delete-confirm>ลบ Section</button><button type="button" class="secondary" data-delete-cancel>ยกเลิก</button></div></section>';
+ document.body.append(dialog);dialog.querySelector('[data-delete-cancel]').onclick=()=>dialog.remove();
+ dialog.querySelector('[data-delete-confirm]').onclick=e=>deleteSection(division,plant,dialog.querySelector('select').value,e.currentTarget);
+}
+document.addEventListener('click',e=>{
+ const button=e.target.closest('[data-delete-section],[data-delete-section-picker]');if(!button)return;
+ e.preventDefault();e.stopImmediatePropagation();
+ if(button.hasAttribute('data-delete-section-picker'))openDeleteSectionPicker();
+ else deleteSection(button.dataset.division,button.dataset.plant,button.dataset.deleteSection,button);
+},true);
+
 function sectionName(value){return String(value||'').trim().replace(/\s+/g,' ')}
 function withNewSection(source,division,plant,name){
  const next=JSON.parse(JSON.stringify(source));next.sectionMap||={};next.sections||=[];
  const key=sectionKey(division,plant),list=next.sectionMap[key]||[];
  if(list.some(x=>sectionName(x).toLowerCase()===name.toLowerCase()))return undefined;
- next.sectionMap[key]=[...list,name];if(!next.sections.includes(name))next.sections.push(name);
+ next.sectionMap[key]=[...list,name];if(next.removedSections?.[key])next.removedSections[key]=next.removedSections[key].filter(x=>x!==name);if(!next.sections.includes(name))next.sections.push(name);
  next._updatedAt=Date.now();return next;
 }
 function openSectionForm(){
@@ -122,7 +195,7 @@ function openSectionForm(){
 document.addEventListener('click',e=>{if(!e.target.closest('[data-create-section],[data-add-factory-section]'))return;e.preventDefault();e.stopImmediatePropagation();openSectionForm()},true);
 window.addEventListener('storage',e=>{if(e.key!==MK)return;master=read(MK,DEF);enhance();redrawLiveEmployeeChart();window.dispatchEvent(new Event('ppms-organization-changed'))});
 
-function enhance(){normalizeMaps();unifyOrganization();mergeCorporateAdministration();mergeBusinessOperations();expandDivisionNames();splitSortingSections();removeGeneratedVacancies();scopeStyle();neutralFactoryStyle();sectionPositionStyle();addStyle();if(FACTORY_PAGE){overview();chartPicker();simplifyOrganization()}else factoryLink();scopeTitle();employeeFields();defaultFormScope();sectionOptions();sectionControls()}
+function enhance(){normalizeMaps();unifyOrganization();mergeCorporateAdministration();mergeBusinessOperations();expandDivisionNames();splitSortingSections();removeGeneratedVacancies();scopeStyle();neutralFactoryStyle();sectionPositionStyle();addStyle();if(FACTORY_PAGE){overview();chartPicker();simplifyOrganization()}else factoryLink();scopeTitle();employeeFields();defaultFormScope();sectionOptions();sectionControls();deleteSectionControls()}
 document.addEventListener('click',e=>{if(e.target.closest('[data-add-factory-section]'))master.sectionMap||={};if(e.target.closest('[data-add-division-position]'))master.positionMap||={}},true);
 document.addEventListener('click',e=>{const button=e.target.closest('[data-add-section-position]');if(!button)return;e.preventDefault();e.stopImmediatePropagation();const select=document.getElementById('factoryDivisionChart'),detail=document.getElementById('factoryDivisionChartDetail'),division=select?.value||master.divisions[0],plant=sessionStorage.getItem('ppms_scope_plant')||master.plants[0],section=button.dataset.section,name=prompt('ชื่อตำแหน่งใหม่ใน '+section);if(!name?.trim())return;master.sectionPositions||={};const key=positionKey(division,plant,section);master.sectionPositions[key]||=[];if(!master.sectionPositions[key].includes(name.trim()))master.sectionPositions[key].push(name.trim());saveMaster();if(select&&detail)renderDivisionChart(select,detail)},true);
 document.addEventListener('click',e=>{const select=document.getElementById('factoryDivisionChart'),detail=document.getElementById('factoryDivisionChartDetail'),division=select?.value||master.divisions[0],plant=sessionStorage.getItem('ppms_scope_plant')||master.plants[0];if(e.target.closest('[data-add-factory-section]')){const name=prompt('ชื่อ Section ใหม่ใน '+division+' · '+plant);if(name?.trim()){const key=sectionKey(division,plant);master.sectionMap[key]||=[];if(!master.sectionMap[key].includes(name.trim()))master.sectionMap[key].push(name.trim());saveMaster();if(select&&detail)renderDivisionChart(select,detail)}return}if(e.target.closest('[data-add-division-position]')){const name=prompt('ชื่อตำแหน่งใหม่ใน '+division);if(name?.trim()){master.positionMap[division]||=[];if(!master.positionMap[division].includes(name.trim()))master.positionMap[division].push(name.trim());saveMaster();if(select&&detail)renderDivisionChart(select,detail)}return}if(e.target.closest('[data-org-settings]'))openConfig();if(e.target.closest('[data-org-close]')||e.target.id==='orgConfig')document.getElementById('orgConfig')?.remove();const b=e.target.closest('[data-org-remove]');if(b){master[b.dataset.orgRemove].splice(Number(b.dataset.index),1);saveMaster();openConfig()}});

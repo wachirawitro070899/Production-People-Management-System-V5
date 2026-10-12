@@ -12,7 +12,7 @@ function database(){try{if(!window.firebase)return null;if(!firebase.apps.length
 function master(){return read(MASTER,{plants:['โรง 1'],divisions:['Production Division'],sectionMap:{},sectionPositions:{},positions:['Manager','Engineer','Supervisor','Leader','Technician','Operator']})}
 function roster(){return read('ppms_v3_employees',[])}
 function scope(){const form=document.getElementById('employeeForm'),m=master(),division=form?.elements.organizationDivision?.value||document.getElementById('factoryDivisionChart')?.value||sessionStorage.getItem('ppms_scope_division')||m.divisions[0],plant=division==='Production Division'?(form?.elements.organizationPlant?.value||document.getElementById('factoryPlantChart')?.value||sessionStorage.getItem('ppms_scope_plant')||m.plants[0]):'รวม';return {division,plant,section:form?.elements.section?.value||document.getElementById('sectionSelect')?.value||'',position:form?.elements.position?.value||'',employeeId:String(form?.elements.originalId?.value||form?.elements.id?.value||'')}}
-function sectionList(division,plant){const map=read(ORG,{});return [...new Set([...(master().sectionMap?.[division+'::'+plant]||[]),...roster().filter(e=>{const org=map[String(e.id)]||{};return (org.division||e.organizationDivision||'Production Division')===division&&(division!=='Production Division'||(org.plant||e.organizationPlant||'โรง 1')===plant)}).map(e=>e.section),...Object.values(records).filter(r=>r.division===division&&r.plant===plant).map(r=>r.section)].filter(Boolean))]}
+function sectionList(division,plant){const map=read(ORG,{});return [...new Set([...(master().sectionMap?.[division+'::'+plant]||[]),...roster().filter(e=>{const org=map[String(e.id)]||{};return (org.division||e.organizationDivision||'Production Division')===division&&(division!=='Production Division'||(org.plant||e.organizationPlant||'โรง 1')===plant)}).map(e=>e.section),...Object.values(records).filter(r=>r.division===division&&r.plant===plant).map(r=>r.section)].filter(Boolean))].filter(section=>!(master().removedSections?.[division+'::'+plant]||[]).includes(section))}
 function positionList(division,plant,section){return [...new Set([...(master().sectionPositions?.[division+'::'+plant+'::'+section]||[]),...(master().positions||[]),...roster().filter(e=>e.section===section).map(e=>e.position)].filter(Boolean))]}
 function employeeList(division,plant,section=''){
  const map=read(ORG,{}),deleted=new Set(read('ppms_v3_deleted_employee_ids',[]).map(String));
@@ -137,6 +137,7 @@ function viewer(id){const record=records[id];if(!record||!admin())return;const c
 }
 // Starter drafts are created only for missing individual JDs; existing records win.
 function starterJD(person,context){
+ if(typeof window!=='undefined'&&window.PPMSJDTemplates){const template=window.PPMSJDTemplates.draft(context);return {...template,...context,employeeName:employeeName(person),draft:true,templateVersion:2};}
  const role=String(context.position||'').toLowerCase();
  const pair=(th,en)=>th+' / '+en;
  let duties,skills,reportsTo='';
@@ -211,7 +212,34 @@ async function seedPositionJDs(){
  finally{seedingPositions=false}
 }
 
-function subscribe(){if(subscribed)return;const instance=database();if(!instance)return;subscribed=true;instance.ref('.info/connected').on('value',s=>{connected=s.val()===true;drawList();seedMissingJDs();seedPositionJDs()});instance.ref('settings/jobDescriptions').on('value',s=>{records=s.val()||{};jdLoaded=true;loadError='';localStorage.setItem(CACHE,JSON.stringify(records));drawList();seedMissingJDs();seedPositionJDs()},error=>{loadError='โหลด JD ไม่สำเร็จ: '+error.message;drawList()})}
+
+function canUpgradeJD(record){
+ return record&&Number(record.version||0)===1&&Number(record.templateVersion||0)<2&&
+  /^PPMS · (?:JD starter draft|Position JD draft)$/.test(String(record.updatedBy||''))&&
+  (record.draft===true||record.status==='draft');
+}
+let upgradingJDs=false;
+async function upgradeSectionJDs(){
+ if(upgradingJDs||!admin()||!connected||!jdLoaded||!window.PPMSJDTemplates)return;
+ const instance=database();if(!instance)return;upgradingJDs=true;let changed=false;
+ try{
+  for(const [id,record] of Object.entries(records)){
+   if(!admin()||!connected)break;if(!canUpgradeJD(record))continue;
+   const template=window.PPMSJDTemplates.draft(record),now=new Date().toISOString();
+   const result=await instance.ref('settings/jobDescriptions/'+id).transaction(current=>{
+    if(!canUpgradeJD(current))return undefined;
+    // A concurrent change to the scope or content must not be overwritten.
+    if(['division','plant','section','position','responsibilities','qualifications'].some(k=>current[k]!==record[k]))return undefined;
+    return {...current,responsibilities:template.responsibilities,qualifications:template.qualifications,reportsTo:template.reportsTo,templateVersion:2,templateSource:template.templateSource,version:2,updatedAt:now,updatedBy:'PPMS · Section JD draft'};
+   },undefined,false);
+   if(result.committed){records[id]=result.snapshot.val();changed=true}
+  }
+  if(changed){localStorage.setItem(CACHE,JSON.stringify(records));drawList()}
+ }catch(error){loadError='อัปเดตรายละเอียด JD ไม่สำเร็จ: '+error.message;drawList()}
+ finally{upgradingJDs=false}
+}
+
+function subscribe(){if(subscribed)return;const instance=database();if(!instance)return;subscribed=true;instance.ref('.info/connected').on('value',s=>{connected=s.val()===true;drawList();seedMissingJDs();seedPositionJDs();upgradeSectionJDs()});instance.ref('settings/jobDescriptions').on('value',s=>{records=s.val()||{};jdLoaded=true;loadError='';localStorage.setItem(CACHE,JSON.stringify(records));drawList();seedMissingJDs();seedPositionJDs();upgradeSectionJDs()},error=>{loadError='โหลด JD ไม่สำเร็จ: '+error.message;drawList()})}
 function employeeJDContext(id){
  const key=String(id||'').trim(),deleted=new Set(read('ppms_v3_deleted_employee_ids',[]).map(String));
  const employee=roster().find(e=>String(e.id)===key&&!deleted.has(key));if(!employee)return null;
@@ -240,7 +268,7 @@ function cardControls(){
  });
 }
 function controls(){if(!admin())return;installStyle();const bar=document.querySelector('.organization-scope-bar');if(bar&&!bar.querySelector('[data-open-jd]')){const b=document.createElement('button');b.type='button';b.dataset.openJd='1';b.textContent='JD รายบุคคล / ตามตำแหน่ง';bar.append(b)}const field=document.querySelector('#employeeForm [name="position"]')?.closest('label');if(field&&!field.querySelector('[data-open-jd]')){const b=document.createElement('button');b.type='button';b.dataset.openJd='1';b.textContent='JD ของพนักงานคนนี้';field.append(b)}
- document.querySelectorAll('.factory-org-section').forEach(section=>{if(section.querySelector('[data-open-jd]'))return;const b=document.createElement('button');b.type='button';b.dataset.openJd='1';b.dataset.jdSection=window.PPMSLanguage?.sourceText(section.querySelector('h4'))||section.querySelector('h4')?.textContent||'';b.textContent='JD รายบุคคล';b.className='ppms-jd-role';section.querySelector('h4')?.after(b)});cardControls();subscribe();seedMissingJDs();seedPositionJDs()}
+ document.querySelectorAll('.factory-org-section').forEach(section=>{if(section.querySelector('[data-open-jd]'))return;const b=document.createElement('button');b.type='button';b.dataset.openJd='1';b.dataset.jdSection=window.PPMSLanguage?.sourceText(section.querySelector('h4'))||section.querySelector('h4')?.textContent||'';b.textContent='JD รายบุคคล';b.className='ppms-jd-role';section.querySelector('h4')?.after(b)});cardControls();subscribe();seedMissingJDs();seedPositionJDs();upgradeSectionJDs()}
 window.addEventListener('ppms-language-changed',()=>refreshPositionTitles());
 // Capture on window before the chart's document handlers that open employee editing.
 window.addEventListener('click',e=>{
@@ -258,7 +286,7 @@ window.addEventListener('keydown',e=>{
 window.addEventListener('afterprint',()=>document.body.classList.remove('ppms-jd-print'));
 window.addEventListener('storage',e=>{if(e.key===CACHE){records=read(CACHE,{});drawList()}if(e.key===MASTER)controls()});
 window.addEventListener('ppms-organization-changed',controls);
-window.addEventListener('ppms-employees-changed',()=>{seedMissingJDs();seedPositionJDs();if(document.querySelector('#jdDialog [data-jd-list]'))manager(filters)});
+window.addEventListener('ppms-employees-changed',()=>{seedMissingJDs();seedPositionJDs();upgradeSectionJDs();if(document.querySelector('#jdDialog [data-jd-list]'))manager(filters)});
 let timer;new MutationObserver(()=>{clearTimeout(timer);timer=setTimeout(controls,100)}).observe(document.getElementById('app')||document.body,{childList:true,subtree:true});
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',controls);else controls();
 })();
