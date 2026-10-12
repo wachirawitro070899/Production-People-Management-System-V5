@@ -2910,7 +2910,7 @@ Layout โรงงาน|Factory Layout
   'Factory Layout':'ผังโรงงาน','Organization Chart':'ผังองค์กร','Section View':'ข้อมูลแผนก',
   'Section Organization Chart':'ผังองค์กรแยกแผนก','Add Employee':'เพิ่มพนักงาน','Search Employee':'ค้นหาพนักงาน',
   'Examination Plan':'แผนการสอบ','Section Skill Matrix':'ตารางทักษะแยกแผนก',
-  'Employee Skill Card':'การ์ดทักษะพนักงาน','NG Dashboard':'สรุปงานเสีย','Examination History':'ประวัติการสอบ',
+  'Employee Skill Card':'การ์ดทักษะพนักงาน','NG Dashboard':'ประวัติการขาดลามาสายและงานเสีย','Examination History':'ประวัติการสอบ',
   'User Management':'จัดการผู้ใช้งาน','Export Center':'สำรองและส่งออกข้อมูล',
   'Manager':'ผู้จัดการ','Engineer':'วิศวกร','Supervisor':'หัวหน้างาน','Leader':'หัวหน้าทีม',
   'Technician':'ช่างเทคนิค','Operator':'พนักงานปฏิบัติการ','Other':'อื่น ๆ',
@@ -2948,6 +2948,7 @@ Layout โรงงาน|Factory Layout
   'Prepared by':'ผู้จัดทำ','Reviewed by':'ผู้ตรวจสอบ','Approved by':'ผู้อนุมัติ'
  };
  Object.assign(dictionary,{'ใช้เอกสารหน้างานและตรวจ Revision ได้; บันทึกข้อมูลและจัดเก็บเอกสารเป็นระบบ; ใช้โปรแกรมสำนักงานพื้นฐานได้ และประสานงานกับผู้บันทึกหรือหัวหน้าทีมได้':'Able to check shop-floor documents and revisions, record and organize data, use basic office software, and coordinate record authors or leaders.'});
+ Object.assign(dictionary,{'ประวัติการขาดลามาสายและงานเสีย':'Attendance and Defect History','ยอดสะสมจากประวัติที่บันทึกถึงวันที่':'Cumulative history through','ลารวมลากิจและลาป่วย':'Leave includes personal and sick leave','ใบเหลืองสะสม':'Accumulated yellow cards','เหตุการณ์งานเสียทั้งหมด':'Total defect incidents','สรุปประวัติพนักงาน':'Employee history summary','คลิกเพื่อดูประวัติการขาดลามาสายและงานเสีย':'Click to view attendance and defect history'});
  const reverse={};
  for(const [th,en] of Object.entries(dictionary))if(en&&/[A-Za-z]/.test(en))reverse[en]=th;
  Object.assign(reverse,englishUI,{

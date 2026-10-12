@@ -1,0 +1,9 @@
+/* Cumulative attendance and defect counts belong to the employee history page. */
+.employee-history-report .employee-history-stats{display:grid;gap:5px;width:100%;margin:8px 0 3px;font-size:10px;line-height:1.4;text-align:center;color:#17314d}
+.employee-history-report .history-ng-counts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px}
+.employee-history-report .history-attendance-counts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:3px}
+.employee-history-report .employee-history-stats span{display:block;padding:4px 1px;border:1px solid #cad7e4;border-radius:6px;background:#fff;overflow-wrap:normal}
+.employee-history-report .employee-history-stats b{display:block;font-size:15px;line-height:1.2;color:inherit}
+.employee-history-report .employee-history-stats .history-yellow{background:#fff4c2;border-color:#e4b328;color:#754d00}
+.employee-history-report .employee-history-stats .history-red{background:#ffe2e5;border-color:#ef7282;color:#9e1731}
+@media print{.employee-history-stats,.employee-history-stats *{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
