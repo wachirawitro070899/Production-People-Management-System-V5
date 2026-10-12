@@ -91,7 +91,51 @@ function editor(id,initial){if(!admin())return;const existing=id?records[id]:nul
 function viewer(id){const record=records[id];if(!record||!admin())return;const content=shell('JOB DESCRIPTION / JD รายบุคคล');if(!content)return;const link=url(record.documentUrl);content.innerHTML='<article>'+(record.employeeId?'<h3>'+esc(record.employeeName)+' · '+esc(record.employeeId)+'</h3>':'<p>JD เดิมตามตำแหน่ง</p>')+'<h3>'+esc(record.position)+'</h3><div class="ppms-jd-meta"><span><b>Division:</b> '+esc(record.division)+'</span><span><b>Section:</b> '+esc(record.section)+'</span><span><b>โรงงาน:</b> '+esc(record.plant)+'</span><span><b>รายงานต่อ:</b> '+esc(record.reportsTo||'—')+'</span><span><b>JD No.:</b> '+esc(record.documentNo||'—')+'</span><span><b>Revision:</b> '+esc(record.revision||'—')+'</span><span><b>วันที่มีผล:</b> '+esc(record.effectiveDate||'—')+'</span></div><h3>หน้าที่และความรับผิดชอบ</h3><div class="ppms-jd-text">'+esc(record.responsibilities)+'</div><h3>คุณสมบัติ / ทักษะที่จำเป็น</h3><div class="ppms-jd-text">'+esc(record.qualifications||'—')+'</div>'+(link?'<p class="ppms-jd-document"><a href="'+esc(link)+'" target="_blank" rel="noopener noreferrer">เปิดไฟล์ JD ที่แนบลิงก์</a></p>':'')+'<p class="ppms-jd-hint">อัปเดต: '+esc(record.updatedAt||'')+' · '+esc(record.updatedBy||'')+'</p></article><div class="ppms-jd-actions ppms-jd-no-print"><button type="button" data-jd-edit>แก้ไข JD</button><button type="button" data-jd-print>พิมพ์ / บันทึก PDF</button><button type="button" class="secondary" data-jd-back>กลับรายการ JD</button></div>';
  content.querySelector('[data-jd-edit]').onclick=()=>editor(id);content.querySelector('[data-jd-back]').onclick=()=>manager(filters);content.querySelector('[data-jd-print]').onclick=()=>{document.body.classList.add('ppms-jd-print');window.print()};
 }
-function subscribe(){if(subscribed)return;const instance=database();if(!instance)return;subscribed=true;instance.ref('.info/connected').on('value',s=>{connected=s.val()===true;drawList()});instance.ref('settings/jobDescriptions').on('value',s=>{records=s.val()||{};loadError='';localStorage.setItem(CACHE,JSON.stringify(records));drawList()},error=>{loadError='โหลด JD ไม่สำเร็จ: '+error.message;drawList()})}
+
+// Starter drafts are created only for missing individual JDs; existing records win.
+function starterJD(person,context){
+ const role=String(context.position||'').toLowerCase();
+ const pair=(th,en)=>th+' / '+en;
+ let duties,skills,reportsTo='';
+ if(/manager|ผู้จัดการ/.test(role)){
+ duties=[pair('กำหนดเป้าหมายและแผนงานของหน่วยงาน','Set department objectives and operating plans'),pair('บริหารกำลังคน งบประมาณ และทรัพยากร','Manage staffing, budget and resources'),pair('ติดตาม KPI คุณภาพ ต้นทุน การส่งมอบ และความปลอดภัย','Review quality, cost, delivery and safety KPIs'),pair('พัฒนาทีมและติดตามการแก้ไขปัญหาข้ามหน่วยงาน','Develop the team and follow up cross-functional corrective actions')];skills=pair('ทักษะบริหารทีม วางแผน วิเคราะห์ข้อมูล และตัดสินใจ','Team management, planning, data analysis and decision-making');
+ }else if(/supervisor|หัวหน้าแผนก/.test(role)){
+ reportsTo='Manager';duties=[pair('ควบคุมการปฏิบัติงานให้เป็นไปตามแผนของหน่วยงาน','Supervise operations against the department plan'),pair('จัดสรรกำลังคนและติดตามผลแต่ละกะ','Allocate staff and monitor each shift'),pair('ตรวจติดตามมาตรฐานงานและแก้ไขปัญหาหน้างาน','Verify work standards and resolve operational issues'),pair('ประเมินทักษะและวางแผนฝึกอบรมพนักงาน','Assess skills and plan employee training')];skills=pair('ทักษะควบคุมงาน บริหารคน และวิเคราะห์ปัญหา','Supervision, people management and problem analysis');
+ }else if(/engineer|วิศวกร/.test(role)){
+ reportsTo='Manager / Supervisor';duties=[pair('วิเคราะห์และปรับปรุงกระบวนการในหน่วยงาน','Analyze and improve department processes'),pair('จัดทำและทบทวนมาตรฐานงานและข้อมูลทางเทคนิค','Prepare and review work standards and technical data'),pair('วิเคราะห์สาเหตุปัญหาและยืนยันผลการแก้ไข','Analyze root causes and verify corrective actions'),pair('สนับสนุนการทดลองงาน การเปลี่ยนแปลง และฝึกอบรม','Support trials, changes and technical training')];skills=pair('ความรู้ทางวิศวกรรมที่เกี่ยวข้อง การวิเคราะห์ข้อมูล และการแก้ไขปัญหา','Relevant engineering knowledge, data analysis and problem-solving');
+ }else if(/leader|หัวหน้าทีม|หัวหน้างาน/.test(role)){
+ reportsTo='Supervisor';duties=[pair('มอบหมายงานและตรวจความพร้อมก่อนเริ่มกะ','Assign work and verify shift readiness'),pair('ติดตามผลผลิต คุณภาพ และความผิดปกติระหว่างกะ','Monitor output, quality and abnormalities during the shift'),pair('สอนงานและตรวจการปฏิบัติตาม WI','Coach employees and verify WI compliance'),pair('ส่งมอบงานระหว่างกะและรายงานปัญหาต่อผู้บังคับบัญชา','Complete shift handover and escalate issues')];skills=pair('ทักษะหน้างาน การสอนงาน และการประสานงาน','Operational skills, coaching and coordination');
+ }else if(/technician|ช่าง/.test(role)){
+ reportsTo='Leader / Supervisor';duties=[pair('ตรวจเช็ค ตั้งค่า และดูแลอุปกรณ์ตามงานที่ได้รับมอบหมาย','Inspect, set up and maintain assigned equipment'),pair('วิเคราะห์และแก้ไขความผิดปกติตามขอบเขตที่ได้รับอนุญาต','Diagnose and correct faults within authorized scope'),pair('บันทึกการซ่อม การตั้งค่า และผลการตรวจสอบ','Record repairs, settings and inspection results'),pair('ตรวจยืนยันความพร้อมและความปลอดภัยก่อนส่งมอบ','Verify readiness and safety before handover')];skills=pair('ทักษะเครื่องมือ งานเทคนิค และความปลอดภัยของอุปกรณ์','Tool use, technical work and equipment safety');
+ }else{
+ reportsTo='Leader / Supervisor';duties=[pair('ปฏิบัติงานตามหน้าที่ที่ได้รับมอบหมายและมาตรฐานที่อนุมัติ','Perform assigned duties according to approved standards'),pair('ตรวจความพร้อมของงาน อุปกรณ์ และเอกสารก่อนเริ่มงาน','Check work, equipment and document readiness'),pair('ตรวจสอบและบันทึกผลการทำงานให้ครบถ้วน','Check and accurately record work results'),pair('รายงานความผิดปกติและปฏิบัติตามขั้นตอนการแก้ไข','Report abnormalities and follow the response procedure')];skills=pair('ความรู้ในงานที่รับผิดชอบ การใช้เครื่องมือ และการบันทึกข้อมูล','Job knowledge, tool use and accurate recordkeeping');
+ }
+ const section=String(context.section||'');
+ const tasks=[[/stamping|ปั๊ม/i,'ตรวจชิ้นงานปั๊ม แม่พิมพ์ และอุปกรณ์ป้องกันตาม WI','Check stamped parts, dies and safeguards per WI'],[/welding|เชื่อม/i,'ควบคุมงานเชื่อม จิ๊ก และตรวจแนวเชื่อมตามมาตรฐาน','Control welding work, fixtures and weld inspection'],[/cnc/i,'ตรวจโปรแกรม เครื่องมือตัด และขนาดชิ้นงานตามมาตรฐาน','Verify programs, cutting tools and part dimensions'],[/tapping|taping|ต๊าป/i,'ตรวจเครื่องมือต๊าปและคุณภาพเกลียวตามมาตรฐาน','Check tapping tools and thread quality'],[/bending|ดัด|พับ/i,'ตรวจการตั้งงาน มุมพับ และขนาดชิ้นงาน','Check bending setup, angles and dimensions'],[/sorting|qc|quality|คุณภาพ|คัด/i,'ตรวจและคัดแยกชิ้นงานตามเกณฑ์ พร้อมระบุและแยกงาน NG','Inspect and sort parts against criteria; identify and segregate NG parts'],[/maintenance|ซ่อม/i,'ดำเนินงานบำรุงรักษาตามแผนและบันทึกประวัติอุปกรณ์','Perform planned maintenance and record equipment history'],[/warehouse|คลัง/i,'ตรวจรับ จัดเก็บ และเบิกจ่ายโดยรักษาการสอบกลับของสินค้า','Receive, store and issue goods with traceability'],[/planning|วางแผน/i,'ติดตามแผนงาน กำลังการผลิต และความพร้อมของวัสดุ','Track schedules, capacity and material availability'],[/purchasing|จัดซื้อ/i,'ติดตามความต้องการจัดซื้อและกำหนดส่งมอบกับผู้ขาย','Track purchase requirements and supplier delivery dates'],[/hr|human|บุคคล/i,'ดูแลข้อมูลบุคลากรและประสานงานตามขั้นตอนของหน่วยงาน','Maintain personnel data and coordinate department procedures']];
+ const specific=tasks.find(([pattern])=>pattern.test(section+' '+context.division));if(specific)duties.push(pair(specific[1],specific[2]));
+ duties.push(pair('ปฏิบัติตามข้อกำหนดความปลอดภัย คุณภาพ และ 5ส ที่เกี่ยวข้อง','Follow applicable safety, quality and 5S requirements'));
+ return {...context,employeeName:employeeName(person),reportsTo,responsibilities:pair('ฉบับร่างตั้งต้น โปรดทบทวนให้ตรงกับงานจริงก่อนอนุมัติ','Starter draft: review against actual duties before approval')+'\n'+duties.map((v,i)=>(i+1)+'. '+v).join('\n'),qualifications:skills+'\n'+pair('ระบุวุฒิ ประสบการณ์ และการฝึกอบรมตามความจำเป็นของตำแหน่ง','Specify education, experience and training required for this role'),revision:'Draft',effectiveDate:'',documentNo:'',documentUrl:'',draft:true,templateVersion:1};
+}
+let seeding=false,jdLoaded=false;
+async function seedMissingJDs(){
+ if(seeding||!admin()||!connected||!jdLoaded)return;
+ const instance=database();if(!instance)return;seeding=true;let created=false;
+ try{
+  for(const person of roster()){
+   if(!admin()||!connected)break;
+   const context=employeeJDContext(person.id);
+   if(!context||!context.section||!context.position||Object.values(records).some(r=>String(r?.employeeId||'')===String(person.id)))continue;
+   const key=await recordKey(context),now=new Date().toISOString();
+   const draft={...starterJD(person,context),version:1,createdAt:now,updatedAt:now,updatedBy:'PPMS · JD starter draft'};
+   const result=await instance.ref('settings/jobDescriptions/'+key).transaction(current=>current==null?draft:undefined,undefined,false);
+   if(result.committed){records[key]=result.snapshot.val();created=true;}
+  }
+  if(created){localStorage.setItem(CACHE,JSON.stringify(records));drawList();}
+ }catch(error){loadError='เพิ่ม JD ตั้งต้นไม่สำเร็จ กรุณาเปิดหน้าใหม่เพื่อลองอีกครั้ง: '+error.message;drawList()}
+ finally{seeding=false}
+}
+
+function subscribe(){if(subscribed)return;const instance=database();if(!instance)return;subscribed=true;instance.ref('.info/connected').on('value',s=>{connected=s.val()===true;drawList();seedMissingJDs()});instance.ref('settings/jobDescriptions').on('value',s=>{records=s.val()||{};jdLoaded=true;loadError='';localStorage.setItem(CACHE,JSON.stringify(records));drawList();seedMissingJDs()},error=>{loadError='โหลด JD ไม่สำเร็จ: '+error.message;drawList()})}
 function employeeJDContext(id){
  const key=String(id||'').trim(),deleted=new Set(read('ppms_v3_deleted_employee_ids',[]).map(String));
  const employee=roster().find(e=>String(e.id)===key&&!deleted.has(key));if(!employee)return null;
@@ -120,7 +164,7 @@ function cardControls(){
  });
 }
 function controls(){if(!admin())return;installStyle();const bar=document.querySelector('.organization-scope-bar');if(bar&&!bar.querySelector('[data-open-jd]')){const b=document.createElement('button');b.type='button';b.dataset.openJd='1';b.textContent='JD รายบุคคล / เพิ่ม JD';bar.append(b)}const field=document.querySelector('#employeeForm [name="position"]')?.closest('label');if(field&&!field.querySelector('[data-open-jd]')){const b=document.createElement('button');b.type='button';b.dataset.openJd='1';b.textContent='JD ของพนักงานคนนี้';field.append(b)}
- document.querySelectorAll('.factory-org-section').forEach(section=>{if(section.querySelector('[data-open-jd]'))return;const b=document.createElement('button');b.type='button';b.dataset.openJd='1';b.dataset.jdSection=section.querySelector('h4')?.textContent||'';b.textContent='JD รายบุคคล';b.className='ppms-jd-role';section.querySelector('h4')?.after(b)});cardControls();subscribe()}
+ document.querySelectorAll('.factory-org-section').forEach(section=>{if(section.querySelector('[data-open-jd]'))return;const b=document.createElement('button');b.type='button';b.dataset.openJd='1';b.dataset.jdSection=section.querySelector('h4')?.textContent||'';b.textContent='JD รายบุคคล';b.className='ppms-jd-role';section.querySelector('h4')?.after(b)});cardControls();subscribe();seedMissingJDs()}
 // Capture on window before the chart's document handlers that open employee editing.
 window.addEventListener('click',e=>{
  const button=e.target.closest?.('[data-open-jd]');if(!button)return;
@@ -137,7 +181,7 @@ window.addEventListener('keydown',e=>{
 window.addEventListener('afterprint',()=>document.body.classList.remove('ppms-jd-print'));
 window.addEventListener('storage',e=>{if(e.key===CACHE){records=read(CACHE,{});drawList()}if(e.key===MASTER)controls()});
 window.addEventListener('ppms-organization-changed',controls);
-window.addEventListener('ppms-employees-changed',()=>{if(document.querySelector('#jdDialog [data-jd-list]'))manager(filters)});
+window.addEventListener('ppms-employees-changed',()=>{seedMissingJDs();if(document.querySelector('#jdDialog [data-jd-list]'))manager(filters)});
 let timer;new MutationObserver(()=>{clearTimeout(timer);timer=setTimeout(controls,100)}).observe(document.getElementById('app')||document.body,{childList:true,subtree:true});
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',controls);else controls();
 })();
