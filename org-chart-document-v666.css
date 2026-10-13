@@ -270,36 +270,36 @@
  body.org-stamping.org-paper-a3 .stamping-print-page .person .avatar{width:17mm!important;height:17mm!important;min-width:17mm!important;max-width:17mm!important;max-height:17mm!important;flex-basis:17mm!important}
 }
 
-/* Optional team view belongs only to Section Organization Charts. */
-.section-org-report[data-section-team-mode="split"] .section-chart-teams{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;align-items:start}
+/* The complete organization report stays separate from team assignment. */
+.section-team-assignment{margin-top:28px;padding-top:20px;border-top:2px solid #d6e4ee}
+.section-team-assignment>h3{margin:0;color:#164d84}
+.section-team-reference-note{color:#52677d;font-size:13px;margin:0 0 16px}
+.section-team-assignment .section-chart-teams{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;align-items:start}
 .section-chart-team{min-width:0;border-top:4px solid #155ca0}
 .section-chart-team[data-section-chart-team="Team B"]{border-top-color:#0891b2}
 .section-chart-team-heading{display:flex;justify-content:space-between;align-items:center;gap:12px;border-bottom:1px solid #d6e4ee;padding-bottom:10px;margin-bottom:14px}
-.section-chart-team-heading h3,.section-chart-common>h3,.section-chart-unassigned>h3{margin:0;color:#164d84}
+.section-chart-team-heading h3{margin:0;color:#164d84}
 .section-chart-team-heading span{font-size:12px;color:#52677d}
-.section-chart-common,.section-chart-unassigned{margin-bottom:18px}
-.section-chart-unassigned{margin-top:18px}
-.section-chart-team .level,.section-chart-common .level,.section-chart-unassigned .level{margin:14px 0;min-width:0}
-.section-chart-team .people,.section-chart-common .people,.section-chart-unassigned .people{display:flex;justify-content:center;flex-wrap:wrap;gap:10px}
-.section-chart-team .person{max-width:100%}
-@media(max-width:800px){.section-org-report[data-section-team-mode="split"] .section-chart-teams{grid-template-columns:1fr}.section-chart-team-heading{flex-wrap:wrap}}
-@media print{
- .section-org-report[data-section-team-mode="split"] .section-chart-teams{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:4mm;align-items:start}
- .section-org-report[data-section-team-mode="split"] .section-chart-team{display:block!important;min-width:0;padding:3mm;break-inside:auto}
- .section-org-report[data-section-team-mode="split"] .section-chart-team-heading{break-after:avoid;margin-bottom:2mm;padding-bottom:2mm}
- .section-org-report[data-section-team-mode="split"] .level{break-inside:avoid;page-break-inside:avoid;margin:2mm 0}
- .section-org-report[data-section-team-mode="split"] .people{display:flex!important;flex-wrap:wrap!important;justify-content:center!important;gap:2mm!important}
- .section-org-report[data-section-team-mode="split"] .person{flex:0 0 28mm!important;width:28mm!important;max-width:28mm!important;min-width:0!important;height:auto!important;min-height:32mm!important;max-height:none!important}
- .section-org-report[data-section-team-mode="split"] .org-document-header,.section-org-report[data-section-team-mode="split"] .org-document-approval{display:grid!important}
-}
+.section-chart-unassigned{margin:18px 0;border:2px dashed #9fb4c8}
+.section-chart-team .level{margin:14px 0;min-width:0}
+.section-chart-team .people{display:flex;justify-content:center;flex-wrap:wrap;gap:10px}
+.section-team-assignment .person{box-sizing:border-box;display:flex;flex-direction:column;align-items:center;text-align:center;width:120px;max-width:100%;border:1.5px solid #2f80ed;border-radius:10px;box-shadow:none;padding:9px 7px;background:#eef6ff}
+.section-team-assignment .person.leader{border-color:#10b99a;background:#e5faf5}
+.section-team-assignment .person.operator{border-color:#ff5274;background:#fff0f4}
+.section-team-assignment .person.technician{border-color:#efa400;background:#fff7d9}
+.section-team-assignment .person.supervisor,.section-team-assignment .person.manager,.section-team-assignment .person.engineer{border-color:#7c5cff;background:#f3efff}
+.section-team-assignment .person img,.section-team-assignment .person .avatar{width:56px;height:56px;min-width:56px;flex:0 0 auto;object-fit:cover;object-position:center top;border-radius:50%}
+.section-team-assignment .person>b{display:flex;align-items:center;justify-content:center;width:100%;font-size:11px;line-height:1.18;min-height:39px;margin:0;padding:2px 0;overflow-wrap:anywhere}
+.section-team-assignment .person>small{font-size:9px;line-height:14px;margin:0}
+@media(max-width:800px){.section-team-assignment .section-chart-teams{grid-template-columns:1fr}.section-chart-team-heading{flex-wrap:wrap}}
+@media screen{.section-chart-workspace[data-section-team-mode="split"] .person{height:auto!important;min-height:186px!important;max-height:none!important;overflow:visible!important;padding-bottom:12px!important}}
+@media print{.section-team-assignment,.section-team-move{display:none!important}}
 
 .section-team-move{margin-top:6px;font-size:11px;padding:5px 9px;touch-action:none;cursor:grab}
-.section-org-report [draggable="true"]{cursor:grab}
+.section-chart-workspace [draggable="true"]{cursor:grab}
 .section-team-picked{outline:3px solid #f59e0b;outline-offset:2px}
 .section-team-dragging{opacity:.45}
 .section-team-drop-active{outline:3px solid #0891b2;outline-offset:2px;background:#e6f8fc!important}
 .section-team-instructions{padding:10px 12px;border-radius:8px;background:#edf6ff;color:#164d84;font-size:13px}
 .section-team-instructions.section-team-error{background:#fff1f2;color:#a12235}
 .section-team-drag-ghost{position:fixed;z-index:20000;pointer-events:none;padding:10px 14px;border:2px solid #0891b2;border-radius:8px;background:white;color:#164d84;box-shadow:0 5px 20px #1234;max-width:200px;font-size:12px}
-
-.section-org-report[data-section-team-mode="split"] .person{height:auto!important;min-height:150px;max-height:none!important;overflow:visible!important;padding-bottom:12px}

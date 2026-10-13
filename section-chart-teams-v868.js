@@ -3,11 +3,11 @@
  'use strict';
  let source=null,selected=null,pointer=null,ghost=null,suppressClickUntil=0,notice=null;
  const pending=new Set();
- const root=()=>document.querySelector('.section-org-report[data-section-team-mode="split"]');
+ const root=()=>document.querySelector('.section-chart-workspace[data-section-team-mode="split"]');
  const admin=()=>window.PPMS_RUNTIME?.factoryLayoutIsAdmin?.()===true;
  const context=()=>({...window.PPMS_RUNTIME?.organizationScope?.(),section:document.querySelector('#sectionSelect')?.value||''});
  const same=(a,b)=>a&&b&&a.division===b.division&&a.plant===b.plant&&a.section===b.section;
- const employeeCard=target=>target?.closest?.('.section-org-report[data-section-team-mode="split"] .person[data-edit]');
+ const employeeCard=target=>{const card=target?.closest?.('.section-chart-workspace[data-section-team-mode="split"] .person[data-edit]');return card&&!card.closest('.stamping-role-source,.stamping-print-page,.sorting-print-pages')?card:null};
  function clearTargets(){document.querySelectorAll('.section-team-drop-active').forEach(node=>node.classList.remove('section-team-drop-active'))}
  function showStatus(text,error=false,scope=context()){
   notice={text,error,scope};const node=root()?.querySelector('[data-section-team-status]');
@@ -17,6 +17,7 @@
   const report=root();if(!report){selected=null;return}
   if(selected&&!same(selected.context,context()))selected=null;
   for(const card of report.querySelectorAll('.person[data-edit]')){
+   if(!employeeCard(card))continue;
    card.draggable=admin()&&!pending.has(card.dataset.edit);
    card.classList.toggle('section-team-picked',card.dataset.edit===selected?.id);
    let button=card.querySelector('[data-section-team-pick]');
@@ -43,15 +44,15 @@
  window.addEventListener('dragstart',event=>{
   const card=employeeCard(event.target);if(!card)return;
   if(!admin()||pending.has(card.dataset.edit)){event.preventDefault();return}
-  source={id:card.dataset.edit,context:context()};selected=null;
+  source={id:card.dataset.edit,context:context(),copy:!!card.closest('.section-org-report')};selected=null;
   event.dataTransfer?.setData('application/x-ppms-section-team',source.id);
   event.dataTransfer?.setData('text/plain',source.id);
-  if(event.dataTransfer)event.dataTransfer.effectAllowed='move';card.classList.add('section-team-dragging');
+  if(event.dataTransfer)event.dataTransfer.effectAllowed=source.copy?'copy':'move';card.classList.add('section-team-dragging');
  },true);
  window.addEventListener('dragover',event=>{
   const target=event.target.closest?.('[data-section-team-target]');
   if(!source||!root()?.contains(target)||!same(source.context,context()))return;
-  event.preventDefault();if(event.dataTransfer)event.dataTransfer.dropEffect='move';clearTargets();target.classList.add('section-team-drop-active');
+  event.preventDefault();if(event.dataTransfer)event.dataTransfer.dropEffect=source.copy?'copy':'move';clearTargets();target.classList.add('section-team-drop-active');
  },true);
  window.addEventListener('drop',event=>{
   const target=event.target.closest?.('[data-section-team-target]');if(!source||!root()?.contains(target))return;
@@ -97,6 +98,7 @@
  window.addEventListener('ppms-organization-scope-changed',()=>{finishPointer(true);selected=null;source=null});
  new MutationObserver(mount).observe(document.getElementById('app')||document.body,{childList:true,subtree:false});
  window.addEventListener('ppms-employees-changed',mount);
+ window.addEventListener('ppms-section-chart-rendered',mount);
  window.addEventListener('ppms-section-team-error',event=>{if(notice?.pendingId===event.detail.id&&notice.scope.section===event.detail.section)showStatus(event.detail.message,true,notice.scope)});
  document.addEventListener('DOMContentLoaded',mount);
  window.PPMSSectionTeams={mount,get dragging(){return !!source||!!pointer}};
