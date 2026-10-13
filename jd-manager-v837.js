@@ -87,7 +87,8 @@ function positionTitle(record){
  const subject=value=>known[value]?.[language==='en'?1:0]||translate(value);
  const roles=[[/assistant\s+leader|ผู้ช่วยหัวหน้าทีม/i,'ผู้ช่วยหัวหน้าทีม','Assistant Leader'],[/manager|ผู้จัดการ/i,'ผู้จัดการ','Manager'],[/engineer|วิศวกร|^pe$/i,'วิศวกร','Engineer'],[/supervisor|หัวหน้างาน|หัวหน้าแผนก/i,'หัวหน้างาน','Supervisor'],[/leader|หัวหน้าทีม/i,'หัวหน้าทีม','Leader'],[/technician|ช่างเทคนิค/i,'ช่างเทคนิค','Technician'],[/operator|opeartor|operater|^op(?:\b|\d)|พนักงานทั่วไป|พนักงานผลิต|พนักงานปฏิบัติการ/i,'พนักงาน','Operator']];
  const special={'Store':['พนักงานห้องเบิกจ่ายของ','Store'],'Production Planning':['เจ้าหน้าที่วางแผนการผลิต','Production Planning'],'Document Control':['เจ้าหน้าที่ควบคุมเอกสาร','Document Control']};
- if(special[p])return special[p][language==='en'?1:0];
+ if(window.PPMSProductionHierarchy?.isSupervisor(p))return language==='en'?'Supervisor Production':'หัวหน้างานฝ่ายผลิต';
+  if(special[p])return special[p][language==='en'?1:0];
  const role=roles.find(([pattern])=>pattern.test(p));
  if(!role)return translate(p)+(section?' · '+subject(section):'');
  let area=section||division;

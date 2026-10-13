@@ -1,0 +1,23 @@
+.production-reporting-tree{position:relative;display:grid;grid-template-columns:minmax(0,4fr) minmax(0,7fr);gap:24px;align-items:start;padding-top:24px}
+.production-reporting-tree:not(:has(.production-direct-sections)){grid-template-columns:minmax(0,1fr)}
+.production-reporting-tree:before{content:"";position:absolute;top:0;left:8%;right:8%;border-top:2px solid #a9b8c8}
+.production-reporting-branch{position:relative;min-width:0}
+.production-reporting-branch:before{content:"";position:absolute;top:-24px;left:50%;height:24px;border-left:2px solid #a9b8c8}
+.production-branch-heading,.production-supervisor-top{display:flex;flex-direction:column;align-items:center;gap:8px;text-align:center;margin-bottom:24px}
+.production-branch-heading h4,.production-supervisor-top h4{margin:0;padding:7px 18px;border:1px solid #b8cce0;border-radius:18px;background:#f7fbff;color:#173b72}
+.production-supervisor-top h4{border-color:#7c5cff;background:#f3efff;color:#5b3fb4}
+.production-branch-heading small,.production-supervisor-top>small{font-size:12px;color:#51677d}
+.production-supervisor-top>.people,.production-supervisor-top>.factory-people{display:flex;flex-wrap:wrap;justify-content:center;margin:0}
+.production-supervisor-top .person,.production-supervisor-top .factory-chart-person{width:136px;max-width:100%;border-color:#7c5cff;background:#f3efff}
+.production-supervisor-empty{padding:20px 12px;border:1px dashed #9fb8cf;border-radius:10px;color:#64748b;font-size:12px;background:#fff}
+.production-reporting-branch>.division-sections{grid-template-columns:repeat(auto-fit,minmax(min(100%,230px),1fr));gap:12px}
+.production-reporting-branch>.factory-org-sections{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,230px),1fr));overflow:visible}
+.production-reporting-branch>.factory-org-sections>.factory-org-section{min-width:0}
+.production-reporting-branch>.division-sections:before{left:8%;right:8%}
+.production-reporting-branch>.factory-org-sections{position:relative}
+.production-reporting-branch>.factory-org-sections:before{content:"";position:absolute;top:0;left:8%;right:8%;border-top:2px solid #a9b8c8}
+.division-org:has(.production-reporting-tree){gap:0}
+.factory-manager:has(+.production-reporting-tree){margin-bottom:24px}
+.factory-manager:has(+.production-reporting-tree):after{left:50%;right:auto;bottom:-24px;height:24px;border-top:0;border-left:2px solid #a9b8c8}
+@media(max-width:1000px){.production-reporting-tree{grid-template-columns:minmax(0,1fr);gap:34px}.production-reporting-branch>.division-sections,.production-reporting-branch>.factory-org-sections{grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr))}}
+@media print{.production-reporting-tree{grid-template-columns:minmax(0,4fr) minmax(0,7fr);gap:5mm}.production-reporting-branch>.division-sections{grid-template-columns:repeat(2,minmax(0,1fr));gap:3mm}.production-branch-heading,.production-supervisor-top{break-after:avoid-page}.production-supervisor-top .person{box-shadow:none}.production-reporting-tree,.production-supervisor-top h4{-webkit-print-color-adjust:exact;print-color-adjust:exact}}

@@ -280,6 +280,7 @@
  }
 
  function draft(scope){
+  if(window.PPMSProductionHierarchy?.isSupervisor(scope.position))return window.PPMSProductionHierarchy.supervisorJD(scope);
   const key=role(scope.position),process=sectionProfile(scope),profile=roles[key],specific=sectionDuties(scope,key);
   const functional=process&&functions.includes(process),maintenance=process&&/Maintenance/.test(process.name[1]);
   const functionalLeadership=[

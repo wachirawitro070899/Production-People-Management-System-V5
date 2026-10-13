@@ -2912,7 +2912,7 @@ Layout โรงงาน|Factory Layout
   'Examination Plan':'แผนการสอบ','Section Skill Matrix':'ตารางทักษะแยกแผนก',
   'Employee Skill Card':'การ์ดทักษะพนักงาน','NG Dashboard':'ประวัติการขาดลามาสายและงานเสีย','Examination History':'ประวัติการสอบ',
   'User Management':'จัดการผู้ใช้งาน','Export Center':'สำรองและส่งออกข้อมูล',
-  'Manager':'ผู้จัดการ','Engineer':'วิศวกร','Supervisor':'หัวหน้างาน','Leader':'หัวหน้าทีม',
+  'Manager':'ผู้จัดการ','Engineer':'วิศวกร','Supervisor':'หัวหน้างาน','Supervisor Production':'หัวหน้างานฝ่ายผลิต','Leader':'หัวหน้าทีม',
   'Technician':'ช่างเทคนิค','Operator':'พนักงานปฏิบัติการ','Other':'อื่น ๆ',
   'Production Division':'ฝ่ายผลิต','Quality Division':'ฝ่ายคุณภาพ','Warehouse Division':'ฝ่ายคลังสินค้า',
   'Corporate Administration Division':'ฝ่ายบริหารองค์กร','Business Operations Division':'ฝ่ายดำเนินธุรกิจ',
@@ -2952,6 +2952,7 @@ Layout โรงงาน|Factory Layout
  Object.assign(dictionary,{'บันทึก JD ในเครื่องได้ · จะซิงก์เมื่อเชื่อมต่อ':'JD can be saved on this device and synced when connected','กำลังบันทึก JD ในเครื่อง...':'Saving JD on this device...','บันทึก JD ในเครื่องแล้ว · รอซิงก์เมื่อเชื่อมต่อ':'JD saved on this device · Waiting to sync when connected','รายการรอซิงก์':'pending sync','JD ส่วนกลางถูกแก้ไขจากเครื่องอื่นแล้ว ฉบับที่บันทึกในเครื่องยังเก็บไว้':'The shared JD was changed on another device; your local copy is retained','โหลดระบบบันทึก JD ไม่สำเร็จ กรุณาเปิดหน้าใหม่':'Could not load JD saving; please reopen the page','โหลด JD ในเครื่องไม่สำเร็จ':'Could not load locally saved JDs','JD ในเครื่องถูกแก้ไขจากอีกหน้าต่าง กรุณาเปิดฉบับล่าสุดก่อนบันทึก':'The local JD was changed in another window; reopen the latest copy before saving','พื้นที่เก็บข้อมูลในเครื่องไม่เพียงพอ กรุณาเก็บข้อความไว้ก่อนแล้วลองอีกครั้ง':'Device storage is full; keep a copy of your text and try again'});
  Object.assign(dictionary,{'ตรวจสอบฉบับส่วนกลาง':'Review shared copy','เปรียบเทียบ JD ก่อนซิงก์':'Compare JD before syncing','ฉบับที่บันทึกในเครื่อง':'Copy saved on this device','ฉบับส่วนกลาง':'Shared copy','ไม่พบ JD ส่วนกลาง':'Shared JD not found','ใช้ฉบับในเครื่องและซิงก์':'Use local copy and sync','กลับ JD ในเครื่อง':'Back to local JD','ไม่พบ JD ที่ต้องตรวจสอบก่อนซิงก์':'No JD conflict to review'});
  Object.assign(dictionary,{'ยังซิงก์ JD ไม่สำเร็จ ฉบับในเครื่องยังเก็บไว้':'JD sync is pending; your local copy is retained'});
+ Object.assign(dictionary,{'รายงานตรงต่อ Manager':'Reports directly to Manager','ดูแลแผนกผลิต':'Supervises production sections','แผนก':'sections','ยังไม่มีพนักงานในตำแหน่งนี้':'No employee assigned to this position','กำหนดพนักงาน':'Assign employee','เลือกพนักงานสำหรับ Supervisor Production':'Choose an employee for Supervisor Production','เปิดข้อมูลพนักงานเพื่อกำหนดตำแหน่ง Supervisor Production':'Open the employee record to assign the Supervisor Production position','กรุณาเลือกพนักงาน':'Please choose an employee'});
  const reverse={};
  for(const [th,en] of Object.entries(dictionary))if(en&&/[A-Za-z]/.test(en))reverse[en]=th;
  Object.assign(reverse,englishUI,{
