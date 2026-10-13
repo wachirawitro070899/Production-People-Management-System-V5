@@ -16,7 +16,7 @@
   production.sort((a,b)=>sectionOrder.indexOf(sectionKey(a.title))-sectionOrder.indexOf(sectionKey(b.title)));
   const sectionClass=options.factory?'factory-org-sections':'division-sections',peopleClass=options.factory?'factory-people':'people';
   return '<div class="production-reporting-tree">'+
-   (direct.length?'<section class="production-reporting-branch production-direct-sections" data-reports-to="Manager"><div class="production-branch-heading"><h4>รายงานตรงต่อ Manager</h4><small>'+direct.length+' แผนก</small></div><div class="'+sectionClass+'">'+direct.map(item=>item.html).join('')+'</div></section>':'')+
+   (direct.length?'<section class="production-reporting-branch production-direct-sections" data-reports-to="Manager"><div class="production-branch-heading"><small>'+direct.length+' แผนก</small></div><div class="'+sectionClass+'">'+direct.map(item=>item.html).join('')+'</div></section>':'')+
    '<section class="production-reporting-branch production-supervised-sections" data-reports-to="Supervisor Production"><div class="production-supervisor-top"><h4>Supervisor Production</h4><div class="'+peopleClass+'">'+(supervisors||'<div class="production-supervisor-empty">ยังไม่มีพนักงานในตำแหน่งนี้</div>')+'</div><small>ดูแลแผนกผลิต · '+production.length+' แผนก</small>'+(options.assign?'<button type="button" class="secondary compact no-print" data-assign-production-supervisor>กำหนดพนักงาน</button>':'')+'</div><div class="'+sectionClass+'">'+production.map(item=>item.html).join('')+'</div></section></div>';
  }
  function supervisorJD(scope){
