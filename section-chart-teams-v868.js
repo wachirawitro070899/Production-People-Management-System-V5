@@ -1,4 +1,4 @@
-/* Team assignment controls are confined to the optional Section chart view. */
+/* Team assignment stays separate from the complete printable Section chart. */
 (()=>{
  'use strict';
  let source=null,selected=null,pointer=null,ghost=null,suppressClickUntil=0,notice=null;
@@ -29,11 +29,11 @@
  }
  function pick(card){
   const id=card?.dataset.edit;if(!id||pending.has(id)||!admin())return;
-  selected={id,context:context(),sortingGroup:sortingGroup(card)};mount();showStatus('เลือกทีม A หรือทีม B ที่ต้องการย้าย');
+  selected={id,context:context(),sortingGroup:sortingGroup(card)};mount();showStatus('เลือกทีม A ทีม B หรือทีมลอยเช้าที่ต้องการย้าย');
  }
  async function move(value,target){
   if(!value||!target||!root()?.contains(target)||!same(value.context,context())||!admin()||pending.has(value.id))return;
-  const team=target.dataset.sectionTeamTarget;if(!['Team A','Team B',''].includes(team))return;
+  const team=target.dataset.sectionTeamTarget;if(!['Team A','Team B','Morning Floating Team',''].includes(team))return;
   if((target.dataset.sectionTeamGroup||'')!==(value.sortingGroup||'')){showStatus('กรุณาเลือกทีมภายในกลุ่ม Sorting เดียวกัน',true,value.context);clearTargets();return}
   pending.add(value.id);selected=null;clearTargets();showStatus('กำลังบันทึกทีม...',false,value.context);mount();
   try{
