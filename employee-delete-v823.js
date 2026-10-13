@@ -52,12 +52,19 @@ async function remove(id){
 }
 // Save the employee collection independently of the large ppms root socket.
 async function upsert(data,originalId='',options={}){
- const id=String(data.id),oldId=String(originalId||'');
+ const id=String(data.id),oldId=String(originalId||''),patchFields=Array.isArray(options.patchFields)?options.patchFields.filter(field=>['stampingShift','organizationTeam','updatedAt'].includes(field)):null;
  const deleted=await request('deletedEmployeeIds');
- if(oldId===id&&Object.values(deleted.value||{}).map(String).includes(id))throw Error('พนักงานถูกลบแล้ว กรุณาโหลดรายชื่อใหม่');
+ if(oldId===id&&Object.values(deleted.value||{}).map(String).includes(id)){const error=Error('พนักงานถูกลบแล้ว กรุณาโหลดรายชื่อใหม่');if(patchFields)error.code='employee-missing';throw error}
  await change('employees',value=>{
   const existing=records(value).find(e=>String(e.id)===id);
   if(options.createOnly&&existing){const error=Error('รหัสพนักงานนี้มีอยู่แล้ว');error.code='employee-exists';error.existing=existing;throw error}
+  if(patchFields){
+   if(!existing){const error=Error('พนักงานถูกลบแล้ว กรุณาโหลดรายชื่อใหม่');error.code='employee-missing';throw error}
+   if(options.expectedSection&&existing.section!==options.expectedSection){const error=Error('แผนกพนักงานเปลี่ยนแล้ว กรุณาโหลดรายชื่อใหม่');error.code='employee-section-changed';error.existing=existing;throw error}
+   const patched={...existing,...Object.fromEntries(patchFields.map(field=>[field,data[field]]))};
+   if(Array.isArray(value))return value.map(e=>e&&String(e.id)===id?patched:e);
+   return Object.fromEntries(Object.entries(value).map(([key,e])=>[key,e&&String(e.id)===id?patched:e]));
+  }
   if(Array.isArray(value)||value==null){
    const next=records(value).filter(e=>String(e.id)!==id&&(!oldId||String(e.id)!==oldId));
    return [...next,data];
@@ -67,7 +74,7 @@ async function upsert(data,originalId='',options={}){
   const key=!id.startsWith('__ppmskey__')&&!/[.#$\[\]\/]/.test(id)?id:'__ppmskey__'+encodeURIComponent(id).replace(/\./g,'%2E');
   next[key]=data;return next;
  });
- await change('deletedEmployeeIds',value=>{
+ if(!patchFields)await change('deletedEmployeeIds',value=>{
   const ids=new Set(Object.values(value||{}).map(String));
   ids.delete(id);if(oldId&&oldId!==id)ids.add(oldId);return [...ids];
  });

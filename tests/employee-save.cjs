@@ -5,7 +5,7 @@ async function scenario(initial,conflict=false){
  const ctx={window:{PPMS_FIREBASE_CONFIG:{databaseURL:'https://example.test'},addEventListener(){}},navigator:{onLine:true},AbortController,setTimeout,clearTimeout,setInterval(){},fetch:async(url,opts={})=>{
   const path=new URL(url).pathname.replace('/ppms/','').replace('.json','');paths.push(path);
   if(opts.method==='PUT'){
-   if(conflict&&!conflicted&&path==='employees'){conflicted=true;db.employees.push({id:'concurrent',name:'OTHER'});etag++;return response(412,db[path])}
+   if(conflict&&!conflicted&&path==='employees'){conflicted=true;db.employees.push({id:'concurrent',name:'OTHER'});if(conflict.changes)Object.assign(db.employees[0],conflict.changes);etag++;return response(412,db[path])}
    assert.equal(opts.headers['if-match'],String(etag));db[path]=JSON.parse(opts.body);etag++;
   }
   return response(200,db[path]??null);
@@ -30,5 +30,10 @@ async function scenario(initial,conflict=false){
  ctx.pendingEmployeeDeletes.add('new');assert.equal(ctx.withPendingEmployeeSaves([],[]).length,0);
  ctx.pendingEmployeeDeletes.clear();ctx.queueEmployeeSave({id:'edited'},'edited');assert(!ctx.withPendingEmployeeSaves([],['edited']).some(e=>e.id==='edited'));
  ctx.queueEmployeeSave({id:'renamed'},'old');assert(!ctx.withPendingEmployeeSaves([{id:'old'}],[]).some(e=>e.id==='old'));
- console.log('Passed: small roster writes, concurrent add conflict, object roster, rename, deleted edit guard, deliberate re-add, durable pending saves, reload retention, delete cancellation.');
+ s=await scenario({employees:[{id:'1',name:'CURRENT',photoData:'CURRENT PHOTO',section:'Stamping Section',position:'Operator',skillLevels:{Safety:5},stampingShift:'Team A'}],deletedEmployeeIds:['gone']},{changes:{name:'CONCURRENT EDIT',photoData:'NEW PHOTO'}});
+ await s.service.upsert({id:'1',name:'STALE',photoData:'STALE',section:'Wrong Section',stampingShift:'Team B',updatedAt:'team-r'},'1',{patchFields:['stampingShift','updatedAt'],expectedSection:'Stamping Section'});
+ const team=s.db.employees.find(e=>e.id==='1');assert.equal(team.stampingShift,'Team B');assert.equal(team.section,'Stamping Section');assert.equal(team.position,'Operator');assert.equal(team.name,'CONCURRENT EDIT');assert.equal(team.photoData,'NEW PHOTO');assert.equal(team.skillLevels.Safety,5);assert.deepEqual(s.db.deletedEmployeeIds,['gone']);
+ await assert.rejects(s.service.upsert({id:'1',stampingShift:'Team A',updatedAt:'r2'},'1',{patchFields:['stampingShift','updatedAt'],expectedSection:'Welding Section'}),/แผนกพนักงานเปลี่ยน/);assert.equal(team.stampingShift,'Team B');
+ s=await scenario({employees:[],deletedEmployeeIds:[]});await assert.rejects(s.service.upsert({id:'gone',stampingShift:'Team A',updatedAt:'r'},'gone',{patchFields:['stampingShift','updatedAt'],expectedSection:'Stamping Section'}),/พนักงานถูกลบ/);assert.deepEqual(s.db.employees,[]);
+ console.log('Passed: employee saves, durable pending state, deletion guards, and team patches preserve concurrent names/photos/skills, original departments, tombstones and other employees.');
 })().catch(err=>{console.error(err);process.exitCode=1});

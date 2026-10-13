@@ -19,6 +19,7 @@ function weldingCard(id,node,item,rank,position){
 }
 function stampingHierarchy(report,footer){
  let extra=report.querySelector('.stamping-standard-hierarchy');
+ if(report.dataset.sectionTeamMode==='split'){extra?.remove();return}
  if(!/stamping/i.test(section())){extra?.remove();return}
  const unique=new Map();report.querySelectorAll('[data-edit]').forEach(node=>{const id=String(node.dataset.edit||'').trim();if(id&&!node.closest('.stamping-standard-hierarchy,.stamping-print-page')&&!unique.has(id))unique.set(id,node)});
  const meta=employeeMeta(),groups=new Map();for(const [id,node]of unique){const person=meta.get(employeeId(id)),position=String(person?.position||'');const [rank,label]=rankOf({textContent:position||node.textContent});if(!groups.has(rank))groups.set(rank,{label,items:[]});groups.get(rank).items.push({id,node,meta:meta.get(employeeId(id))||null})}for(const group of groups.values())group.items.sort((a,b)=>employmentRank(a.meta)-employmentRank(b.meta)||startTime(a.meta)-startTime(b.meta)||String(a.id).localeCompare(String(b.id),undefined,{numeric:true}));
@@ -30,7 +31,7 @@ function stampingHierarchy(report,footer){
  const source=report.querySelector('.stamping-role-source');if(source){source.hidden=true;source.style.display='none'}
 }
 function stampingPrintPage(report,header,footer){
- let page=report.querySelector('.stamping-print-page');if(!/stamping/i.test(section())){page?.remove();return}
+ let page=report.querySelector('.stamping-print-page');if(report.dataset.sectionTeamMode==='split'){page?.remove();return}if(!/stamping/i.test(section())){page?.remove();return}
  const chart=report.querySelector('.stamping-standard-hierarchy');if(!chart)return;const html=`${header.outerHTML}${chart.outerHTML}${footer.outerHTML}`;
  if(!page){page=document.createElement('section');page.className='stamping-print-page unified-section-page';report.append(page)}updateHTML(page,html);
 }
@@ -39,6 +40,7 @@ function sortAllPeople(report){
 }
 function sortingPrintPages(report,header,footer){
  let pages=report.querySelector('.sorting-print-pages');
+ if(report.dataset.sectionTeamMode==='split'){pages?.remove();return}
  if(!/^sorting\s*section$/i.test(section())){pages?.remove();return}
  const teams=[...report.querySelectorAll('.sorting-split>.sorting-team')];if(!teams.length)return;
  const meta=employeeMeta();const html=teams.slice(0,2).map((team,index)=>{const clone=team.cloneNode(true);clone.querySelectorAll('[data-edit]').forEach(card=>{const id=String(card.dataset.edit||''),item=meta.get(employeeId(id))||null,position=item?.position||card.closest('.level')?.querySelector('h4')?.textContent||'',rank=String(position).toLowerCase().includes('leader')?'leader':'operator';card.outerHTML=weldingCard(id,card,item,rank,position)});const head=header.cloneNode(true),group='Sorting '+(index+1),title=head.querySelector('h1'),subtitle=head.querySelector('p');if(title)title.textContent='SECTION ORGANIZATION CHART — '+group;if(subtitle)subtitle.textContent='Production People Management System · Section: '+group;const levels=[...clone.querySelectorAll(':scope>.level')].map(level=>level.outerHTML).join('');return`<section class="sorting-print-page unified-section-page">${head.outerHTML}<div class="panel hierarchy unified-section-hierarchy">${levels}</div>${footer.outerHTML}</section>`}).join('');
@@ -47,9 +49,10 @@ function sortingPrintPages(report,header,footer){
 }
 function render(){
  const report=document.querySelector('.section-org-report');
- if(!report)return;
+ if(!report){document.body.classList.remove('org-section-teams');return}
+ const split=report.dataset.sectionTeamMode==='split';document.body.classList.toggle('org-section-teams',split);
  const sec=section();if(!sec)return;
- document.body.classList.toggle('org-stamping',/stamping/i.test(sec));document.body.classList.toggle('org-sorting',/^sorting\s*section$/i.test(sec));
+ document.body.classList.toggle('org-stamping',!split&&/stamping/i.test(sec));document.body.classList.toggle('org-sorting',!split&&/^sorting\s*section$/i.test(sec));
  document.querySelectorAll('.top-action-toolbar button[data-action="printSettings"]').forEach(button=>button.remove());
  const toolbar=document.querySelector('.top-action-toolbar');if(toolbar)toolbar.remove();
  let header=report.querySelector('.org-document-header');
