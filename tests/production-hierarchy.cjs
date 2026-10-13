@@ -23,7 +23,7 @@ function checkHierarchy(w,factory=false){
  const selector=factory?'.factory-org-section':'.division-section',root=w.document.querySelector('.production-reporting-tree');assert(root,'Production hierarchy loads');
  assert.equal(root.querySelectorAll('.org-shift-group,.org-shift-title').length,0,'Factory chart does not divide employees by shift');
  assert.equal(w.document.querySelector('.org-current-shift-banner'),null,'Factory chart omits the current-shift banner');
- if(!factory)assert.equal(w.PPMSLanguage.sourceText(w.document.querySelector('#app>.page-head h2')),'Factory Organization Chart');
+ if(!factory)assert.equal(w.document.querySelector('#app>.page-head h2').textContent,w.PPMSOrganizationScope.title());
  const supervised=[...root.querySelectorAll('.production-supervised-sections '+selector)].map(el=>el.dataset.orgSection.replace(/\s+Section$/,''));
  assert.deepEqual(supervised,['Stamping','Bending','Tapping','Welding','CNC','Sorting 1','Sorting 2']);
  const direct=[...root.querySelectorAll('.production-direct-sections '+selector)].map(el=>el.dataset.orgSection.replace(/\s+Section$/,''));assert.deepEqual(direct,supportSections);

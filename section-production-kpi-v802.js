@@ -40,7 +40,7 @@
     let root=document.getElementById(rootId);
     if(!root){root=document.createElement('main');root.id=rootId;document.getElementById('app').after(root)}
     root.hidden=!active;if(!active)return;
-    root.innerHTML=`<div class="page-head"><h2>สรุป KPI การผลิตรายเดือน / Section</h2></div><div class="kpi-section-controls"><label>เดือน<input type="month" id="sectionKpiMonth" value="${month}"></label><label>Section<select id="sectionKpiFilter"><option value="">ทุก Section</option></select></label><button type="button" id="sectionKpiRefresh">อัปเดตข้อมูล</button><button type="button" class="secondary" id="sectionKpiCsv">ดาวน์โหลด CSV</button></div><p class="kpi-summary-note">นับวันละ 1 วัน เมื่อมีสแกน QR หน้าเครื่องและทุกเครื่องที่ทำในวันนั้นถึงเกณฑ์ · วันที่รอตรวจยังไม่นับเป็นวันผ่าน</p><div id="sectionKpiStatus" role="status"></div><div id="sectionKpiResults"></div>`;
+    root.innerHTML=`<div data-kpi-organization-scope>${window.PPMS_RUNTIME?.organizationScopeBar?.('sectionKpi')||''}</div><div class="page-head"><h2>สรุป KPI การผลิตรายเดือน / Section</h2></div><div class="kpi-section-controls"><label>เดือน<input type="month" id="sectionKpiMonth" value="${month}"></label><label>Section<select id="sectionKpiFilter"><option value="">ทุก Section</option></select></label><button type="button" id="sectionKpiRefresh">อัปเดตข้อมูล</button><button type="button" class="secondary" id="sectionKpiCsv">ดาวน์โหลด CSV</button></div><p class="kpi-summary-note">นับวันละ 1 วัน เมื่อมีสแกน QR หน้าเครื่องและทุกเครื่องที่ทำในวันนั้นถึงเกณฑ์ · วันที่รอตรวจยังไม่นับเป็นวันผ่าน</p><div id="sectionKpiStatus" role="status"></div><div id="sectionKpiResults"></div>`;
     root.querySelector('#sectionKpiMonth').onchange=e=>{month=e.target.value;data=null;error='';void load()};
     root.querySelector('#sectionKpiFilter').onchange=e=>{section=e.target.value;renderResults()};
     root.querySelector('#sectionKpiRefresh').onclick=()=>void load();
@@ -50,6 +50,7 @@
   function renderResults(){
     if(!active)return;
     const root=document.getElementById(rootId);if(!root)return;
+    const scope=root.querySelector('[data-kpi-organization-scope]'),identity=JSON.stringify(window.PPMS_RUNTIME?.organizationScope?.()||{});if(scope&&scope.dataset.identity!==identity){scope.dataset.identity=identity;scope.innerHTML=window.PPMS_RUNTIME?.organizationScopeBar?.('sectionKpi')||''}
     const roster=employees(), sections=[...new Set(roster.map(e=>e.section))].sort((a,b)=>a.localeCompare(b,'th'));
     if(section&&!sections.includes(section))section='';
     const filter=root.querySelector('#sectionKpiFilter');
@@ -121,6 +122,7 @@
   function updateRoster(){if(!active)return;const sig=JSON.stringify(employees());if(sig!==rosterSignature)void load();else if(!loading)renderResults()}
   window.addEventListener('storage',updateRoster);
   window.addEventListener('ppms-employees-changed',updateRoster);
+  window.addEventListener('ppms-organization-scope-changed',()=>{if(active){section='';data=null;error='';shell();void load()}});
   setInterval(updateRoster,15000);
   addButton();
 })();

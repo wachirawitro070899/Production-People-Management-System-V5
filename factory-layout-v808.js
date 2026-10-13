@@ -12,14 +12,17 @@
   let activeMap = 'stamping_1_8';
   let uploading = false;
   const imageCache = new Map(), imageRequests = new Map();
+  const inScope=item=>!window.PPMSOrganizationScope||window.PPMSOrganizationScope.contains(item);
+  const scopeMetadata=()=>window.PPMS_RUNTIME?.organizationScope?.()||{};
+  const scopedSections=()=>window.PPMS_RUNTIME?.organizationSections?.()||[];
   function maps() {
     const result = {...MAPS};
     for (const [id,m] of Object.entries(data.sectionMaps || {})) {
       if (id !== 'factory' && m && typeof m.section === 'string' && m.section.trim() && /^[a-zA-Z0-9_-]+$/.test(id)) result[id] = {...(MAPS[id] || {}),...m,name:m.name || MAPS[id]?.name || m.section};
     }
-    return result;
+    return Object.fromEntries(Object.entries(result).filter(([,item])=>inScope(item)));
   }
-  const mapInfo = id => id === OVERVIEW_ID ? OVERVIEW : maps()[id];
+  const mapInfo = id => id === OVERVIEW_ID ? (inScope(OVERVIEW)?OVERVIEW:null) : maps()[id];
   const machineMap = m => mapInfo(m.mapId) ? m.mapId : '';
   const visiblePosition = m => !!activeMap && positioned(m) && machineMap(m) === activeMap;
   function switchMap(id) {
@@ -202,6 +205,8 @@
     }
   }
   window.addEventListener('ppms-employees-changed', () => syncRoster(true));
+  let viewScope='';
+  window.addEventListener('ppms-organization-scope-changed',()=>{viewScope='';for(const dialog of document.querySelectorAll('.fl-dialog'))dialog.close?.();syncRoster(true)});
   function admin() { return window.PPMS_RUNTIME?.factoryLayoutIsAdmin?.() === true; }
   function base() {
     const url = String(window.PPMS_FIREBASE_CONFIG?.databaseURL || '').replace(/\/$/, '');
@@ -243,7 +248,7 @@
     } catch (e) { note('ยังไม่บันทึก: ' + e.message); return false; }
     finally { busy = false; refresh(); }
   }
-  function entries() { return Object.entries(data.machines).filter(([,m]) => m && typeof m === 'object').map(([id,m]) => ({...m,id})); }
+  function entries() { return Object.entries(data.machines).filter(([,m]) => m && typeof m === 'object' && inScope(m)).map(([id,m]) => ({...m,id})); }
   function assignmentFor(m,id) { return Object.values(m.assignments || {}).find(a => String(a?.employeeId || '') === String(id) && assignmentShift(a) === shift); }
   const hasPersonPoint = a => a && positioned(a) && a.mapId === activeMap;
   function assigned(m) { const ids = assignmentIds(m); return roster().filter(e => ids.has(String(e.id))); }
@@ -263,11 +268,15 @@
     const areaButton = root?.querySelector('#flSetArea'); if (areaButton) areaButton.disabled = !activeMap || !section || busy || !ready || !admin();
   }
   function refresh() {
+    const scope=window.PPMS_RUNTIME?.organizationScope?.(),key=scope?scope.division+'::'+scope.plant:'';
+    if(scope&&viewScope!==key){viewScope=key;selected='';pendingEmployee='';query='';placing=false;selectingArea=false;pendingZoom=null;pendingFocus=false;zoom=1;const names=scopedSections();if(!names.includes(section))section=names[0]||'';activeMap=Object.keys(maps()).find(id=>maps()[id].section===section)||'';if(root)root.querySelector('#flSearch').value=''}
+
     if (!root?.isConnected) return;
     root.querySelector('#flShift').value = shift;
     const overview = activeMap === OVERVIEW_ID;
     root.querySelector('.fl-grid').classList.toggle('fl-overview',overview);
     root.querySelectorAll('[data-fl-section-only]').forEach(e => { e.hidden = overview; });
+    root.querySelector('#flSeedStamping').hidden=overview||section!=='Stamping Section'||(scope&&scope.division!=='Production Division');
     root.querySelector('#flFit').textContent = overview ? 'เต็มผังรวม' : 'เต็มผังแผนก';
     const all = entries(), list = all.filter(match), m = data.machines[selected];
     const img = root.querySelector('#flImage'), map = mapInfo(activeMap);
@@ -312,8 +321,8 @@
     root.querySelector('#flUnassigned').innerHTML = availablePeople.map(e => person(e)).join('') || `<p class="fl-empty">${departmentPeople.length ? 'กำหนดพนักงานครบแล้ว · ลากพนักงานกลับมาที่นี่เพื่อยกเลิกประจำเครื่อง' : section ? 'ไม่มีพนักงานใน Section นี้' : 'เลือก Section เพื่อแสดงพนักงาน'}</p>`;
 
     const select = root.querySelector('#flSection'), value = overview ? OVERVIEW_ID : section;
-    const sections = [...new Set([...roster().map(e => e.section),...all.map(x => x.section),...Object.values(maps()).map(m => m.section)].filter(Boolean))].sort();
-    select.innerHTML = '<option value="">— เลือก Section —</option><option value="__overview__">Layout รวม</option>' + sections.map(s => `<option value="${esc(s)}">${esc(s)}</option>`).join(''); select.value = value;
+    const sections = [...new Set([...scopedSections(),...roster().map(e => e.section),...all.map(x => x.section),...Object.values(maps()).map(m => m.section)].filter(Boolean))].sort();
+    select.innerHTML = '<option value="">— เลือก Section —</option>'+(mapInfo(OVERVIEW_ID)?'<option value="__overview__">Layout รวม</option>':'') + sections.map(s => `<option value="${esc(s)}">${esc(s)}</option>`).join(''); select.value = value;
     note(statusText); controls();
   }
   function fillEmployeeOptions() {
@@ -330,20 +339,20 @@
   function editMachine(id = '') {
     if (!admin() || busy || !ready) return;
     const old = data.machines[id] || {}, dlg = document.createElement('dialog'); dlg.className = 'fl-dialog';
-    const sections = [...new Set(roster().map(e => e.section).filter(Boolean))].sort();
+    const sections = [...new Set([...scopedSections(),...roster().map(e => e.section)].filter(Boolean))].sort();
     dlg.innerHTML = `<form><h3>${id ? 'แก้ไขเครื่อง/จุดงาน' : 'เพิ่มเครื่อง/จุดงาน'}</h3><label>ชื่อ/หมายเลขเครื่อง<input name="machineName" maxlength="80" value="${esc(old.name || '')}" required></label><label>Section<input name="machineSection" list="flSections" maxlength="100" value="${esc(old.section || section)}" required></label><datalist id="flSections">${sections.map(s => `<option value="${esc(s)}">`).join('')}</datalist><div class="fl-actions"><button type="submit">บันทึก</button><button type="button" data-fl-cancel class="secondary">ยกเลิก</button></div><p role="status"></p></form>`;
     document.body.append(dlg); dlg.showModal();
     dlg.querySelector('[data-fl-cancel]').onclick = () => dlg.close(); dlg.onclose = () => dlg.remove();
     dlg.querySelector('form').onsubmit = async event => {
       event.preventDefault(); const fd = new FormData(event.target), name = String(fd.get('machineName') || '').trim(), sec = String(fd.get('machineSection') || '').trim();
       if (!name || !sec) return;
-      const mid = id || uid(), buttons = dlg.querySelectorAll('button'); buttons.forEach(b => b.disabled = true);
+      const context=scopeMetadata(),mid = id || uid(), buttons = dlg.querySelectorAll('button'); buttons.forEach(b => b.disabled = true);
       const ok = await save(d => {
         if (id && !d.machines[id]) throw Error('เครื่องนี้ถูกลบแล้ว');
-        if (Object.entries(d.machines).some(([k,m]) => k !== mid && m.name?.toLowerCase() === name.toLowerCase() && m.section === sec)) throw Error('ชื่อเครื่องนี้มีอยู่แล้วใน Section');
+        if (Object.entries(d.machines).some(([k,m]) => k !== mid && inScope(m) && m.name?.toLowerCase() === name.toLowerCase() && m.section === sec)) throw Error('ชื่อเครื่องนี้มีอยู่แล้วใน Section');
         const prior = d.machines[mid] || {};
         if (prior.section && prior.section !== sec && Object.keys(prior.assignments || {}).length) throw Error('ยกเลิกพนักงานประจำเครื่องก่อนเปลี่ยน Section');
-        d.machines[mid] = {...prior,name,section:sec,mapId:prior.mapId || activeMap,assignments:prior.assignments || {}};
+        d.machines[mid] = {...prior,...context,name,section:sec,mapId:prior.mapId || activeMap,assignments:prior.assignments || {}};
       });
       if (ok) { selected = mid; placing = !positioned(data.machines[mid]); dlg.close(); refresh(); }
       else { dlg.querySelector('[role=status]').textContent = statusText; buttons.forEach(b => b.disabled = false); }
@@ -382,7 +391,7 @@
   function uploadSection() {
     if (!admin() || !ready || busy || uploading) return;
     const dlg = document.createElement('dialog'); dlg.className = 'fl-dialog';
-    const departments = [...new Set([...roster().map(e=>e.section),...entries().map(m=>m.section),...Object.values(maps()).map(m=>m.section)].filter(Boolean))].sort();
+    const departments = [...new Set([...scopedSections(),...roster().map(e=>e.section),...entries().map(m=>m.section),...Object.values(maps()).map(m=>m.section)].filter(Boolean))].sort();
     dlg.innerHTML = `<form><h3>อัปโหลดผังแยกแผนก</h3><label>แผนก / Section<select name="department" required>${departments.map(s=>`<option value="${esc(s)}">${esc(s)}</option>`).join('')}</select></label><label>ผังที่จะอัปโหลด<select name="target"></select></label><label>ชื่อผัง<input name="mapName" maxlength="100" required></label><label>ภาพผัง<input name="imageFile" type="file" accept="image/png,image/jpeg,image/webp" required></label><p class="fl-muted">PNG / JPG / WebP ไม่เกิน 10 MB · เก็บความละเอียดต้นฉบับ</p><label class="fl-keep"><input name="keepPositions" type="checkbox">คงจุดเครื่องเดิมเมื่อภาพใหม่มีตำแหน่งตรงกับเดิม</label><p class="fl-hint">เมื่อเปลี่ยนภาพ จุดเครื่องในผังนี้จะต้องวางใหม่ เว้นแต่เลือกคงจุดเดิม · รายชื่อพนักงานประจำเครื่องยังอยู่</p><div class="fl-actions"><button type="submit">อัปโหลดและบันทึก</button><button type="button" class="secondary" data-cancel>ยกเลิก</button></div><p role="status"></p></form>`;
     document.body.append(dlg); dlg.showModal();
     const form = dlg.querySelector('form'), department = form.elements.department, target = form.elements.target, name = form.elements.mapName;
@@ -400,7 +409,7 @@
       if (!['image/png','image/jpeg','image/webp'].includes(file.type) || file.size > 10*1024*1024) { status.textContent = 'เลือก PNG / JPG / WebP ขนาดไม่เกิน 10 MB'; return; }
       uploading = true; controls(); dlg.querySelectorAll('button,input,select').forEach(e=>e.disabled=true); status.textContent = 'กำลังอัปโหลดภาพต้นฉบับ...';
       try {
-        const src = await new Promise((resolve,reject)=>{ const reader=new FileReader(); reader.onload=()=>resolve(reader.result); reader.onerror=()=>reject(Error('อ่านไฟล์ภาพไม่ได้')); reader.readAsDataURL(file); });
+        const context=scopeMetadata(),src = await new Promise((resolve,reject)=>{ const reader=new FileReader(); reader.onload=()=>resolve(reader.result); reader.onerror=()=>reject(Error('อ่านไฟล์ภาพไม่ได้')); reader.readAsDataURL(file); });
         const dimensions = await new Promise((resolve,reject)=>{ const image=new Image(); image.onload=()=>resolve({width:image.naturalWidth,height:image.naturalHeight}); image.onerror=()=>reject(Error('เปิดไฟล์ภาพไม่ได้')); image.src=src; });
         if (!dimensions.width || !dimensions.height) throw Error('ภาพไม่มีขนาดที่ถูกต้อง');
         const version = 'img_' + (crypto.randomUUID?.() || Date.now().toString(36) + '_' + Math.random().toString(36).slice(2)), path = 'ppmsFactoryLayoutImages/v1/' + id + '/' + version;
@@ -414,7 +423,7 @@
             d.layoutHistory ||= {}; d.layoutHistory[version] = {mapId:id,map:d.sectionMaps[id] || MAPS[id],positions:{}};
             if (!keep) { for (const [mid,m] of Object.entries(d.machines)) if (m.mapId === id) { d.layoutHistory[version].positions[mid] = {x:m.x ?? null,y:m.y ?? null}; delete m.x; delete m.y; } }
           }
-          d.sectionMaps[id] = {name:title,section:sec,imagePath:path,...dimensions,revision:version};
+          d.sectionMaps[id] = {...context,name:title,section:sec,imagePath:path,...dimensions,revision:version};
           delete d.areas?.[employeeKey(sec)+'_'+id];
         },'อัปโหลดผังแผนกแล้ว');
         if (!ok) throw Error(statusText);
@@ -479,7 +488,7 @@
       }
     });
     root.querySelector('#flAddMachine').onclick = () => editMachine();
-    root.querySelector('#flSeedStamping').onclick = () => save(d => { for (let n = 1; n <= 13; n++) { const name = 'Stamping ' + n + '#'; if (!Object.values(d.machines).some(m => m.name === name && m.section === 'Stamping Section')) d.machines['stamping_' + n] ||= {name,section:'Stamping Section',assignments:{}}; } }, 'เพิ่มรายการ Stamping 1#–13# แล้ว · กรุณาวางจุดตามตำแหน่งจริง');
+    root.querySelector('#flSeedStamping').onclick = () => {const scope=scopeMetadata();if(scope.division&&scope.division!=='Production Division')return;return save(d => { for (let n = 1; n <= 13; n++) { const name = 'Stamping ' + n + '#',matches=m=>!window.PPMSOrganizationScope||window.PPMSOrganizationScope.contains(m,scope); if (!Object.values(d.machines).some(m => matches(m)&&m.name === name && m.section === 'Stamping Section')) d.machines['stamping_'+employeeKey(scope.plant||'')+'_'+n] ||= {name,section:'Stamping Section',...scope,assignments:{}}; } }, 'เพิ่มรายการ Stamping 1#–13# แล้ว · กรุณาวางจุดตามตำแหน่งจริง')};
     root.querySelector('#flReload').onclick = () => { imageRequests.clear(); load(); };
     root.querySelector('#flUploadSection').onclick = uploadSection;
     root.querySelector('#flZoomMachine').onclick = () => zoomMachine();
