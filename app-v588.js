@@ -1482,6 +1482,13 @@ function orgFixedLeadershipLevels(list){
  }).join('');
  return levels?`<div class="org-fixed-leadership">${levels}</div>`:'';
 }
+function orgDepartmentLevels(list){
+ const order=['supervisor','leader','engineer','technician','other','operator'];
+ return order.map(r=>{
+  const group=list.filter(e=>rank(e.position)===r).sort(orgSeniorityCompare);
+  return group.length?`<div class="level rank-level-${r}"><h4>${levelName(r)}</h4><div class="people">${group.map(e=>person(e,true)).join('')}</div></div>`:'';
+ }).join('')||'<div class="empty">ไม่มีข้อมูลพนักงาน</div>';
+}
 function orgShiftLevels(list,shiftKey,isActive){
  // Supervisor และ Leader เป็นโครงสร้างประจำ Section จึงไม่ย้ายตาม Day/Night Shift
  const order=['engineer','technician','other','operator'];
@@ -1495,23 +1502,17 @@ function orgShiftLevels(list,shiftKey,isActive){
 function dashboard(historyPage=false){
  const managers=employees.filter(e=>rank(e.position)==='manager');
  const managerTop=managers.length?`<div class="division-manager-top"><div class="people">${managers.map(e=>person(e,true)).join('')}</div><div class="manager-line"></div><h4 class="manager-pill">Manager</h4><div class="manager-line manager-line-bottom"></div></div>`:'';
- const activeShift=orgActiveShiftKey(),otherShift=activeShift==='day'?'night':'day',today=thaiDateKey();
- const production=organizationScope().division==='Production Division',hierarchy=window.PPMSProductionHierarchy;
-  const supervisors=production&&hierarchy?employees.filter(e=>hierarchy.isSupervisor(e.position)).sort(orgSeniorityCompare):[];
-  const sectionCards=orgSectionDescriptors().map(d=>{
+ const today=thaiDateKey(),production=organizationScope().division==='Production Division',hierarchy=window.PPMSProductionHierarchy;
+ const supervisors=production&&hierarchy?employees.filter(e=>hierarchy.isSupervisor(e.position)).sort(orgSeniorityCompare):[];
+ const sectionCards=orgSectionDescriptors().map(d=>{
   const list=orgEmployeesForDescriptor(d);
-  const shiftWorkers=list.filter(e=>!['supervisor','leader'].includes(rank(e.position)));
-  const activeCount=shiftWorkers.filter(e=>employeeShiftKey(e,today)===activeShift).length,otherCount=shiftWorkers.length-activeCount;
-  const leadershipCount=list.length-shiftWorkers.length;
-  const leadershipText=leadershipCount?` · Supervisor/Leader ${leadershipCount}`:'';
-  return {...d,html:`<section class="division-section ${d.sortingGroup?'division-sorting-split':''}" data-org-section="${esc(d.title)}"><div class="division-section-head"><h3>${esc(d.title)}</h3><small>${list.length} Employees${leadershipText} · ${orgShiftLabel(activeShift)} ${activeCount} · ${orgShiftLabel(otherShift)} ${otherCount}</small></div>${orgFixedLeadershipLevels(list)}${orgShiftLevels(list,activeShift,true)}${orgShiftLevels(list,otherShift,false)}</section>`};
+  return {...d,html:`<section class="division-section ${d.sortingGroup?'division-sorting-split':''}" data-org-section="${esc(d.title)}"><div class="division-section-head"><h3>${esc(d.title)}</h3><small>${list.length} Employees</small></div>${orgDepartmentLevels(list)}</section>`};
  });
-  const chart=production&&hierarchy?hierarchy.chartMarkup(sectionCards,supervisors.map(e=>person(e,true)).join(''),{assign:isAdmin}):`<div class="division-sections">${sectionCards.map(item=>item.html).join('')}</div>`;
+ const chart=production&&hierarchy?hierarchy.chartMarkup(sectionCards,supervisors.map(e=>person(e,true)).join(''),{assign:isAdmin}):`<div class="division-sections">${sectionCards.map(item=>item.html).join('')}</div>`;
  const newThisMonth=employees.filter(e=>{const d=new Date(e.startDate),n=new Date();return !Number.isNaN(d.getTime())&&d.getMonth()===n.getMonth()&&d.getFullYear()===n.getFullYear()}).length;
- const activeCount=employees.filter(e=>rank(e.position)!=='manager'&&!supervisors.includes(e)&&employeeShiftKey(e,today)===activeShift).length;
- return head(historyPage?'ประวัติการขาดลามาสายและงานเสีย':'Organization Chart',historyPage?`ยอดสะสมจากประวัติที่บันทึกถึงวันที่ ${esc(today)} · ลารวมลากิจและลาป่วย`:`จัดกะตามแผน 4 รอบอัตโนมัติ · กะปัจจุบัน ${orgShiftLabel(activeShift)} แสดงด้านบน`,printBtn()+reportButtons())+
- `<div class="org-current-shift-banner no-print"><div><b>กะที่กำลังแสดงด้านบน: ${orgShiftLabel(activeShift)}</b><span>ระบบสลับกลุ่มด้านบนอัตโนมัติ: กะเช้า 07:00–18:59 · กะดึก 19:00–06:59</span></div><strong>${activeCount} คนในกะปัจจุบัน</strong></div>`+
- `<div class="cards"><div class="card metric">พนักงานทั้งหมด<b>${employees.length}</b></div><div class="card metric">Organization<b>${orgSectionDescriptors().length}</b></div><div class="card metric">กะปัจจุบัน<b>${activeShift==='day'?'DAY':'NIGHT'}</b></div><div class="card metric">พนักงานใหม่เดือนนี้<b>${newThisMonth}</b></div></div>`+
+ const positionCount=new Set(employees.map(e=>String(e.position||'').trim()).filter(Boolean)).size;
+ return head(historyPage?'ประวัติการขาดลามาสายและงานเสีย':'Factory Organization Chart',historyPage?`ยอดสะสมจากประวัติที่บันทึกถึงวันที่ ${esc(today)} · ลารวมลากิจและลาป่วย`:'โครงสร้างพนักงานตามตำแหน่งและแผนก',printBtn()+reportButtons())+
+ `<div class="cards"><div class="card metric">พนักงานทั้งหมด<b>${employees.length}</b></div><div class="card metric">แผนก<b>${sectionCards.length}</b></div><div class="card metric">ตำแหน่ง<b>${positionCount}</b></div><div class="card metric">พนักงานใหม่เดือนนี้<b>${newThisMonth}</b></div></div>`+
  `<div class="division-org${historyPage?' employee-history-report':''}">${managerTop}${chart}</div>`;
 }
 function ngDashboardPage(){
@@ -2805,7 +2806,7 @@ function matrixExcelDownload(){
 }
 async function pagePdfDownload(){
  let target=null,name='Report',format='a4',orientation='landscape';
- if(current==='dashboard'){target=document.querySelector('.division-org');name='Production_Division_Organization_Chart';format='a3'}
+ if(current==='dashboard'){target=document.querySelector('.division-org');name='Factory_Organization_Chart';format='a3'}
  else if(current==='sectionChart'){target=document.querySelector('.section-org-report');name='Section_Organization_Chart_'+(sessionStorage.getItem('chartSec')||sections[0]);format='a3'}
  else if(current==='cards'){const id=sessionStorage.getItem('cardEmp')||employees[0]?.id||'';if(id==='__ALL__'){return cardsA4PdfDownload()}target=document.querySelector('.wallet-card-sheet');name='Employee_Skill_Card_'+id;format=[85.6,53.98];orientation='landscape'}
  if(!target)return alert('ไม่พบรายงานสำหรับดาวน์โหลด PDF');
@@ -2840,7 +2841,7 @@ async function cardsA4PdfDownload(){
   const safe=section.replace(/[^A-Za-z0-9ก-๙_-]+/g,'_');pdf.save(`Employee_Competency_Cards_${safe}_10_per_A4.pdf`);status('ดาวน์โหลด PDF 10 ใบ/A4 แล้ว','ok');
  }catch(err){console.error(err);alert('สร้าง PDF ไม่สำเร็จ: '+err.message);status('สร้าง PDF ไม่สำเร็จ','error')}finally{holder.remove()}
 }
-function pageExcelDownload(){let title='',headers=[],rows=[];if(current==='dashboard'){title='Organization Chart';headers=['No.','Emp.ID','Name','Position','Section','Start Date'];rows=employees.map((e,i)=>[i+1,e.id,e.name,e.position,e.section,e.startDate||''])}else if(current==='sectionChart'){const sec=sessionStorage.getItem('chartSec')||sections[0],list=employees.filter(e=>e.section===sec);title='Section Organization Chart - '+sec;headers=['No.','Emp.ID','Name','Position','Section','Shift/Team','Group','Responsibility'];rows=list.map((e,i)=>[i+1,e.id,e.name,e.position,e.section,e.stampingShift||e.shift||'',e.stampingGroup||e.sortingGroup||'',e.stampingRole||e.stampingMachines||''])}else if(current==='cards'){const id=sessionStorage.getItem('cardEmp')||employees[0]?.id,sec=sessionStorage.getItem('cardSection')||sections[0];const list=id==='__ALL__'?employees.filter(x=>x.section===sec):employees.filter(x=>String(x.id)===String(id));if(!list.length)return alert('ไม่พบข้อมูลพนักงาน');const sk=skillsFor(list[0].section);title=id==='__ALL__'?'Employee Skill Cards - '+sec:'Employee Skill Card - '+list[0].id;headers=['Emp.ID','Name','Position','Section',...sk,'Score','Acceptance','Last Update','Next Update'];rows=list.map(e=>{const sc=skillScore(e,sk),a=acceptance(sc,sk.length),d=skillDates(e);return [e.id,e.name,e.position,e.section,...sk.map(k=>skillValue(e,k)),sc,'Level '+a.level+' - '+a.label,d.last,d.next]})}else return alert('ไม่พบรายงานสำหรับดาวน์โหลด Excel');const th=headers.map(h=>`<th>${excelSafe(h)}</th>`).join(''),tr=rows.map(r=>`<tr>${r.map(v=>`<td>${excelSafe(v)}</td>`).join('')}</tr>`).join('');const html=`<!doctype html><html><head><meta charset="UTF-8"><style>body{font-family:Arial,Tahoma,sans-serif}h1{background:#164d84;color:#fff;padding:12px}table{border-collapse:collapse;width:100%}th{background:#d9e9f7}td,th{border:1px solid #9fb8cf;padding:6px}</style></head><body><h1>${excelSafe(title)}</h1><table><thead><tr>${th}</tr></thead><tbody>${tr}</tbody></table></body></html>`;dl(title.replace(/[^A-Za-z0-9ก-๙_-]+/g,'_')+'.xls','\ufeff'+html,'application/vnd.ms-excel;charset=utf-8');status('ดาวน์โหลด Excel แล้ว','ok')}
+function pageExcelDownload(){let title='',headers=[],rows=[];if(current==='dashboard'){title='Factory Organization Chart';headers=['No.','Emp.ID','Name','Position','Section','Start Date'];rows=employees.map((e,i)=>[i+1,e.id,e.name,e.position,e.section,e.startDate||''])}else if(current==='sectionChart'){const sec=sessionStorage.getItem('chartSec')||sections[0],list=employees.filter(e=>e.section===sec);title='Section Organization Chart - '+sec;headers=['No.','Emp.ID','Name','Position','Section','Shift/Team','Group','Responsibility'];rows=list.map((e,i)=>[i+1,e.id,e.name,e.position,e.section,e.stampingShift||e.shift||'',e.stampingGroup||e.sortingGroup||'',e.stampingRole||e.stampingMachines||''])}else if(current==='cards'){const id=sessionStorage.getItem('cardEmp')||employees[0]?.id,sec=sessionStorage.getItem('cardSection')||sections[0];const list=id==='__ALL__'?employees.filter(x=>x.section===sec):employees.filter(x=>String(x.id)===String(id));if(!list.length)return alert('ไม่พบข้อมูลพนักงาน');const sk=skillsFor(list[0].section);title=id==='__ALL__'?'Employee Skill Cards - '+sec:'Employee Skill Card - '+list[0].id;headers=['Emp.ID','Name','Position','Section',...sk,'Score','Acceptance','Last Update','Next Update'];rows=list.map(e=>{const sc=skillScore(e,sk),a=acceptance(sc,sk.length),d=skillDates(e);return [e.id,e.name,e.position,e.section,...sk.map(k=>skillValue(e,k)),sc,'Level '+a.level+' - '+a.label,d.last,d.next]})}else return alert('ไม่พบรายงานสำหรับดาวน์โหลด Excel');const th=headers.map(h=>`<th>${excelSafe(h)}</th>`).join(''),tr=rows.map(r=>`<tr>${r.map(v=>`<td>${excelSafe(v)}</td>`).join('')}</tr>`).join('');const html=`<!doctype html><html><head><meta charset="UTF-8"><style>body{font-family:Arial,Tahoma,sans-serif}h1{background:#164d84;color:#fff;padding:12px}table{border-collapse:collapse;width:100%}th{background:#d9e9f7}td,th{border:1px solid #9fb8cf;padding:6px}</style></head><body><h1>${excelSafe(title)}</h1><table><thead><tr>${th}</tr></thead><tbody>${tr}</tbody></table></body></html>`;dl(title.replace(/[^A-Za-z0-9ก-๙_-]+/g,'_')+'.xls','\ufeff'+html,'application/vnd.ms-excel;charset=utf-8');status('ดาวน์โหลด Excel แล้ว','ok')}
 function currentRows(){
  if(current==='training')return employees.map(e=>({ID:e.id,Name:e.name,Section:e.section,Position:e.position,Status:training.find(x=>String(x.employeeId)===String(e.id))?.status||'Planned'}));
  if(current==='evaluation'||current==='matrixExam')return evaluations.map(x=>({Date:x.date,EmployeeID:x.employeeId,Score:x.score,Result:Number(x.score)>=70?'PASS':'RE-TRAIN',Evaluator:x.evaluator,Note:x.note||''}));

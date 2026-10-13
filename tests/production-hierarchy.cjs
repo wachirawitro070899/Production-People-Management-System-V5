@@ -4,7 +4,7 @@ const wait=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 const productionSections=['Stamping Section','Bending Section','Tapping Section','Welding Section','CNC Section','Sorting 1','Sorting 2'];
 const supportSections=['Engineering Support','Support Production','Machine Maintenance','Tooling Maintenance'];
 const employee=(id,section,position='Operator',extra={})=>({id,name:'TEST '+id,section,position,startDate:'2020-01-01',contractType:'Permanent',skillLevels:{},currentSkillLevel:1,...extra});
-const employees=[employee('MANAGER','Engineering Support Section','Manager'),employee('SUP','Bending Section','Supervisor Production'),employee('SUP-OTHER-PLANT','CNC Section','Supervisor Production',{organizationPlant:'โรง 2'}),employee('WELD-SUP','Welding Section','Supervisor'),...productionSections.map((section,index)=>employee('OP'+index,index>4?'Sorting Section':section,'Operator',index>4?{sortingGroup:section}:{})),...supportSections.map((section,index)=>employee('DIRECT'+index,section+' Section','Technician')),employee('QC','Inspection Section','Supervisor',{organizationDivision:'Quality Division'})];
+const employees=[employee('MANAGER','Engineering Support Section','Manager'),employee('SUP','Bending Section','Supervisor Production'),employee('SUP-OTHER-PLANT','CNC Section','Supervisor Production',{organizationPlant:'โรง 2'}),employee('WELD-SUP','Welding Section','Supervisor'),...productionSections.map((section,index)=>employee('OP'+index,index>4?'Sorting Section':section,'Operator',index>4?{sortingGroup:section}:{})),...supportSections.map((section,index)=>employee('DIRECT'+index,section+' Section','Technician')),employee('QC','Inspection Section','Supervisor',{organizationDivision:'Quality Division'}),employee('STAMP-DAY','Stamping Section','Operator',{stampingShift:'Team A'}),employee('STAMP-NIGHT','Stamping Section','Operator',{stampingShift:'Team B'})];
 const master={plants:['โรง 1','โรง 2','โรง 3'],divisions:['Production Division','Quality Division'],sections:[...productionSections,...supportSections],positions:['Manager','Engineer','Supervisor','Leader','Technician','Operator'],positionMap:{'Production Division':[],'Quality Division':['Supervisor']},sectionMap:{'Production Division::โรง 1':[...productionSections,...supportSections],'Production Division::โรง 2':['CNC Section'],'Quality Division::รวม':['Inspection Section']},sectionPositions:{},productionPlantsV751:true,corporateAdministrationV784:true,businessOperationsV785:true,fullDivisionNamesV787:true,sortingSectionsSplit:true,generatedVacanciesRemoved:true};
 async function setup(entry){
  const html=fs.readFileSync(entry,'utf8'),scripts=[...html.matchAll(/<script[^>]+src=["']([^"']+)["']/g)].map(m=>m[1].split('?')[0]).filter(p=>!/^https?:/.test(p));
@@ -21,6 +21,9 @@ async function setup(entry){
 }
 function checkHierarchy(w,factory=false){
  const selector=factory?'.factory-org-section':'.division-section',root=w.document.querySelector('.production-reporting-tree');assert(root,'Production hierarchy loads');
+ assert.equal(root.querySelectorAll('.org-shift-group,.org-shift-title').length,0,'Factory chart does not divide employees by shift');
+ assert.equal(w.document.querySelector('.org-current-shift-banner'),null,'Factory chart omits the current-shift banner');
+ if(!factory)assert.equal(w.PPMSLanguage.sourceText(w.document.querySelector('#app>.page-head h2')),'Factory Organization Chart');
  const supervised=[...root.querySelectorAll('.production-supervised-sections '+selector)].map(el=>el.dataset.orgSection.replace(/\s+Section$/,''));
  assert.deepEqual(supervised,['Stamping','Bending','Tapping','Welding','CNC','Sorting 1','Sorting 2']);
  const direct=[...root.querySelectorAll('.production-direct-sections '+selector)].map(el=>el.dataset.orgSection.replace(/\s+Section$/,''));assert.deepEqual(direct,supportSections);
@@ -28,6 +31,7 @@ function checkHierarchy(w,factory=false){
  assert.equal(root.querySelectorAll(selector+' [data-edit="SUP"]').length,0,'Division supervisor must never be repeated inside a section');
  assert(root.querySelector('.production-supervised-sections '+selector+' [data-edit="WELD-SUP"]'),'Ordinary Section Supervisor remains in Welding');
  assert.equal(root.querySelectorAll('[data-edit="SUP-OTHER-PLANT"]').length,0,'Other plant supervisor remains outside this scope');
+ const stamping=root.querySelector('[data-org-section="Stamping Section"]');assert(stamping.querySelector('[data-edit="STAMP-DAY"]'));assert(stamping.querySelector('[data-edit="STAMP-NIGHT"]'));if(!factory)assert.equal(stamping.querySelectorAll('.rank-level-operator .people').length,1,'Day and night employees share one position group');
  for(const e of employees.filter(e=>!['MANAGER','SUP-OTHER-PLANT','QC'].includes(e.id)))assert.equal(root.querySelectorAll('[data-edit="'+e.id+'"]').length,1,e.id+' appears once');
 }
 (async()=>{
@@ -51,7 +55,7 @@ function checkHierarchy(w,factory=false){
     w.document.activeElement?.blur();w.document.querySelector('#nav [data-page="dashboard"]').click();await wait(300);assert.equal(w.document.querySelectorAll('.production-supervisor-top [data-edit="OP0"]').length,1,JSON.stringify({scope:w.sessionStorage.getItem('ppms_scope_division'),plant:w.sessionStorage.getItem('ppms_scope_plant'),map:w.localStorage.getItem('ppms_employee_organization_v1'),saved:JSON.parse(w.localStorage.getItem('ppms_v3_employees')).find(e=>e.id==='OP0'),html:w.document.querySelector('.production-supervisor-top')?.textContent}));assert.equal(w.document.querySelectorAll('.division-section [data-edit="OP0"]').length,0);
     const division=w.document.querySelector('#globalOrganizationDivision');division.value='Quality Division';division.dispatchEvent(new w.Event('change',{bubbles:true}));await wait(300);assert(!w.document.querySelector('.production-reporting-tree'),'Nonproduction divisions retain their existing structure');assert(w.document.querySelector('[data-edit="QC"]'));
    }
-   assert.deepEqual(errors,[],errors.join('\n'));console.log('PASSED',entry,'7 supervised / 4 direct sections, unique supervisor, ordinary supervisor, plant scope, position persistence, bilingual labels, and production JD');
+   assert.deepEqual(errors,[],errors.join('\n'));console.log('PASSED',entry,'7 supervised / 4 direct sections, all shifts combined, unique supervisor, plant scope, position persistence, bilingual labels, and production JD');
   }finally{dom.window.close()}
  }
 })().catch(e=>{console.error(e);process.exitCode=1});

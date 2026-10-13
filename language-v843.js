@@ -2937,7 +2937,7 @@ Layout โรงงาน|Factory Layout
   'Document No.':'เลขที่เอกสาร','Effective Date':'วันที่มีผล','Revision':'ฉบับแก้ไข',
   'Responsibilities':'หน้าที่และความรับผิดชอบ','Qualifications':'คุณสมบัติ','Required Skills':'ทักษะที่จำเป็น',
   'Reports to':'รายงานต่อ','Evaluator':'ผู้ประเมิน','Assessment Date':'วันที่ประเมิน',
-  'Factory Organization Chart':'ผังองค์กรโรงงาน','FACTORY ORGANIZATION CHART':'ผังองค์กรโรงงาน',
+  'Factory Organization Chart':'ผังโรงงาน','FACTORY ORGANIZATION CHART':'ผังโรงงาน',
   'FACTORY ORGANIZATION':'โครงสร้างองค์กรโรงงาน','Organization':'องค์กร',
   'Basic':'พื้นฐาน','Advanced':'ขั้นสูง','Expert':'ผู้เชี่ยวชาญ','Trainer':'ผู้ฝึกสอน',
   'Import':'นำเข้า','Export':'ส่งออก','Backup':'สำรองข้อมูล','Reset':'รีเซ็ต','Settings':'ตั้งค่า',
@@ -2953,6 +2953,7 @@ Layout โรงงาน|Factory Layout
  Object.assign(dictionary,{'ตรวจสอบฉบับส่วนกลาง':'Review shared copy','เปรียบเทียบ JD ก่อนซิงก์':'Compare JD before syncing','ฉบับที่บันทึกในเครื่อง':'Copy saved on this device','ฉบับส่วนกลาง':'Shared copy','ไม่พบ JD ส่วนกลาง':'Shared JD not found','ใช้ฉบับในเครื่องและซิงก์':'Use local copy and sync','กลับ JD ในเครื่อง':'Back to local JD','ไม่พบ JD ที่ต้องตรวจสอบก่อนซิงก์':'No JD conflict to review'});
  Object.assign(dictionary,{'ยังซิงก์ JD ไม่สำเร็จ ฉบับในเครื่องยังเก็บไว้':'JD sync is pending; your local copy is retained'});
  Object.assign(dictionary,{'รายงานตรงต่อ Manager':'Reports directly to Manager','ดูแลแผนกผลิต':'Supervises production sections','แผนก':'sections','ยังไม่มีพนักงานในตำแหน่งนี้':'No employee assigned to this position','กำหนดพนักงาน':'Assign employee','เลือกพนักงานสำหรับ Supervisor Production':'Choose an employee for Supervisor Production','เปิดข้อมูลพนักงานเพื่อกำหนดตำแหน่ง Supervisor Production':'Open the employee record to assign the Supervisor Production position','กรุณาเลือกพนักงาน':'Please choose an employee'});
+ Object.assign(dictionary,{'โครงสร้างพนักงานตามตำแหน่งและแผนก':'Employee structure by position and section'});
  const reverse={};
  for(const [th,en] of Object.entries(dictionary))if(en&&/[A-Za-z]/.test(en))reverse[en]=th;
  Object.assign(reverse,englishUI,{
