@@ -39,9 +39,9 @@ function sortAllPeople(report){
 }
 function sortingPrintPages(report,header,footer){
  let pages=report.querySelector('.sorting-print-pages');
- if(!/^sorting\s*section$/i.test(section())){pages?.remove();return}
- const teams=[...report.querySelectorAll('.sorting-split>.sorting-team')];if(!teams.length)return;
- const meta=employeeMeta();const html=teams.slice(0,2).map((team,index)=>{const clone=team.cloneNode(true);clone.querySelectorAll('[data-edit]').forEach(card=>{const id=String(card.dataset.edit||''),item=meta.get(employeeId(id))||null,position=item?.position||card.closest('.level')?.querySelector('h4')?.textContent||'',rank=String(position).toLowerCase().includes('leader')?'leader':'operator';card.outerHTML=weldingCard(id,card,item,rank,position)});const head=header.cloneNode(true),group='Sorting '+(index+1),title=head.querySelector('h1'),subtitle=head.querySelector('p');if(title)title.textContent='SECTION ORGANIZATION CHART — '+group;if(subtitle)subtitle.textContent='Production People Management System · Section: '+group;const levels=[...clone.querySelectorAll(':scope>.level')].map(level=>level.outerHTML).join('');return`<section class="sorting-print-page unified-section-page">${head.outerHTML}<div class="panel hierarchy unified-section-hierarchy">${levels}</div>${footer.outerHTML}</section>`}).join('');
+ if(!/^sorting\s*(?:section|[12])$/i.test(section())){pages?.remove();return}
+ const teams=[...report.querySelectorAll('.sorting-split>.sorting-team,.sorting-unassigned')];if(!teams.length)return;
+ const meta=employeeMeta();const html=teams.map(team=>{const clone=team.cloneNode(true);clone.querySelectorAll('[data-edit]').forEach(card=>{const id=String(card.dataset.edit||''),item=meta.get(employeeId(id))||null,position=item?.position||card.closest('.level')?.querySelector('h4')?.textContent||'',rank=rankOf({textContent:position})[0];card.outerHTML=weldingCard(id,card,item,rank,position)});const head=header.cloneNode(true),group=team.dataset.sortingGroup||'Sorting Section',title=head.querySelector('h1'),subtitle=head.querySelector('p');if(title)title.textContent='SECTION ORGANIZATION CHART — '+group;if(subtitle)subtitle.textContent='Production People Management System · Section: '+group;const levels=[...clone.querySelectorAll(':scope>.level')].map(level=>level.outerHTML).join(''),label=team.dataset.sortingGroup?'':clone.querySelector(':scope>h3')?.outerHTML||'';return`<section class="sorting-print-page unified-section-page" data-sorting-group="${esc(team.dataset.sortingGroup||'')}">${head.outerHTML}<div class="panel hierarchy unified-section-hierarchy">${label}${levels}</div>${footer.outerHTML}</section>`}).join('');
  if(!pages){pages=document.createElement('div');pages.className='sorting-print-pages';report.append(pages)}
  updateHTML(pages,html);
 }
@@ -50,7 +50,7 @@ function render(){
  if(!report){document.body.classList.remove('org-section-teams','org-stamping','org-sorting');return}
  const split=report.dataset.sectionTeamMode==='split';document.body.classList.toggle('org-section-teams',split);
  const sec=section();if(!sec)return;
- document.body.classList.toggle('org-stamping',/stamping/i.test(sec));document.body.classList.toggle('org-sorting',/^sorting\s*section$/i.test(sec));
+ document.body.classList.toggle('org-stamping',/stamping/i.test(sec));document.body.classList.toggle('org-sorting',/^sorting\s*(?:section|[12])$/i.test(sec));
  document.querySelectorAll('.top-action-toolbar button[data-action="printSettings"]').forEach(button=>button.remove());
  const toolbar=document.querySelector('.top-action-toolbar');if(toolbar)toolbar.remove();
  let header=report.querySelector('.org-document-header');
@@ -71,7 +71,13 @@ let queued=false,observerTimer=0;const schedule=()=>{if(queued)return;queued=tru
 const appRoot=document.getElementById('app')||document.body;
 new MutationObserver(()=>{clearTimeout(observerTimer);observerTimer=setTimeout(schedule,80)}).observe(appRoot,{childList:true,subtree:false});
 document.addEventListener('change',event=>{if(event.target?.id==='sectionSelect')setTimeout(schedule,0)});
-document.addEventListener('click',event=>{if(!event.target.closest?.('[data-action="orgChartPrint"]'))return;event.preventDefault();const size=document.getElementById('orgPaperSize')?.value==='A3'?'A3':'A4';localStorage.setItem('ppms_org_paper_size',size);document.body.classList.remove('org-paper-a3','org-paper-a4');document.body.classList.add('print-section-org','org-paper-'+size.toLowerCase());let style=document.getElementById('orgDynamicPageSize');if(!style){style=document.createElement('style');style.id='orgDynamicPageSize';document.head.append(style)}style.textContent=`@media print{@page{size:${size} landscape;margin:7mm}}`;window.print()},true);
+function preparePrint(){
+ const report=document.querySelector('.section-org-report');if(!report)return;
+ if(!report.querySelector('.org-document-header'))render();
+ const size=document.getElementById('orgPaperSize')?.value==='A3'?'A3':'A4';localStorage.setItem('ppms_org_paper_size',size);document.body.classList.remove('org-paper-a3','org-paper-a4');document.body.classList.add('print-section-org','org-paper-'+size.toLowerCase());let style=document.getElementById('orgDynamicPageSize');if(!style){style=document.createElement('style');style.id='orgDynamicPageSize';document.head.append(style)}style.textContent=`@media print{@page{size:${size} landscape;margin:7mm}}`;
+}
+document.addEventListener('click',event=>{if(!event.target.closest?.('[data-action="orgChartPrint"]'))return;event.preventDefault();preparePrint();window.print()},true);
+window.addEventListener('beforeprint',preparePrint);
 window.addEventListener('afterprint',()=>{document.body.classList.remove('print-section-org','org-paper-a3','org-paper-a4');document.getElementById('orgDynamicPageSize')?.remove()});
 document.addEventListener('DOMContentLoaded',schedule);
 })();

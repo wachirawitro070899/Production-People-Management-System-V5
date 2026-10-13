@@ -145,7 +145,7 @@ function refreshOrganizationSections(){
  const values=isAdmin&&window.PPMSOrganizationScope?window.PPMSOrganizationScope.sections(employees,organizationScope(),baseSections):[...new Set([...baseSections,...employees.map(e=>e.section).filter(Boolean)])];
  sections.splice(0,sections.length,...values);
  const ids=new Set(organizationScopedEmployees(employees).map(e=>String(e.id)));
- for(const key of ['chartSec','viewSec','matrixSec','cardSection','examPlanSection','examCheckSection','shiftRosterSection','attendanceSection','examHistorySection']){const value=sessionStorage.getItem(key);if(value&&!['ALL','__ALL__'].includes(value)&&!values.includes(value))sessionStorage.removeItem(key)}
+ for(const key of ['chartSec','viewSec','matrixSec','cardSection','examPlanSection','examCheckSection','shiftRosterSection','attendanceSection','examHistorySection']){const value=sessionStorage.getItem(key);if(value&&!['ALL','__ALL__'].includes(value)&&!(key==='chartSec'?sectionChartOptions(values):values).includes(value))sessionStorage.removeItem(key)}
  for(const key of ['cardEmp','examEmp','attendanceKpiEmployee']){const value=sessionStorage.getItem(key);if(value&&value!=='__ALL__'&&!ids.has(value))sessionStorage.removeItem(key)}
 }
 window.addEventListener('ppms-organization-changed',()=>{refreshOrganizationSections();if(!document.getElementById('employeeForm'))queueRemoteRender()});
@@ -325,7 +325,7 @@ function acknowledgeEmployeeDeletes(value){const deleted=new Set((Array.isArray(
 
 function persistPendingEmployeeSaves(){localStorage.setItem(EMPLOYEE_SAVE_PENDING_KEY,JSON.stringify(pendingEmployeeSaves))}
 function queueEmployeeSave(data,originalId='',options={}){
- const next={...pendingEmployeeSaves,[String(data.id)]:{data:{...data},originalId:String(originalId||''),createOnly:options.createOnly===true,...(options.patchFields?{patchFields:options.patchFields,expectedSection:options.expectedSection}:{})}};
+ const next={...pendingEmployeeSaves,[String(data.id)]:{data:{...data},originalId:String(originalId||''),createOnly:options.createOnly===true,...(options.patchFields?{patchFields:options.patchFields,expectedSection:options.expectedSection,...(Object.hasOwn(options,'expectedSortingGroup')?{expectedSortingGroup:options.expectedSortingGroup}:{})}:{})}};
  localStorage.setItem(EMPLOYEE_SAVE_PENDING_KEY,JSON.stringify(next));pendingEmployeeSaves=next;employeeMasterWriteRevision++;
 }
 function withPendingEmployeeSaves(list,deleted=[]){
@@ -335,7 +335,7 @@ function withPendingEmployeeSaves(list,deleted=[]){
   const id=String(job.data.id);
   if(pendingEmployeeDeletes.has(id)||(job.originalId===id&&removed.has(id)))continue;
   if(job.originalId&&job.originalId!==id)map.delete(job.originalId);
-  if(job.patchFields){const existing=map.get(id);if(existing&&(!job.expectedSection||existing.section===job.expectedSection))map.set(id,{...existing,...Object.fromEntries(job.patchFields.map(field=>[field,job.data[field]]))});}else map.set(id,{...job.data});
+  if(job.patchFields){const existing=map.get(id);if(existing&&(!job.expectedSection||existing.section===job.expectedSection)&&(!Object.hasOwn(job,'expectedSortingGroup')||String(existing.sortingGroup||'')===job.expectedSortingGroup))map.set(id,{...existing,...Object.fromEntries(job.patchFields.map(field=>[field,job.data[field]]))});}else map.set(id,{...job.data});
  }
  return [...map.values()];
 }
@@ -1344,7 +1344,7 @@ document.addEventListener('focusout',e=>{if(e.target?.matches?.('input,select,te
 
 function dropdownInteractionBusy(){return userInteractionBusy()}
 function uiInteractionBusy(){
- if(window.PPMSSectionTeams?.dragging)return true;
+ if((window.PPMSSectionTeams?.dragging||window.PPMSOrganizationEditor?.dragging))return true;
  if(userInteractionBusy())return true;
  if(document.querySelector('#app form'))return true;
  if(!pageAllowsLiveRemoteRender())return true;
@@ -1514,11 +1514,13 @@ function dashboard(historyPage=false){
   return {...d,html:`<section class="division-section ${d.sortingGroup?'division-sorting-split':''}" data-org-section="${esc(d.title)}"><div class="division-section-head"><h3>${esc(d.title)}</h3><small>${list.length} Employees</small></div>${orgDepartmentLevels(list)}</section>`};
  });
  const chart=production&&hierarchy?hierarchy.chartMarkup(sectionCards,supervisors.map(e=>person(e,true)).join(''),{assign:isAdmin}):`<div class="division-sections">${sectionCards.map(item=>item.html).join('')}</div>`;
+ const tree=!historyPage&&window.PPMSOrganizationEditor?.isTreeView(),organizationChart=tree?window.PPMSOrganizationEditor.chartMarkup(employees,e=>person(e,true)):managerTop+chart;
  const newThisMonth=employees.filter(e=>{const d=new Date(e.startDate),n=new Date();return !Number.isNaN(d.getTime())&&d.getMonth()===n.getMonth()&&d.getFullYear()===n.getFullYear()}).length;
  const positionCount=new Set(employees.map(e=>String(e.position||'').trim()).filter(Boolean)).size;
+ const employment=organizationEmploymentCounts(employees);
  return head(historyPage?'ประวัติการขาดลามาสายและงานเสีย':window.PPMSOrganizationScope.title('en'),historyPage?`ยอดสะสมจากประวัติที่บันทึกถึงวันที่ ${esc(today)} · ลารวมลากิจและลาป่วย`:'โครงสร้างพนักงานตามตำแหน่งและแผนก',printBtn()+reportButtons())+
- `<div class="cards"><div class="card metric">พนักงานทั้งหมด<b>${employees.length}</b></div><div class="card metric">แผนก<b>${sectionCards.length}</b></div><div class="card metric">ตำแหน่ง<b>${positionCount}</b></div><div class="card metric">พนักงานใหม่เดือนนี้<b>${newThisMonth}</b></div></div>`+
- `<div class="division-org${historyPage?' employee-history-report':''}">${managerTop}${chart}</div>`;
+ (!historyPage?`<div class="panel no-print organization-chart-controls">${window.PPMSOrganizationEditor?.controlsMarkup()||''}</div>`:'')+`<div class="cards"><div class="card metric">พนักงานทั้งหมด<b>${employees.length}</b></div><div class="card metric">แผนก<b>${sectionCards.length}</b></div><div class="card metric">ตำแหน่ง<b>${positionCount}</b></div><div class="card metric">พนักงานใหม่เดือนนี้<b>${newThisMonth}</b></div>${!historyPage?`<div class="card metric">พนักงานประจำ<b data-employment-count="permanent">${employment.permanent}</b></div><div class="card metric">ซัพคอนแทรค<b data-employment-count="subcontractor">${employment.subcontractor}</b></div>`:''}</div>`+
+ `<div class="division-org${historyPage?' employee-history-report':''}" ${!historyPage?`data-organization-mode="${tree?'tree':'departments'}"`:''}>${organizationChart}</div>`;
 }
 function ngDashboardPage(){
  employeeHistoryAttendanceIndex=new Map();
@@ -1533,20 +1535,42 @@ function sectionChartEmployeeTeam(employee){
 }
 let sectionTeamSaveQueue=Promise.resolve(),sectionTeamWriteJobs=0;
 
+function organizationEmploymentCounts(list){const subcontractor=list.filter(e=>/^(subcontractor|subcontract|ซัพคอนแทรค|พนักงานซัพคอนแทรค)$/i.test(String(e.contractType||'').trim())).length;return {permanent:list.length-subcontractor,subcontractor}}
+function organizationEmploymentSummary(list){const counts=organizationEmploymentCounts(list);return `<div class="cards organization-employment-summary no-print"><div class="card metric">พนักงานประจำ<b data-employment-count="permanent">${counts.permanent}</b></div><div class="card metric">ซัพคอนแทรค<b data-employment-count="subcontractor">${counts.subcontractor}</b></div></div>`}
+function sectionChartSortingName(value){const match=String(value||'').trim().match(/^sorting\s*([12])$/i);return match?'Sorting '+match[1]:''}
+function sectionChartIsSorting(value){return /^sorting\s*(?:section|[12])$/i.test(String(value||'').trim())}
+function sectionChartSortingGroup(employee){return sectionChartSortingName(employee.section)||sectionChartSortingName(employee.sortingGroup)}
+function sectionChartOptions(values=sections){const out=[];for(const value of values){if(sectionChartIsSorting(value)){for(const group of ['Sorting Section','Sorting 1','Sorting 2'])if(!out.includes(group))out.push(group)}else if(!out.includes(value))out.push(value)}return out}
+function sectionChartMatches(employee,selected){if(!sectionChartIsSorting(selected))return employee.section===selected;const group=sectionChartSortingName(selected);return sectionChartIsSorting(employee.section)&&(!group||sectionChartSortingGroup(employee)===group)}
+function sectionChartEmployees(selected,list=employees){return list.filter(e=>sectionChartMatches(e,selected)&&(organizationScope().division!=='Production Division'||!window.PPMSProductionHierarchy?.isSupervisor(e.position))).slice().sort(orgSeniorityCompare)}
 function sectionChartTeamPreferenceKey(section){const scope=organizationScope();return 'ppms_section_chart_team_view::'+scope.division+'::'+scope.plant+'::'+section}
 function sectionChartLevels(list){return ['manager','engineer','supervisor','leader','technician','other','operator'].map(r=>{const members=list.filter(e=>rank(e.position)===r).sort(orgSeniorityCompare);return members.length?`<div class="level level-${r}"><h4>${levelName(r)}</h4><div class="people">${members.map(sectionExamPerson).join('')}</div></div>`:''}).join('')}
-function sectionChartTeamMarkup(list){
- const unassigned=list.filter(e=>!sectionChartEmployeeTeam(e));
- const teams=['Team A','Team B'].map(team=>{const members=list.filter(e=>sectionChartEmployeeTeam(e)===team);return `<section class="section-chart-team panel hierarchy" data-section-chart-team="${team}" data-section-team-target="${team}"><div class="section-chart-team-heading"><h3>${team}</h3><span>${members.length} Employees</span></div>${sectionChartLevels(members)||'<div class="empty">ไม่มีพนักงานในทีมนี้</div>'}</section>`}).join('');
- return '<section class="section-team-assignment no-print"><h3>แบ่งทีม A / ทีม B</h3><p class="section-team-instructions" data-section-team-status role="status">ลากพนักงานจากผังองค์กรด้านบนไปทีม A หรือทีม B หรือแตะย้ายทีมแล้วเลือกทีมปลายทาง</p><p class="section-team-reference-note">รายชื่อในผังองค์กรจะยังอยู่ครบ และพิมพ์เฉพาะผังองค์กรด้านบน</p>'+`<div class="section-chart-teams">${teams}</div><section class="panel section-chart-unassigned" data-section-team-target=""><div class="section-chart-team-heading"><h3>ยังไม่ระบุทีม</h3><span>${unassigned.length} Employees</span></div><p class="section-team-drop-hint">ลากพนักงานมาที่นี่เพื่อยกเลิกทีม</p></section></section>`;
+function sectionChartTeamMarkup(list,selected){
+ const sorting=sectionChartIsSorting(selected),groups=sorting?(sectionChartSortingName(selected)?[sectionChartSortingName(selected)]:['Sorting 1','Sorting 2']):[''];
+ const boards=groups.map(group=>{
+  const roster=group?list.filter(e=>sectionChartSortingGroup(e)===group):list,unassigned=roster.filter(e=>!sectionChartEmployeeTeam(e));
+  const teams=['Team A','Team B'].map(team=>{const members=roster.filter(e=>sectionChartEmployeeTeam(e)===team);return `<section class="section-chart-team panel hierarchy" data-section-chart-team="${team}" data-section-team-target="${team}" data-section-team-group="${esc(group)}"><div class="section-chart-team-heading"><h3>${team}</h3><span>${members.length} Employees</span></div>${sectionChartLevels(members)||'<div class="empty">ไม่มีพนักงานในทีมนี้</div>'}</section>`}).join('');
+  return `<section class="section-chart-team-group" data-sorting-group="${esc(group)}">${group?`<h4>${esc(group)}</h4>`:''}<div class="section-chart-teams">${teams}</div><section class="panel section-chart-unassigned" data-section-team-target="" data-section-team-group="${esc(group)}"><div class="section-chart-team-heading"><h3>ยังไม่ระบุทีม</h3><span>${unassigned.length} Employees</span></div><p class="section-team-drop-hint">ลากพนักงานมาที่นี่เพื่อยกเลิกทีม</p></section></section>`;
+ }).join('');
+ const note=sorting&&list.some(e=>!sectionChartSortingGroup(e))?'<p class="section-team-reference-note">กรุณากำหนดกลุ่ม Sorting 1 หรือ Sorting 2 ให้พนักงานก่อนแบ่งทีม</p>':'';
+ return '<section class="section-team-assignment no-print"><h3>แบ่งทีม A / ทีม B</h3><p class="section-team-instructions" data-section-team-status role="status">ลากพนักงานจากผังองค์กรด้านบนไปทีม A หรือทีม B หรือแตะย้ายทีมแล้วเลือกทีมปลายทาง</p><p class="section-team-reference-note">รายชื่อในผังองค์กรจะยังอยู่ครบ และพิมพ์เฉพาะผังองค์กรด้านบน</p>'+note+boards+'</section>';
 }
-function sectionChartCombinedMarkup(selected,list){let body;if(selected==='Stamping Section'){body='<div class="panel hierarchy stamping-role-source">'+['manager','engineer','supervisor','leader','technician','other','operator'].map(r=>{const members=list.filter(e=>rank(e.position)===r);return members.length?`<div class="level level-${r}"><h4>${levelName(r)}</h4><div class="people">${members.map(sectionExamPerson).join('')}</div></div>`:''}).join('')+'</div>'}else if(selected==='Sorting Section'){const leaders=list.filter(e=>rank(e.position)==='leader');const operators=list.filter(e=>rank(e.position)==='operator');const team=(title,members,cls)=>`<section class="sorting-team ${cls}"><h3>${title}</h3><div class="level"><h4>Leader</h4><div class="people">${leaders.filter(e=>e.sortingGroup===title).map(sectionExamPerson).join('')||'<div class="empty">ไม่มี Leader</div>'}</div></div><div class="level"><h4>Operator</h4><div class="people">${members.map(sectionExamPerson).join('')||'<div class="empty">ไม่มี Operator</div>'}</div></div></section>`;const s1=operators.filter(e=>e.sortingGroup==='Sorting 1');const s2=operators.filter(e=>e.sortingGroup==='Sorting 2');const unassigned=operators.filter(e=>!e.sortingGroup);body=`<div class="panel hierarchy sorting-split">${team('Sorting 1',s1,'sorting-one')}${team('Sorting 2',s2,'sorting-two')}</div>${unassigned.length?`<div class="panel sorting-unassigned"><h3>ยังไม่กำหนดกลุ่ม Sorting</h3><div class="people">${unassigned.map(sectionExamPerson).join('')}</div><p class="modal-note">แก้ไขได้ที่ Search Employee → แก้ไขข้อมูล / รูป → กลุ่ม Sorting</p></div>`:''}`}else{body=['manager','engineer','supervisor','leader','technician','other','operator'].map(r=>{const a=list.filter(e=>rank(e.position)===r);return a.length?`<div class="level"><h4>${levelName(r)}</h4><div class="people">${a.map(sectionExamPerson).join('')}</div></div>`:''}).join('');body=`<div class="panel hierarchy">${body||'<div class="empty">ไม่มีข้อมูล</div>'}</div>`};return body}
+function sectionChartCombinedMarkup(selected,list){
+ if(selected==='Stamping Section')return '<div class="panel hierarchy stamping-role-source">'+sectionChartLevels(list)+'</div>';
+ if(sectionChartIsSorting(selected)){
+  const selectedGroup=sectionChartSortingName(selected),groups=selectedGroup?[selectedGroup]:['Sorting 1','Sorting 2'];
+  const charts=groups.map(group=>{const members=list.filter(e=>sectionChartSortingGroup(e)===group);return `<section class="sorting-team ${group==='Sorting 1'?'sorting-one':'sorting-two'}" data-sorting-group="${group}"><h3>${group}</h3>${sectionChartLevels(members)||'<div class="empty">ไม่มีข้อมูล</div>'}</section>`}).join('');
+  const unassigned=list.filter(e=>!sectionChartSortingGroup(e));
+  return `<div class="panel hierarchy sorting-split${selectedGroup?' sorting-single':''}">${charts}</div>`+(unassigned.length?`<section class="panel hierarchy sorting-unassigned" data-sorting-group=""><h3>ยังไม่กำหนดกลุ่ม Sorting</h3>${sectionChartLevels(unassigned)}<p class="modal-note no-print">แก้ไขได้ที่ Search Employee → แก้ไขข้อมูล / รูป → กลุ่ม Sorting</p></section>`:'');
+ }
+ return '<div class="panel hierarchy">'+(sectionChartLevels(list)||'<div class="empty">ไม่มีข้อมูล</div>')+'</div>';
+}
 function sectionView(chart=false){
- const selected=sessionStorage.getItem(chart?'chartSec':'viewSec')||sections[0],list=employees.filter(e=>e.section===selected&&(!chart||organizationScope().division!=='Production Division'||!window.PPMSProductionHierarchy?.isSupervisor(e.position))).slice().sort(orgSeniorityCompare),mode=chart&&sessionStorage.getItem(sectionChartTeamPreferenceKey(selected))==='split'?'split':'combined';
- const opts=sections.map(s=>`<option value="${esc(s)}" ${s===selected?'selected':''}>${esc(s)}</option>`).join('');
+ const selected=sessionStorage.getItem(chart?'chartSec':'viewSec')||sections[0],list=chart?sectionChartEmployees(selected):employees.filter(e=>e.section===selected).slice().sort(orgSeniorityCompare),mode=chart&&sessionStorage.getItem(sectionChartTeamPreferenceKey(selected))==='split'?'split':'combined';
+ const opts=(chart?sectionChartOptions():sections).map(s=>`<option value="${esc(s)}" ${s===selected?'selected':''}>${esc(s)}</option>`).join('');
  const body=chart?sectionChartCombinedMarkup(selected,list):`<div class="table-wrap"><table><thead><tr><th>รูป</th><th>รหัส</th><th>ชื่อ</th><th>ตำแหน่ง</th><th>วันที่เริ่มงาน</th><th>อายุงาน</th></tr></thead><tbody>${list.map(e=>`<tr><td>${avatar(e)}</td><td>${esc(e.id)}</td><td>${esc(e.name)}</td><td>${employeePositionLabel(e)}</td><td>${esc(e.startDate)}</td><td>${esc(age(employeeSeniorityStart(e)))}</td></tr>`).join('')}</tbody></table></div>`;
  const teamControl=chart?`<label>การแสดงทีม<select id="sectionChartTeamView"><option value="combined" ${mode==='combined'?'selected':''}>รวมทีม</option><option value="split" ${mode==='split'?'selected':''}>แยกทีม A / ทีม B</option></select></label>`:'';
- return head(chart?'Section Organization Chart':'Section View',`${list.length} คน`,chart?(printBtn()+reportButtons()):printBtn())+`<div class="panel no-print"><label>Section<select id="sectionSelect">${opts}</select></label>${teamControl}</div>${chart?examPlanLegend():''}${chart?`<div class="section-chart-workspace" data-section-team-mode="${mode}">`:''}<div class="${chart?'section-org-report':''}" ${chart?`data-section-team-mode="${mode}"`:''} style="margin-top:12px">${body}</div>${chart?`${mode==='split'?sectionChartTeamMarkup(list):''}</div>`:''}`;
+ return head(chart?'Section Organization Chart':'Section View',`${list.length} คน`,chart?(printBtn()+reportButtons()):printBtn())+(chart?organizationEmploymentSummary(list):'')+`<div class="panel no-print"><label>Section<select id="sectionSelect">${opts}</select></label>${teamControl}</div>${chart?examPlanLegend():''}${chart?`<div class="section-chart-workspace" data-section-team-mode="${mode}">`:''}<div class="${chart?'section-org-report':''}" ${chart?`data-section-team-mode="${mode}"`:''} style="margin-top:12px">${body}</div>${chart?`${mode==='split'?sectionChartTeamMarkup(list,selected):''}</div>`:''}`;
 }
 
 function search(){return head('Search Employee',`ข้อมูลพนักงาน ${employees.length} คน`,`<button data-action="csv">ดาวน์โหลด CSV</button>${printBtn()}`)+`<div class="panel no-print"><input id="q" placeholder="ค้นหา รหัส ชื่อ Section ตำแหน่ง เบอร์โทร"></div><div class="table-wrap"><table><thead><tr><th>รูป</th><th>รหัส</th><th>ชื่อ</th><th>เบอร์โทร</th><th>Section</th><th>ตำแหน่ง</th><th>วันที่เริ่มงาน</th><th>อายุงาน</th><th class="no-print">จัดการ</th></tr></thead><tbody id="empBody">${employeeRows(employees)}</tbody></table></div>`}
@@ -2869,7 +2893,7 @@ async function cardsA4PdfDownload(){
   const safe=section.replace(/[^A-Za-z0-9ก-๙_-]+/g,'_');pdf.save(`Employee_Competency_Cards_${safe}_10_per_A4.pdf`);status('ดาวน์โหลด PDF 10 ใบ/A4 แล้ว','ok');
  }catch(err){console.error(err);alert('สร้าง PDF ไม่สำเร็จ: '+err.message);status('สร้าง PDF ไม่สำเร็จ','error')}finally{holder.remove()}
 }
-function pageExcelDownload(){return withOrganizationReadScope(()=>{let title='',headers=[],rows=[];if(current==='dashboard'){title=window.PPMSOrganizationScope.title('en');headers=['No.','Emp.ID','Name','Position','Section','Start Date'];rows=employees.map((e,i)=>[i+1,e.id,e.name,e.position,e.section,e.startDate||''])}else if(current==='sectionChart'){const sec=sessionStorage.getItem('chartSec')||sections[0],list=employees.filter(e=>e.section===sec);title='Section Organization Chart - '+sec;headers=['No.','Emp.ID','Name','Position','Section','Shift/Team','Group','Responsibility'];rows=list.map((e,i)=>[i+1,e.id,e.name,e.position,e.section,sectionChartEmployeeTeam(e)||e.stampingShift||e.shift||'',e.stampingGroup||e.sortingGroup||'',e.stampingRole||e.stampingMachines||''])}else if(current==='cards'){const id=sessionStorage.getItem('cardEmp')||employees[0]?.id,sec=sessionStorage.getItem('cardSection')||sections[0];const list=id==='__ALL__'?employees.filter(x=>x.section===sec):employees.filter(x=>String(x.id)===String(id));if(!list.length)return alert('ไม่พบข้อมูลพนักงาน');const sk=skillsFor(list[0].section);title=id==='__ALL__'?'Employee Skill Cards - '+sec:'Employee Skill Card - '+list[0].id;headers=['Emp.ID','Name','Position','Section',...sk,'Score','Acceptance','Last Update','Next Update'];rows=list.map(e=>{const sc=skillScore(e,sk),a=acceptance(sc,sk.length),d=skillDates(e);return [e.id,e.name,e.position,e.section,...sk.map(k=>skillValue(e,k)),sc,'Level '+a.level+' - '+a.label,d.last,d.next]})}else return alert('ไม่พบรายงานสำหรับดาวน์โหลด Excel');const th=headers.map(h=>`<th>${excelSafe(h)}</th>`).join(''),tr=rows.map(r=>`<tr>${r.map(v=>`<td>${excelSafe(v)}</td>`).join('')}</tr>`).join('');const html=`<!doctype html><html><head><meta charset="UTF-8"><style>body{font-family:Arial,Tahoma,sans-serif}h1{background:#164d84;color:#fff;padding:12px}table{border-collapse:collapse;width:100%}th{background:#d9e9f7}td,th{border:1px solid #9fb8cf;padding:6px}</style></head><body><h1>${excelSafe(title)}</h1><table><thead><tr>${th}</tr></thead><tbody>${tr}</tbody></table></body></html>`;dl(title.replace(/[^A-Za-z0-9ก-๙_-]+/g,'_')+'.xls','\ufeff'+html,'application/vnd.ms-excel;charset=utf-8');status('ดาวน์โหลด Excel แล้ว','ok')})}
+function pageExcelDownload(){return withOrganizationReadScope(()=>{let title='',headers=[],rows=[];if(current==='dashboard'){title=window.PPMSOrganizationScope.title('en');headers=['No.','Emp.ID','Name','Position','Section','Start Date'];rows=employees.map((e,i)=>[i+1,e.id,e.name,e.position,e.section,e.startDate||''])}else if(current==='sectionChart'){const sec=sessionStorage.getItem('chartSec')||sections[0],list=sectionChartEmployees(sec);title='Section Organization Chart - '+sec;headers=['No.','Emp.ID','Name','Position','Section','Shift/Team','Group','Responsibility'];rows=list.map((e,i)=>[i+1,e.id,e.name,e.position,e.section,sectionChartEmployeeTeam(e)||e.stampingShift||e.shift||'',e.stampingGroup||e.sortingGroup||'',e.stampingRole||e.stampingMachines||''])}else if(current==='cards'){const id=sessionStorage.getItem('cardEmp')||employees[0]?.id,sec=sessionStorage.getItem('cardSection')||sections[0];const list=id==='__ALL__'?employees.filter(x=>x.section===sec):employees.filter(x=>String(x.id)===String(id));if(!list.length)return alert('ไม่พบข้อมูลพนักงาน');const sk=skillsFor(list[0].section);title=id==='__ALL__'?'Employee Skill Cards - '+sec:'Employee Skill Card - '+list[0].id;headers=['Emp.ID','Name','Position','Section',...sk,'Score','Acceptance','Last Update','Next Update'];rows=list.map(e=>{const sc=skillScore(e,sk),a=acceptance(sc,sk.length),d=skillDates(e);return [e.id,e.name,e.position,e.section,...sk.map(k=>skillValue(e,k)),sc,'Level '+a.level+' - '+a.label,d.last,d.next]})}else return alert('ไม่พบรายงานสำหรับดาวน์โหลด Excel');const th=headers.map(h=>`<th>${excelSafe(h)}</th>`).join(''),tr=rows.map(r=>`<tr>${r.map(v=>`<td>${excelSafe(v)}</td>`).join('')}</tr>`).join('');const html=`<!doctype html><html><head><meta charset="UTF-8"><style>body{font-family:Arial,Tahoma,sans-serif}h1{background:#164d84;color:#fff;padding:12px}table{border-collapse:collapse;width:100%}th{background:#d9e9f7}td,th{border:1px solid #9fb8cf;padding:6px}</style></head><body><h1>${excelSafe(title)}</h1><table><thead><tr>${th}</tr></thead><tbody>${tr}</tbody></table></body></html>`;dl(title.replace(/[^A-Za-z0-9ก-๙_-]+/g,'_')+'.xls','\ufeff'+html,'application/vnd.ms-excel;charset=utf-8');status('ดาวน์โหลด Excel แล้ว','ok')})}
 function withOrganizationReadScope(callback){
  if(!isAdmin)return callback();
  const all={employees,attendance,evaluations,training,examResults};
@@ -2882,7 +2906,7 @@ function currentRows(){return withOrganizationReadScope(()=>{
  if(current==='evaluation'||current==='matrixExam')return evaluations.map(x=>({Date:x.date,EmployeeID:x.employeeId,Score:x.score,Result:Number(x.score)>=70?'PASS':'RE-TRAIN',Evaluator:x.evaluator,Note:x.note||''}));
  if(current==='exam')return examResults;
  if(current==='matrix'||current==='gap'||current==='cards')return skillExportRows();
- const sec=sessionStorage.getItem(current==='sectionChart'?'chartSec':'viewSec');return employeeExportRows(sec?employees.filter(e=>e.section===sec):employees);
+ const sec=sessionStorage.getItem(current==='sectionChart'?'chartSec':'viewSec');return employeeExportRows(sec?(current==='sectionChart'?sectionChartEmployees(sec):employees.filter(e=>e.section===sec)):employees);
 })}
 document.addEventListener('click',e=>{
  const b=e.target.closest('[data-action]');if(!b)return;const a=b.dataset.action;
@@ -2941,10 +2965,11 @@ window.PPMS_RUNTIME={
   if(!['Team A','Team B',''].includes(team))throw Error('กรุณาเลือกทีม A หรือทีม B');
   const scope=organizationScope(),section=sessionStorage.getItem('chartSec')||sections[0];
   if(current!=='sectionChart'||!context||context.division!==scope.division||context.plant!==scope.plant||context.section!==section)throw Error('ฝ่ายหรือแผนกเปลี่ยนแล้ว กรุณาเลือกพนักงานใหม่');
-  const employee=organizationScopedEmployees(organizationRenderMaster?.employees||employees).find(e=>String(e.id)===String(id)&&e.section===section&&!deletedEmployeeIds.has(String(e.id))&&!window.PPMSProductionHierarchy?.isSupervisor(e.position));
+  const employee=organizationScopedEmployees(organizationRenderMaster?.employees||employees).find(e=>String(e.id)===String(id)&&sectionChartMatches(e,section)&&!deletedEmployeeIds.has(String(e.id))&&!window.PPMSProductionHierarchy?.isSupervisor(e.position));
   if(!employee)throw Error('ไม่พบพนักงานในแผนกที่เลือก');
+  if(sectionChartIsSorting(section)){const group=sectionChartSortingGroup(employee);if(!group||context.sortingGroup!==group||context.targetSortingGroup!==group)throw Error('กรุณาเลือกทีมภายในกลุ่ม Sorting เดียวกัน');}
   if(sectionChartEmployeeTeam(employee)===team)return {changed:false,pending:!!pendingEmployeeSaves[String(id)]};
-  const field=section==='Stamping Section'?'stampingShift':'organizationTeam',data={...employee,[field]:team,updatedAt:new Date().toISOString()},pending=pendingEmployeeSaves[String(id)],originalId=pending?.originalId??String(id),options=pending&&!pending.patchFields?{createOnly:pending.createOnly}:{patchFields:[field,'updatedAt'],expectedSection:section};
+  const field=employee.section==='Stamping Section'?'stampingShift':'organizationTeam',data={...employee,[field]:team,updatedAt:new Date().toISOString()},pending=pendingEmployeeSaves[String(id)],originalId=pending?.originalId??String(id),options=pending&&!pending.patchFields?{createOnly:pending.createOnly}:{patchFields:[field,'updatedAt'],expectedSection:employee.section,...(sectionChartIsSorting(employee.section)&&!sectionChartSortingName(employee.section)?{expectedSortingGroup:String(employee.sortingGroup||'')}:{})};
   const payload=options.patchFields?{id:String(id),...Object.fromEntries(options.patchFields.map(field=>[field,data[field]]))}:data;
   queueEmployeeSave(payload,originalId,options);Object.assign(employee,data);persistCloudToLocal();window.dispatchEvent(new Event('ppms-employees-changed'));renderFromUserControlChange();
   if(navigator.onLine===false)return {changed:true,pending:true};
@@ -2954,6 +2979,8 @@ window.PPMS_RUNTIME={
  },
  sectionChartTeamPending:id=>!!pendingEmployeeSaves[String(id)],
  factoryLayoutEmployees:()=>organizationScopedEmployees(organizationRenderMaster?.employees||employees).filter(e=>e&&e.id!=null&&!deletedEmployeeIds.has(String(e.id))).map(e=>({...e})),
+ refreshOrganizationChart(immediate=false){if(current==='dashboard')immediate?renderFromUserControlChange():render()},
+ openOrganizationEmployee:id=>openEmployeeEditor(String(id)),
  organizationScope:()=>organizationScope(),
  organizationSections:()=>window.PPMSOrganizationScope.sections(organizationRenderMaster?.employees||employees,organizationScope(),baseSections),
  organizationScopeBar:prefix=>organizationScopeBar(prefix),

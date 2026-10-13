@@ -61,6 +61,7 @@ async function upsert(data,originalId='',options={}){
   if(patchFields){
    if(!existing){const error=Error('พนักงานถูกลบแล้ว กรุณาโหลดรายชื่อใหม่');error.code='employee-missing';throw error}
    if(options.expectedSection&&existing.section!==options.expectedSection){const error=Error('แผนกพนักงานเปลี่ยนแล้ว กรุณาโหลดรายชื่อใหม่');error.code='employee-section-changed';error.existing=existing;throw error}
+   if(Object.hasOwn(options,'expectedSortingGroup')&&String(existing.sortingGroup||'')!==options.expectedSortingGroup){const error=Error('กลุ่ม Sorting ของพนักงานเปลี่ยนแล้ว กรุณาโหลดรายชื่อใหม่');error.code='employee-section-changed';error.existing=existing;throw error}
    const patched={...existing,...Object.fromEntries(patchFields.map(field=>[field,data[field]]))};
    if(Array.isArray(value))return value.map(e=>e&&String(e.id)===id?patched:e);
    return Object.fromEntries(Object.entries(value).map(([key,e])=>[key,e&&String(e.id)===id?patched:e]));

@@ -274,6 +274,8 @@
 .section-team-assignment{margin-top:28px;padding-top:20px;border-top:2px solid #d6e4ee}
 .section-team-assignment>h3{margin:0;color:#164d84}
 .section-team-reference-note{color:#52677d;font-size:13px;margin:0 0 16px}
+.sorting-split.sorting-single{grid-template-columns:minmax(0,1fr)!important}
+.section-chart-team-group>h4{margin:20px 0 12px;padding:10px 14px;border-radius:8px;background:#e6efff;color:#164d84;font-size:16px}
 .section-team-assignment .section-chart-teams{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;align-items:start}
 .section-chart-team{min-width:0;border-top:4px solid #155ca0}
 .section-chart-team[data-section-chart-team="Team B"]{border-top-color:#0891b2}

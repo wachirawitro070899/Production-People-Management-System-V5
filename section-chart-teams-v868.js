@@ -8,6 +8,7 @@
  const context=()=>({...window.PPMS_RUNTIME?.organizationScope?.(),section:document.querySelector('#sectionSelect')?.value||''});
  const same=(a,b)=>a&&b&&a.division===b.division&&a.plant===b.plant&&a.section===b.section;
  const employeeCard=target=>{const card=target?.closest?.('.section-chart-workspace[data-section-team-mode="split"] .person[data-edit]');return card&&!card.closest('.stamping-role-source,.stamping-print-page,.sorting-print-pages')?card:null};
+ const sortingGroup=card=>card?.closest('[data-sorting-group]')?.dataset.sortingGroup||'';
  function clearTargets(){document.querySelectorAll('.section-team-drop-active').forEach(node=>node.classList.remove('section-team-drop-active'))}
  function showStatus(text,error=false,scope=context()){
   notice={text,error,scope};const node=root()?.querySelector('[data-section-team-status]');
@@ -28,14 +29,15 @@
  }
  function pick(card){
   const id=card?.dataset.edit;if(!id||pending.has(id)||!admin())return;
-  selected={id,context:context()};mount();showStatus('เลือกทีม A หรือทีม B ที่ต้องการย้าย');
+  selected={id,context:context(),sortingGroup:sortingGroup(card)};mount();showStatus('เลือกทีม A หรือทีม B ที่ต้องการย้าย');
  }
  async function move(value,target){
   if(!value||!target||!root()?.contains(target)||!same(value.context,context())||!admin()||pending.has(value.id))return;
   const team=target.dataset.sectionTeamTarget;if(!['Team A','Team B',''].includes(team))return;
+  if((target.dataset.sectionTeamGroup||'')!==(value.sortingGroup||'')){showStatus('กรุณาเลือกทีมภายในกลุ่ม Sorting เดียวกัน',true,value.context);clearTargets();return}
   pending.add(value.id);selected=null;clearTargets();showStatus('กำลังบันทึกทีม...',false,value.context);mount();
   try{
-   const task=window.PPMS_RUNTIME.assignSectionChartTeam(value.id,team,value.context);mount();
+   const task=window.PPMS_RUNTIME.assignSectionChartTeam(value.id,team,{...value.context,sortingGroup:value.sortingGroup||'',targetSortingGroup:target.dataset.sectionTeamGroup||''});mount();
    const result=await task;
    showStatus(result.pending?'บันทึกทีมในเครื่องแล้ว • รอซิงก์ Firebase':result.changed?'ย้ายทีมและบันทึกเรียบร้อยแล้ว':'พนักงานอยู่ในทีมนี้แล้ว',false,value.context);if(result.pending&&notice)notice.pendingId=value.id;
   }catch(error){showStatus(String(error.message||error),true,value.context)}
@@ -44,14 +46,14 @@
  window.addEventListener('dragstart',event=>{
   const card=employeeCard(event.target);if(!card)return;
   if(!admin()||pending.has(card.dataset.edit)){event.preventDefault();return}
-  source={id:card.dataset.edit,context:context(),copy:!!card.closest('.section-org-report')};selected=null;
+  source={id:card.dataset.edit,context:context(),sortingGroup:sortingGroup(card),copy:!!card.closest('.section-org-report')};selected=null;
   event.dataTransfer?.setData('application/x-ppms-section-team',source.id);
   event.dataTransfer?.setData('text/plain',source.id);
   if(event.dataTransfer)event.dataTransfer.effectAllowed=source.copy?'copy':'move';card.classList.add('section-team-dragging');
  },true);
  window.addEventListener('dragover',event=>{
   const target=event.target.closest?.('[data-section-team-target]');
-  if(!source||!root()?.contains(target)||!same(source.context,context()))return;
+  if(!source||!root()?.contains(target)||!same(source.context,context())||(target.dataset.sectionTeamGroup||'')!==source.sortingGroup)return;
   event.preventDefault();if(event.dataTransfer)event.dataTransfer.dropEffect=source.copy?'copy':'move';clearTargets();target.classList.add('section-team-drop-active');
  },true);
  window.addEventListener('drop',event=>{
@@ -80,7 +82,7 @@
  window.addEventListener('pointerdown',event=>{
   if(!['touch','pen'].includes(event.pointerType))return;
   const button=event.target.closest?.('[data-section-team-pick]'),card=employeeCard(button);if(!button||!card||!admin()||pending.has(card.dataset.edit))return;
-  event.preventDefault();event.stopImmediatePropagation();pointer={id:card.dataset.edit,context:context(),card,button,pointerId:event.pointerId,x:event.clientX,y:event.clientY,moved:false,target:null};
+  event.preventDefault();event.stopImmediatePropagation();pointer={id:card.dataset.edit,context:context(),sortingGroup:sortingGroup(card),card,button,pointerId:event.pointerId,x:event.clientX,y:event.clientY,moved:false,target:null};
   try{button.setPointerCapture(event.pointerId)}catch{}
  },true);
  window.addEventListener('pointermove',event=>{
@@ -91,7 +93,7 @@
   if(!pointer.moved)return;
   if(!ghost){ghost=document.createElement('div');ghost.className='section-team-drag-ghost';ghost.textContent=pointer.card.querySelector('b')?.textContent||pointer.id;document.body.append(ghost)}
   ghost.style.left=(event.clientX+12)+'px';ghost.style.top=(event.clientY+12)+'px';
-  pointer.target=document.elementFromPoint(event.clientX,event.clientY)?.closest('[data-section-team-target]')||null;clearTargets();if(root()?.contains(pointer.target))pointer.target.classList.add('section-team-drop-active');
+  pointer.target=document.elementFromPoint(event.clientX,event.clientY)?.closest('[data-section-team-target]')||null;clearTargets();if(root()?.contains(pointer.target)&&(pointer.target.dataset.sectionTeamGroup||'')===pointer.sortingGroup)pointer.target.classList.add('section-team-drop-active');
  },{capture:true,passive:false});
  window.addEventListener('pointerup',event=>{if(pointer&&pointer.pointerId===event.pointerId){event.preventDefault();event.stopImmediatePropagation();finishPointer()}},true);
  window.addEventListener('pointercancel',()=>finishPointer(true),true);
@@ -99,7 +101,7 @@
  new MutationObserver(mount).observe(document.getElementById('app')||document.body,{childList:true,subtree:false});
  window.addEventListener('ppms-employees-changed',mount);
  window.addEventListener('ppms-section-chart-rendered',mount);
- window.addEventListener('ppms-section-team-error',event=>{if(notice?.pendingId===event.detail.id&&notice.scope.section===event.detail.section)showStatus(event.detail.message,true,notice.scope)});
+ window.addEventListener('ppms-section-team-error',event=>{if(notice?.pendingId===event.detail.id)showStatus(event.detail.message,true,notice.scope)});
  document.addEventListener('DOMContentLoaded',mount);
  window.PPMSSectionTeams={mount,get dragging(){return !!source||!!pointer}};
  mount();

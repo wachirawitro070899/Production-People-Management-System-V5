@@ -299,7 +299,7 @@ function cardControls(){
   if(!card.querySelector('[data-jd-employee-id]'))card.append(buttonFor(card.dataset.edit));
  });
 }
-function controls(){if(!admin())return;installStyle();bindOfflineJD();refreshPositionTitles();
+function controls(){if(!admin())return;if(window.PPMSOrganizationEditor?.dragging||window.PPMSSectionTeams?.dragging){clearTimeout(timer);timer=setTimeout(controls,120);return}installStyle();bindOfflineJD();refreshPositionTitles();
  const organizationPage=document.querySelector('.division-org:not(.employee-history-report),.factory-summary');
  if(!organizationPage)document.querySelectorAll('#app [data-jd-page-manager],#app>.ppms-jd-page-toolbar').forEach(button=>button.remove());
  if(organizationPage){
