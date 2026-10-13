@@ -292,27 +292,23 @@ function openEmployeeJD(id){
  if(existing)viewer(existing[0]);else editor(null,filters);
 }
 function cardControls(){
+ document.querySelectorAll('.section-org-report [data-open-jd],.employee-history-report [data-open-jd],#employeeForm [data-open-jd],[data-jd-card-toolbar]').forEach(button=>button.remove());
  const buttonFor=id=>{const b=document.createElement('button');b.type='button';b.dataset.openJd='1';b.dataset.jdEmployeeId=String(id);b.className='ppms-jd-person-button no-print';b.textContent='เพิ่ม / แก้ไข JD';b.title='JD รายบุคคลของรหัส '+id;return b};
- // Every organization employee card opens that person's JD, including managers.
- document.querySelectorAll('.person[data-edit],.factory-chart-person[data-edit],.stamp-top-person[data-edit],.stamp-duty-row[data-edit]').forEach(card=>{
+ // JD editing is available only on the main factory organization chart.
+ document.querySelectorAll('.division-org:not(.employee-history-report) .person[data-edit],.factory-summary .factory-chart-person[data-edit]').forEach(card=>{
   if(!card.querySelector('[data-jd-employee-id]'))card.append(buttonFor(card.dataset.edit));
- });
- // Put the skill-card action beside the card so its printed dimensions stay intact.
- document.querySelectorAll('.wallet-card-sheet .wallet-front[data-employee-id]').forEach(card=>{
-  if(card.closest('.wallet-print-page'))return;
-  if(card.previousElementSibling?.matches('[data-jd-card-toolbar]'))return;
-  const toolbar=document.createElement('div');toolbar.dataset.jdCardToolbar='1';toolbar.className='ppms-jd-card-toolbar no-print';toolbar.append(buttonFor(card.dataset.employeeId));card.before(toolbar);
  });
 }
 function controls(){if(!admin())return;installStyle();bindOfflineJD();refreshPositionTitles();
- const organizationPage=document.querySelector('.division-org,.section-org-report,.factory-summary');
+ const organizationPage=document.querySelector('.division-org:not(.employee-history-report),.factory-summary');
+ if(!organizationPage)document.querySelectorAll('#app [data-jd-page-manager],#app>.ppms-jd-page-toolbar').forEach(button=>button.remove());
  if(organizationPage){
   let toolbar=document.querySelector('#app>.top-action-toolbar .top-action-buttons')||document.querySelector('.factory-summary>.org-config-head')||document.querySelector('#app>.ppms-jd-page-toolbar');
   if(!toolbar){toolbar=document.createElement('div');toolbar.className='ppms-jd-page-toolbar no-print';const heading=document.querySelector('#app>.page-head');if(heading)heading.after(toolbar);else organizationPage.before(toolbar)}
   if(!toolbar.querySelector('[data-jd-page-manager]')){const b=document.createElement('button');b.type='button';b.dataset.openJd='1';b.dataset.jdPageManager='1';b.className='no-print';b.textContent='+ เพิ่ม / จัดการ JD';toolbar.append(b)}
  }
- const bar=document.querySelector('.organization-scope-bar');bar?.querySelector('[data-open-jd]:not([data-jd-employee-id])')?.remove();const field=document.querySelector('#employeeForm [name="position"]')?.closest('label');if(field&&!field.querySelector('[data-open-jd]')){const b=document.createElement('button');b.type='button';b.dataset.openJd='1';b.textContent='JD ของพนักงานคนนี้';field.append(b)}
- document.querySelectorAll('.factory-org-section').forEach(section=>{if(section.querySelector('[data-open-jd]'))return;const b=document.createElement('button');b.type='button';b.dataset.openJd='1';b.dataset.jdSection=window.PPMSLanguage?.sourceText(section.querySelector('h4'))||section.querySelector('h4')?.textContent||'';b.textContent='JD รายบุคคล';b.className='ppms-jd-role';section.querySelector('h4')?.after(b)});cardControls();subscribe();seedMissingJDs();seedPositionJDs();upgradeSectionJDs()}
+ const bar=document.querySelector('.organization-scope-bar');bar?.querySelector('[data-open-jd]:not([data-jd-employee-id])')?.remove();
+ document.querySelectorAll('.factory-summary .factory-org-section').forEach(section=>{if(section.querySelector('[data-open-jd]'))return;const b=document.createElement('button');b.type='button';b.dataset.openJd='1';b.dataset.jdSection=window.PPMSLanguage?.sourceText(section.querySelector('h4'))||section.querySelector('h4')?.textContent||'';b.textContent='JD รายบุคคล';b.className='ppms-jd-role';section.querySelector('h4')?.after(b)});cardControls();subscribe();seedMissingJDs();seedPositionJDs();upgradeSectionJDs()}
 window.PPMSNormalizePosition=canonicalPosition;
 window.PPMSPositionTitle=record=>positionTitle({...record,division:record.division||record.organizationDivision||'Production Division'});
 window.addEventListener('ppms-language-changed',()=>refreshPositionTitles());
