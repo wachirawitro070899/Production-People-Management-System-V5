@@ -1,7 +1,7 @@
 /* Production Manager -> four direct sections and Sup Production -> seven production sections. */
 (()=>{
  'use strict';
- const position='Supervisor Production';
+ const position='Supervisor Production',supervisorSection='Production Division';
  const sectionOrder=['stamping','bending','tapping','welding','cnc','sorting1','sorting2'];
  const sectionKey=value=>String(value||'').trim().toLowerCase().replace(/\s+section$/,'').replace(/\s+/g,'').replace(/^taping$/,'tapping');
  function isSupervisor(value){return /^(?:sup\.?\s+production|production\s+(?:sup\.?|supervisor)|supervisor\s+production|หัวหน้างานฝ่ายผลิต)$/i.test(String(value||'').trim())}
@@ -30,5 +30,5 @@
   ];
   return {...scope,employeeId:'',employeeName:'',documentNo:'',revision:'DRAFT',effectiveDate:'',reportsTo:'ผู้จัดการฝ่ายผลิต / Production Manager',jobPurpose:'กำกับดูแลการผลิตของ 7 แผนกให้เป็นไปตามแผน คุณภาพ การส่งมอบ และความปลอดภัย\nSupervise the seven production sections against production, quality, delivery, and safety targets.',responsibilities:duties.map((item,index)=>(index+1)+'. '+item.join('\n   ')).join('\n'),qualifications:'มีความรู้กระบวนการผลิต การวางแผนกำลังคน การวิเคราะห์ KPI และการบริหารทีม\nKnowledge of manufacturing processes, manpower planning, KPI analysis, and team supervision.',documentUrl:'',status:'draft',templateSource:'PPMS Supervisor Production V862',templateVersion:5,version:1};
  }
- window.PPMSProductionHierarchy={position,sectionKey,isSupervisor,reportsToSupervisor,withPosition,chartMarkup,supervisorJD};
+ window.PPMSProductionHierarchy={position,supervisorSection,sectionKey,isSupervisor,reportsToSupervisor,withPosition,chartMarkup,supervisorJD};
 })();

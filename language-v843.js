@@ -2904,6 +2904,7 @@ Layout โรงงาน|Factory Layout
  "ติดตามความต้องการจัดซื้อและกำหนดส่งมอบกับผู้ขาย": "Track purchase requirements and supplier delivery dates",
  "ดูแลข้อมูลบุคลากรและประสานงานตามขั้นตอนของหน่วยงาน": "Maintain personnel data and coordinate department procedures"
 });
+ Object.assign(dictionary,{'ฝ่ายผลิต — ดูแล 7 แผนก':'Production Division — supervises 7 sections'});
  const englishUI={
   'Admin Login':'เข้าสู่ระบบผู้ดูแล','Logout':'ออกจากระบบ','Login':'เข้าสู่ระบบ','Sign in':'เข้าสู่ระบบ',
   'Attendance':'เช็คชื่อ','Examination':'ระบบสอบ','Attendance & KPI':'เช็คชื่อและ KPI',
