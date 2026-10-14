@@ -1,13 +1,13 @@
 /* Monthly production KPI by Section, using the same daily rule as employee cards. */
 (() => {
   'use strict';
-  const endpoint='https://machine-part-kpi.jinrong-tl-1709.chatgpt.site/api/employee-skill-history';
+  const service=window.PPMS_PRODUCTION_KPI;
   const page='sectionProductionKpi', rootId='sectionProductionKpiPage';
   const esc=value=>String(value??'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
   const norm=value=>String(value??'').normalize('NFKC').trim().toLowerCase();
   const today=()=>new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Bangkok',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
   const read=(key,fallback)=>{try{return JSON.parse(localStorage.getItem(key)||'null')??fallback}catch{return fallback}};
-  let active=false, month=today().slice(0,7), section='', data=null, error='', loading=false, requestNumber=0, results=[], rosterSignature='';
+  let active=false, month=today().slice(0,7), section='', data=null, error='', loading=false, requestNumber=0, results=[], rosterSignature='', loadedAt=0;
   const style=document.createElement('style');
   style.textContent=`body.section-production-kpi-view #app{display:none!important}#${rootId}{max-width:1500px;margin:auto;padding:24px}#${rootId} .kpi-section-controls{display:flex;align-items:end;flex-wrap:wrap;gap:12px;margin:16px 0}#${rootId} .kpi-section-controls label{display:grid;gap:6px;font-size:14px}#${rootId} input,#${rootId} select{min-height:40px}#${rootId} .kpi-section-head{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;margin:0 0 12px}#${rootId} .kpi-section-head h3{margin:0}#${rootId} .kpi-pass{color:#16734a;font-weight:800}#${rootId} .kpi-pending{color:#876114}#${rootId} .kpi-section-detail{font-size:13px;line-height:1.7;white-space:normal;max-width:420px}#${rootId} .kpi-section-detail summary{cursor:pointer}#${rootId} td,#${rootId} th{padding:10px;vertical-align:top}#${rootId} .panel{margin-bottom:18px}#${rootId} .kpi-summary-note{font-size:14px;color:#526171}#${rootId} .table-wrap{overflow:auto}@media(max-width:700px){#${rootId}{padding:16px}#${rootId} table{min-width:680px}}`;
   document.head.append(style);
@@ -17,23 +17,11 @@
     const list=runtime?.factoryLayoutEmployees?.()||read('ppms_v3_employees',[]), seen=new Set(), invalid=new Set(['meta','deletedemployeeids','employees','shiftschedules','holidays','skilloverrides','nghistoryarchive','formeremployees','attendancerecords']);
     return (Array.isArray(list)?list:[]).filter(e=>{if(!e||typeof e!=='object'||Array.isArray(e))return false;const code=norm(e.id);if(!code||invalid.has(code)||seen.has(code)||deleted.has(code))return false;seen.add(code);return true}).map(e=>({code:String(e.id),name:e.thaiName||e.name||'',section:String(e.section||'ไม่ระบุ Section')}));
   }
-  const scanOnDate = row => { const stamp=new Date(row.scannedAt); return !Number.isNaN(stamp.getTime()) && new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Bangkok',year:'numeric',month:'2-digit',day:'2-digit'}).format(stamp)===row.workDate; };
   function summarize(roster,payload,selectedMonth,isOnline){
-    const histories=new Map((payload?.histories||[]).map(item=>[norm(item.employeeCode),item.history||[]]));
-    const confirmed=row=>Number.isFinite(row.rate)&&['ถึงเกณฑ์','ต่ำกว่าเกณฑ์','ไม่ถึงเกณฑ์'].includes(row.status);
+    const histories=new Map((payload?.histories||[]).map(item=>[norm(item.employeeCode),item]));
     return roster.map(employee=>{
-      const unique=new Map();
-      for(const row of histories.get(norm(employee.code))||[]){
-        if(!/^\d{4}-\d{2}-\d{2}$/.test(row.workDate||'')||!row.workDate.startsWith(selectedMonth+'-')||row.workDate>today())continue;
-        const key=JSON.stringify([row.workDate,row.shift,row.machine]);if(!unique.has(key))unique.set(key,row);
-      }
-      const groups=new Map();for(const row of unique.values()){const list=groups.get(row.workDate)||[];list.push(row);groups.set(row.workDate,list)}
-      const days=[...groups].sort(([a],[b])=>a.localeCompare(b)).map(([date,rows])=>{
-        const scan=rows.every(scanOnDate);
-        const status=!isOnline||!scan||rows.some(row=>!confirmed(row))?'รอตรวจ':rows.every(row=>row.passed)?'ถึงเกณฑ์':'ไม่ถึงเกณฑ์';
-        return {date,rows,scan,status};
-      });
-      return {...employee,days,passed:days.filter(d=>d.status==='ถึงเกณฑ์').length,failed:days.filter(d=>d.status==='ไม่ถึงเกณฑ์').length,waiting:days.filter(d=>d.status==='รอตรวจ').length};
+      const item=histories.get(norm(employee.code));
+      return {...employee,...service.summarize(item?.history||[],selectedMonth,isOnline&&item?.online!==false)};
     });
   }
   function shell(){
@@ -43,7 +31,7 @@
     root.innerHTML=`<div data-kpi-organization-scope>${window.PPMS_RUNTIME?.organizationScopeBar?.('sectionKpi')||''}</div><div class="page-head"><h2>สรุป KPI การผลิตรายเดือน / Section</h2></div><div class="kpi-section-controls"><label>เดือน<input type="month" id="sectionKpiMonth" value="${month}"></label><label>Section<select id="sectionKpiFilter"><option value="">ทุก Section</option></select></label><button type="button" id="sectionKpiRefresh">อัปเดตข้อมูล</button><button type="button" class="secondary" id="sectionKpiCsv">ดาวน์โหลด CSV</button></div><p class="kpi-summary-note">นับวันละ 1 วัน เมื่อมีสแกน QR หน้าเครื่องและทุกเครื่องที่ทำในวันนั้นถึงเกณฑ์ · วันที่รอตรวจยังไม่นับเป็นวันผ่าน</p><div id="sectionKpiStatus" role="status"></div><div id="sectionKpiResults"></div>`;
     root.querySelector('#sectionKpiMonth').onchange=e=>{month=e.target.value;data=null;error='';void load()};
     root.querySelector('#sectionKpiFilter').onchange=e=>{section=e.target.value;renderResults()};
-    root.querySelector('#sectionKpiRefresh').onclick=()=>void load();
+    root.querySelector('#sectionKpiRefresh').onclick=()=>void load(true);
     root.querySelector('#sectionKpiCsv').onclick=exportCsv;
     renderResults();
   }
@@ -68,28 +56,14 @@
       return `<section class="panel"><div class="kpi-section-head"><h3>${esc(s)}</h3><span>${rows.length} คน · วันถึงเกณฑ์รวม ${rows.reduce((sum,e)=>sum+e.passed,0)} คน-วัน</span></div><div class="table-wrap"><table><thead><tr><th>รหัส</th><th>ชื่อพนักงาน</th><th>ถึงเกณฑ์ (วัน)</th><th>ไม่ถึงเกณฑ์ (วัน)</th><th>รอตรวจ (วัน)</th><th>วันที่ถึงเกณฑ์ / รายละเอียด</th></tr></thead><tbody>${rows.map(e=>`<tr><td>${esc(e.code)}</td><td>${esc(e.name)}</td><td class="kpi-pass">${e.passed}</td><td>${e.failed}</td><td class="kpi-pending">${e.waiting}</td><td>${e.days.length?`<details class="kpi-section-detail"><summary>${e.days.filter(d=>d.status==='ถึงเกณฑ์').map(d=>d.date.slice(-2)).join(', ')||'ยังไม่มีวันถึงเกณฑ์'} · ดูรายวัน</summary>${e.days.map(d=>`<div><b>${esc(d.date)} · ${d.status}</b>${!d.scan?' · วันที่สแกน QR ไม่ตรงกับวันที่ผลิต':''}<br>${d.rows.map(r=>`${esc(r.machine)} · ${Number.isFinite(r.rate)?Number(r.rate).toLocaleString('th-TH',{maximumFractionDigits:1})+'%':'—'} · ${esc(r.status)}`).join('<br>')}</div>`).join('')}</details>`:'ไม่มีการผลิต'}</td></tr>`).join('')}</tbody></table></div></section>`;
     }).join('')||'<p>ยังไม่มีพนักงานใน Section นี้</p>';
   }
-  async function load(){
+  async function load(force=false){
     if(!/^\d{4}-(0[1-9]|1[0-2])$/.test(month)){error='กรุณาเลือกเดือน';renderResults();return;}
     const token=++requestNumber,requestedMonth=month;loading=true;error='';renderResults();
     try{
-      const roster=employees(), histories=[];rosterSignature=JSON.stringify(roster);let cursor=0,complete=0,online=true,asOf='',failed=0;
-      await Promise.all(Array.from({length:Math.min(6,roster.length)},async()=>{
-        while(cursor<roster.length){
-          const employee=roster[cursor++];if(token!==requestNumber)return;
-          try{
-            const response=await fetch(endpoint+'?code='+encodeURIComponent(employee.code),{cache:'no-store',signal:AbortSignal.timeout(60000)});
-            const payload=await response.json();if(!response.ok||!Array.isArray(payload.history))throw Error('โหลด KPI ไม่สำเร็จ');
-            histories.push({employeeCode:employee.code,history:payload.history});if(payload.online===false)online=false;
-            if(payload.asOf&&payload.asOf>asOf)asOf=payload.asOf;
-          }catch{failed++;online=false;}
-          complete++;
-          if(active&&token===requestNumber){const status=document.getElementById('sectionKpiStatus');if(status)status.textContent='กำลังดึง KPI ล่าสุด '+complete+' / '+roster.length+' คน';}
-        }
-      }));
-      const payload={month:requestedMonth,histories,online,asOf};
-      if(failed&&token===requestNumber)error='เชื่อม KPI ไม่สำเร็จ '+failed+' คน กรุณากดอัปเดตข้อมูลอีกครั้ง';
-      if(token===requestNumber)data=payload;
-    }catch(e){if(token===requestNumber)error=e.message||'เชื่อม KPI ไม่สำเร็จ';}
+      const roster=employees();rosterSignature=JSON.stringify(roster);
+      const payload=await service.read(roster.map(employee=>employee.code),requestedMonth,{force});
+      if(token===requestNumber){data=payload;loadedAt=Date.now();}
+    }catch(e){if(token===requestNumber){error=e.message||'เชื่อม KPI ไม่สำเร็จ';loadedAt=Date.now();}}
     finally{if(token===requestNumber){loading=false;renderResults();}}
   }
   function exportCsv(){
@@ -119,7 +93,9 @@
     }else{active=false;document.body.classList.remove('section-production-kpi-view');document.getElementById(rootId)?.setAttribute('hidden','')}
   },true);
   const nav=document.getElementById('nav');if(nav)new MutationObserver(addButton).observe(nav,{childList:true});
-  function updateRoster(){if(!active)return;const sig=JSON.stringify(employees());if(sig!==rosterSignature)void load();else if(!loading)renderResults()}
+  function updateRoster(){if(!active||document.visibilityState!=='visible')return;const sig=JSON.stringify(employees());if(!loading&&(sig!==rosterSignature||Date.now()-loadedAt>=30000))void load();else if(!loading)renderResults()}
+  document.addEventListener('visibilitychange',updateRoster);
+  window.addEventListener('online',()=>{if(active&&!loading)void load(true)});
   window.addEventListener('storage',updateRoster);
   window.addEventListener('ppms-employees-changed',updateRoster);
   window.addEventListener('ppms-organization-scope-changed',()=>{if(active){section='';data=null;error='';shell();void load()}});
