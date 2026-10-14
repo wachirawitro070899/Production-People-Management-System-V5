@@ -1065,3 +1065,10 @@ input[id*="exam"][id*="Emp"], input[id*="Exam"][id*="Emp"] {
 
 /* V766: username/password Admin account management */
 #adminLoginForm{display:grid;gap:12px}.login-message{min-height:20px;color:#b42318;font-weight:700}.account-create-panel{max-width:760px}.account-status{display:inline-block;padding:4px 9px;border-radius:999px;font-weight:800;font-size:11px}.account-status.active{background:#dcfce7;color:#166534}.account-status.disabled{background:#fee2e2;color:#991b1b}
+
+/* Employee forms must fit narrow phone screens, including native date/file inputs. */
+#employeeForm,#leaderAddEmployee,#leaderEmployeePhoto{min-width:0;max-width:100%}
+#employeeForm>*,#employeeForm .photo-editor>*,#leaderAddEmployee>*,#leaderEmployeePhoto>*{min-width:0;max-width:100%;overflow-wrap:anywhere}
+#employeeForm input,#employeeForm select,#leaderAddEmployee input,#leaderAddEmployee select,#leaderEmployeePhoto input{min-width:0;max-width:100%;box-sizing:border-box}
+#employeeForm input[type=checkbox],#leaderEmployeePhoto input[type=checkbox]{width:auto;flex:0 0 auto}
+@media(max-width:700px){#employeeForm,#leaderAddEmployee{grid-template-columns:minmax(0,1fr)}#employeeForm .photo-editor{grid-template-columns:minmax(0,1fr)}#employeeForm input,#employeeForm select,#leaderAddEmployee input,#leaderAddEmployee select,#leaderEmployeePhoto input{font-size:16px}}

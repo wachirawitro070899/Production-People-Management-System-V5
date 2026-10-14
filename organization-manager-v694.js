@@ -1,5 +1,6 @@
 /* V694: Factory organization settings managed from the web. */
-(()=>{'use strict';
+(async()=>{'use strict';
+if(window.ppmsErrorGuard?.ready)await window.ppmsErrorGuard.ready;
 const MK='ppms_organization_master_v1',EK='ppms_employee_organization_v1';
 const FACTORY_PAGE=/factory-organization\.html$/i.test(location.pathname);
 const DEF={plants:['โรง 1','โรง 2','โรง 3'],divisions:['Production Division','Quality Division','Warehouse Division','Corporate Administration Division','Business Operations Division'],sections:['Stamping Section','Welding Section','Sorting 1','Sorting 2','CNC Section','Tapping Section','Bending Section','Engineering Support','Support Production','Machine Maintenance','Tooling Maintenance'],positions:['Manager','Engineer','Supervisor','Leader','Technician','Operator']};
