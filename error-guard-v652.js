@@ -109,7 +109,12 @@ function notify(value){
  bar.textContent='ระบบพบข้อผิดพลาด: '+message+' • หน้าปัจจุบันยังใช้งานได้ กรุณาลองอีกครั้ง';clearTimeout(notify.timer);notify.timer=setTimeout(()=>bar.remove(),7000);
 }
 window.addEventListener('unhandledrejection',event=>{remember('promise',event.reason);event.preventDefault();event.stopImmediatePropagation();if(!transient(event.reason))notify(event.reason)},true);
-window.addEventListener('error',event=>{const source=String(event.filename||'');if(source.startsWith('chrome-extension://')){event.stopImmediatePropagation();return}const reason=event.error||event.message||'Resource load error';remember('javascript',reason);event.stopImmediatePropagation();if(!transient(reason))notify(reason)},true);
+window.addEventListener('error',event=>{
+ // Skill Card images handle unavailable photo sources themselves, including in print.
+ // Let the error reach the image's fallback handler instead of suppressing it here.
+ if(event.target?.matches?.('img.avatar[data-photo-sources]'))return;
+ const source=String(event.filename||'');if(source.startsWith('chrome-extension://')){event.stopImmediatePropagation();return}const reason=event.error||event.message||'Resource load error';remember('javascript',reason);event.stopImmediatePropagation();if(!transient(reason))notify(reason)
+},true);
 window.addEventListener('online',()=>{const bar=document.getElementById('ppmsErrorGuard');if(bar)bar.remove()});
 window.ppmsErrorGuard={version:'873',ready,logs:()=>{try{return JSON.parse(localStorage.getItem(LOG_KEY)||'[]')}catch(_){return[]}},clear:()=>localStorage.removeItem(LOG_KEY),pendingStorageKeys:unsavedKeys,retryStorage:()=>{for(const [key,value]of [...memory(localStorage)])if(!durableKeys.has(key))localStorage.setItem(key,value);refreshStorageNotice();return !unsavedKeys().length},flushStorage:async(keys=null)=>{if(ready)await ready;await io;refreshStorageNotice();return !(keys?unsavedKeys().filter(key=>keys.includes(key)):unsavedKeys()).length}};
 window.addEventListener('online',()=>window.ppmsErrorGuard.retryStorage());

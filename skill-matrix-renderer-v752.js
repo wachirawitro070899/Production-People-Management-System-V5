@@ -21,7 +21,15 @@
  function rankFor(score,count){const average=score/Math.max(1,count);if(average>=4.5)return{level:5,label:'Expert'};if(average>=3.5)return{level:4,label:'Advanced'};if(average>=2.5)return{level:3,label:'Qualified'};if(average>=1.5)return{level:2,label:'Developing'};return{level:1,label:'Beginner'}}
  function datesFor(employee){const last=String(employee.skillUpdatedAt||new Date().toISOString().slice(0,10)).slice(0,10),date=new Date(last);if(Number.isNaN(date.getTime()))return{last:'-',next:'-'};date.setMonth(date.getMonth()+3);return{last,next:date.toISOString().slice(0,10)}}
  function logoSrc(){return document.querySelector('header .logo img')?.src||document.querySelector('.brand .logo img')?.src||''}
- function employeeAvatar(employee){const name=html(employee.name||employee.id||'Employee');if(employee.photo)return `<img class="avatar" src="${html(employee.photo)}" alt="${name}">`;const initials=String(employee.name||employee.id||'?').trim().split(/\s+/).slice(0,2).map(part=>part[0]||'').join('').toUpperCase();return `<span class="avatar avatar-fallback" aria-label="${name}">${html(initials||'?')}</span>`}
+ function employeeAvatar(employee){
+  const name=html(employee.name||employee.id||'Employee');
+  // Admin and Leader uploads use photoData; photo is the legacy field.
+  const sources=[...new Set([employee.photoData,employee.photoUrl,employee.photo].filter(value=>typeof value==='string'&&value.trim()).map(value=>value.trim()))];
+  const initials=String(employee.name||employee.id||'?').replace(/^(?:MR|MS|MRS)\.?\s+/i,'').trim().split(/\s+/).slice(0,2).map(part=>part[0]||'').join('').toUpperCase()||'?';
+  if(!sources.length)return `<span class="avatar avatar-lg avatar-fallback" aria-label="${name}">${html(initials)}</span>`;
+  // Keep fallback handling on the image so it also works in the isolated print window.
+  return `<img class="avatar avatar-lg" src="${html(sources[0])}" alt="${name}" data-photo-sources="${html(JSON.stringify(sources.slice(1)))}" data-initials="${html(initials)}" onerror="var sources=JSON.parse(this.dataset.photoSources||'[]');if(sources.length){this.dataset.photoSources=JSON.stringify(sources.slice(1));this.src=sources[0]}else{this.onerror=null;var fallback=this.ownerDocument.createElement('span');fallback.className='avatar avatar-lg avatar-fallback';fallback.setAttribute('aria-label',this.alt);fallback.textContent=this.dataset.initials;this.replaceWith(fallback)}">`;
+ }
  function examUrl(employee){try{const url=new URL(location.href);url.searchParams.set('exam','1');url.searchParams.set('employee',String(employee.id||''));url.hash='examination';return url.toString()}catch{return location.href}}
  window.skillReportLogoSrc=logoSrc;
  window.walletCardMarkup=function walletCardMarkup(employee,side='front'){
