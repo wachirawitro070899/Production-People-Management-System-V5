@@ -27,3 +27,8 @@ Attendance GPS check-in radius can be configured by Admin from 50-500 meters.
 - Recover previously verified missing check-ins from ppmsArchive on startup, while respecting Admin deletion tombstones.
 - Attendance Admin page refreshes automatically when new central records arrive.
 - Permanent deletion also removes keyed and archive copies.
+
+## V879 Excel organization charts
+- Reporting lines follow shared horizontal and vertical routes around employee cards and headings.
+- Department export spacing accommodates paired employee cards.
+- Lines use editable freeform geometry so Office preserves their planned route when opening the workbook. Adjust the lines separately when moving cards.
