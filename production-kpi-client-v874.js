@@ -7,6 +7,7 @@
  const key=(code,month)=>JSON.stringify([month,code]);
  const confirmed=row=>Number.isFinite(row?.rate)&&['ถึงเกณฑ์','ต่ำกว่าเกณฑ์','ไม่ถึงเกณฑ์'].includes(row.status);
  const scanOnDate=row=>{
+  if(row?.source==='sorting_oee')return row.workDateVerified===true&&/^\d{4}-\d{2}-\d{2}$/.test(row.workDate||'')&&row.workDate<=today();
   const stamp=new Date(row.scannedAt);
   return !Number.isNaN(stamp.getTime())&&new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Bangkok',year:'numeric',month:'2-digit',day:'2-digit'}).format(stamp)===row.workDate;
  };
@@ -14,7 +15,7 @@
   const rows=new Map();
   for(const row of history||[]){
    if(!/^\d{4}-\d{2}-\d{2}$/.test(row?.workDate||'')||row.workDate>today())continue;
-   const id=JSON.stringify([row.workDate,row.shift,row.machine]);if(!rows.has(id))rows.set(id,row);
+   const id=JSON.stringify([row.workDate,row.shift,row.machine,row.source||'machine_scan']);if(!rows.has(id))rows.set(id,row);
   }
   return [...rows.values()];
  }
@@ -58,3 +59,4 @@
  }
  window.PPMS_PRODUCTION_KPI={read,summarize,unique,confirmed,scanOnDate,today};
 })();
+
