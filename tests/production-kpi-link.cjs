@@ -5,7 +5,8 @@ const wait=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 function row(machine,rate,date='2026-10-13',extra={}){return {workDate:date,shift:'Night',machine,scannedAt:date+'T14:03:00.000Z',rate,targetPercent:85,status:rate>=85?'ถึงเกณฑ์':'ต่ำกว่าเกณฑ์',passed:rate>=85,...extra}}
 const histories={
  '69085':[row('Bending #2',107.50750750750751),row('Bending #2',96,'2026-09-29'),row('Bending #2',80,'2026-08-29')],
- '69005':[row('Bending #1',104.97076023391814)]
+ '69005':[row('Bending #1',104.97076023391814)],
+ '69008':[row('Sorting 1',100,'2026-10-13',{source:'sorting_oee',scannedAt:null,scanCount:0,workDateVerified:true})]
 };
 function transport(calls){return async(url,options)=>{
  const parsed=new URL(url),month=parsed.searchParams.get('month'),codes=parsed.searchParams.get('codes').split(',');
@@ -29,12 +30,19 @@ function transport(calls){return async(url,options)=>{
  assert.equal(service.summarize([pass],'2026-10',false).passed,0,'Unconfirmed/offline results never count as paid KPI days');
  assert.equal(service.summarize([row('A',100,'2026-10-13',{scannedAt:'2026-10-12T14:00:00Z'})],'2026-10').waiting,1,'Scan dates use Bangkok time');
  assert.equal(service.summarize([row('A',100,'2099-10-13')],'2099-10').days.length,0,'Future production dates are excluded');
+ const paper=row('Sorting 1',100,'2026-10-13',{source:'sorting_oee',scannedAt:null,workDateVerified:true});
+ assert.equal(service.summarize([paper,paper],'2026-10').passed,1,'Paper Sorting counts one passed day without a QR scan');
+ assert.equal(service.summarize([paper,{...paper,machine:'Sorting 2',rate:80,status:'ต่ำกว่าเกณฑ์',passed:false}],'2026-10').failed,1);
+ assert.equal(service.summarize([{...paper,workDateVerified:false}],'2026-10').waiting,1);
+ assert.equal(service.summarize([{...paper,rate:null,status:'รอซิงก์ OEE/Cap',passed:false}],'2026-10').waiting,1);
+ assert.equal(service.summarize([paper],'2026-10',false).passed,0);
+ assert.equal(service.summarize([{...paper,workDate:'2099-10-13'}],'2099-10').days.length,0);
  const errors=[],vc=new VirtualConsole();vc.on('jsdomError',error=>errors.push(error.message));
  const dom=new JSDOM('<body><nav id="nav"><button data-page="attendanceAdmin">Attendance</button></nav><main id="app"></main><form id="employeeForm"><input name="id" value="69085"></form><div class="employee-attendance-history"><table><thead><tr><th>วันที่</th></tr></thead><tbody><tr><td>2026-10-13</td></tr><tr><td>2026-09-29</td></tr></tbody></table></div></body>',{url:'https://wachirawitro070899.github.io/Production-People-Management-System-V5/',runScripts:'outside-only',pretendToBeVisual:true,virtualConsole:vc});
  const w=dom.window,requests=[],intervals=[];let fail=false;
  w.fetch=(...args)=>fail?Promise.reject(Error('KPI unavailable')):transport(requests)(...args);
  w.setInterval=fn=>{intervals.push(fn);return intervals.length};
- w.PPMS_RUNTIME={factoryLayoutEmployees:()=>[{id:'69085',name:'WORKER A',section:'Bending Section'},{id:'69005',name:'WORKER B',section:'Bending Section'}],factoryLayoutDeletedEmployeeIds:()=>[]};
+ w.PPMS_RUNTIME={factoryLayoutEmployees:()=>[{id:'69085',name:'WORKER A',section:'Bending Section'},{id:'69005',name:'WORKER B',section:'Bending Section'},{id:'69008',name:'SORTING WORKER',section:'Sorting1'}],factoryLayoutDeletedEmployeeIds:()=>[]};
  try{
   w.eval(client);w.eval(fs.readFileSync('employee-production-kpi-v794.js','utf8'));w.eval(fs.readFileSync('section-production-kpi-v802.js','utf8'));await wait(40);
   let panel=w.document.querySelector('.employee-attendance-history');assert(panel.querySelector('[data-production-date="2026-10-13"]').textContent.includes('107.5%'));
@@ -44,7 +52,7 @@ function transport(calls){return async(url,options)=>{
   const month=panel.querySelector('[data-production-month]');month.value='2026-08';month.dispatchEvent(new w.Event('change'));await wait(40);
   assert(requests.some(request=>request.month==='2026-08'));assert.deepEqual(counts(),['0 วัน','1 วัน','0 วัน'],'Changing months fetches and renders that month');
   w.document.querySelector('#nav [data-page="sectionProductionKpi"]').click();await wait(40);
-  let rows=[...w.document.querySelectorAll('#sectionKpiResults tbody tr')];assert.equal(rows.length,2);for(const row of rows)assert.equal(row.cells[2].textContent,'1','Both employees from the screenshot count as passed');
+  let rows=[...w.document.querySelectorAll('#sectionKpiResults tbody tr')];assert.equal(rows.length,3);for(const row of rows)assert.equal(row.cells[2].textContent,'1','Both employees from the screenshot count as passed');
   const oldNow=w.Date.now;w.Date.now=()=>oldNow()+31000;const refreshed=requests.length;for(const fn of intervals)fn();await wait(50);
   assert(requests.length>refreshed,'A visible Section report automatically refreshes results when the roster is unchanged');
   fail=true;w.document.getElementById('sectionKpiRefresh').click();await wait(40);
@@ -54,3 +62,4 @@ function transport(calls){return async(url,options)=>{
  }finally{dom.window.close()}
  console.log('Passed: PPMS integration API/CORS contract, shared batched reads, both reported pass results, monthly card and Section views, date/duplicate/all-machine rules, historical months, automatic refresh and honest failure status.');
 })().catch(error=>{console.error(error);process.exitCode=1});
+
