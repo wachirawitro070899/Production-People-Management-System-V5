@@ -24,7 +24,7 @@
    }
    if(!panel.querySelector('[data-production-monthly]')){
     const section=document.createElement('section');section.dataset.productionMonthly='true';section.style.marginTop='16px';
-    section.innerHTML=`<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap"><h3 style="margin:0">สรุป KPI การผลิตรายเดือน</h3><label>เดือน <input type="month" data-production-month value="${service.today().slice(0,7)}" aria-label="เดือนสรุป KPI การผลิต"></label><button type="button" class="secondary" data-production-refresh>อัปเดตข้อมูล</button></div><p class="modal-note">นับวันละ 1 วัน เมื่อมีสแกน QR หน้าเครื่องและทุกเครื่องถึงเกณฑ์ · วันที่รอตรวจยังไม่นับเป็นวันผ่าน</p><div data-production-month-results>กำลังดึงข้อมูล...</div>`;
+    section.innerHTML=`<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap"><h3 style="margin:0">สรุป KPI การผลิตรายเดือน</h3><label>เดือน <input type="month" data-production-month value="${service.today().slice(0,7)}" aria-label="เดือนสรุป KPI การผลิต"></label><button type="button" class="secondary" data-production-refresh>อัปเดตข้อมูล</button></div><p class="modal-note">นับวันละ 1 วัน เมื่อทุกงานถึงเกณฑ์ · Sorting ใช้รหัสพนักงานและวันที่ใน OEE ไม่ต้องสแกน QR · วันที่รอตรวจยังไม่นับเป็นวันผ่าน</p><div data-production-month-results>กำลังดึงข้อมูล...</div>`;
     section.querySelector('[data-production-month]').addEventListener('change',()=>{delete panel.dataset.productionAt;update();});
     section.querySelector('[data-production-refresh]').onclick=()=>refresh(panel,true);
     panel.append(section);delete panel.dataset.productionAt;
@@ -39,7 +39,7 @@
   const saved=cache.get(key(panel.dataset.productionEmployee,month)),data=saved?.data,error=saved?.error;
   if(!data){content.textContent=error||'กำลังดึงข้อมูล...';return;}
   const online=data.online!==false&&!error,summary=service.summarize(data.history,month,online),passed=summary.days.filter(day=>day.status==='ถึงเกณฑ์');
-  content.innerHTML=`<div class="cards" style="margin:10px 0"><div class="card metric">วันถึงเกณฑ์ KPI<b style="color:#16734a">${summary.passed} วัน</b></div><div class="card metric">วันไม่ถึงเกณฑ์<b>${summary.failed} วัน</b></div><div class="card metric">วันรอตรวจ<b>${summary.waiting} วัน</b></div></div><p><b>วันที่ถึงเกณฑ์:</b> ${passed.length?passed.map(day=>escape(day.date)).join(', '):'—'}</p><div class="table-wrap"><table><thead><tr><th>วันที่ผลิต</th><th>เครื่อง · ทำได้ · ผล KPI</th><th>ผลรายวัน</th></tr></thead><tbody>${summary.days.map(day=>`<tr><td>${escape(day.date)}</td><td>${day.rows.map(row=>resultMarkup(row,online)).join('')}</td><td><b>${day.status}</b>${!day.scan?'<small style="display:block">วันที่สแกน QR ไม่ตรงกับวันที่ผลิต</small>':''}</td></tr>`).join('')||'<tr><td colspan="3">ไม่มีการผลิต</td></tr>'}</tbody></table></div>${error?`<p class="modal-note">${escape(error)} · รอตรวจข้อมูลล่าสุดก่อนนับวันผ่าน</p>`:''}`;
+  content.innerHTML=`<div class="cards" style="margin:10px 0"><div class="card metric">วันถึงเกณฑ์ KPI<b style="color:#16734a">${summary.passed} วัน</b></div><div class="card metric">วันไม่ถึงเกณฑ์<b>${summary.failed} วัน</b></div><div class="card metric">วันรอตรวจ<b>${summary.waiting} วัน</b></div></div><p><b>วันที่ถึงเกณฑ์:</b> ${passed.length?passed.map(day=>escape(day.date)).join(', '):'—'}</p><div class="table-wrap"><table><thead><tr><th>วันที่ผลิต</th><th>เครื่อง · ทำได้ · ผล KPI</th><th>ผลรายวัน</th></tr></thead><tbody>${summary.days.map(day=>`<tr><td>${escape(day.date)}</td><td>${day.rows.map(row=>resultMarkup(row,online)).join('')}</td><td><b>${day.status}</b>${!day.scan?'<small style="display:block">วันที่ทำงานยังไม่ยืนยันจาก OEE / QR</small>':''}</td></tr>`).join('')||'<tr><td colspan="3">ไม่มีการผลิต</td></tr>'}</tbody></table></div>${error?`<p class="modal-note">${escape(error)} · รอตรวจข้อมูลล่าสุดก่อนนับวันผ่าน</p>`:''}`;
  }
  function display(panel){
   for(const cell of panel.querySelectorAll('[data-production-date]')){
@@ -71,3 +71,4 @@
  let queued=false;new MutationObserver(()=>{if(queued)return;queued=true;queueMicrotask(()=>{queued=false;update();});}).observe(document.body,{childList:true,subtree:true});
  document.addEventListener('visibilitychange',update);window.addEventListener('online',update);setInterval(update,15000);update();
 })();
+
