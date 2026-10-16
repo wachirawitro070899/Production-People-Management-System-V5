@@ -1072,3 +1072,15 @@ input[id*="exam"][id*="Emp"], input[id*="Exam"][id*="Emp"] {
 #employeeForm input,#employeeForm select,#leaderAddEmployee input,#leaderAddEmployee select,#leaderEmployeePhoto input{min-width:0;max-width:100%;box-sizing:border-box}
 #employeeForm input[type=checkbox],#leaderEmployeePhoto input[type=checkbox]{width:auto;flex:0 0 auto}
 @media(max-width:700px){#employeeForm,#leaderAddEmployee{grid-template-columns:minmax(0,1fr)}#employeeForm .photo-editor{grid-template-columns:minmax(0,1fr)}#employeeForm input,#employeeForm select,#leaderAddEmployee input,#leaderAddEmployee select,#leaderEmployeePhoto input{font-size:16px}}
+
+/* V876: work ability and required supervision on the CR80 card back. */
+.wallet-back-supervision{display:grid;grid-template-rows:13.4mm minmax(0,1fr) 16mm}
+.wallet-back-supervision>.wallet-banner{box-sizing:border-box;min-height:0}
+.wallet-back-supervision>.wallet-skills{box-sizing:border-box;height:auto;min-height:0;padding:1mm 3mm;grid-template-rows:repeat(4,minmax(0,1fr));grid-auto-rows:auto;gap:.5mm 2.5mm}
+.wallet-back-supervision .wallet-skill-row{min-height:0}
+.wallet-back-supervision .wallet-skill-row .level-box{width:4mm;height:4mm;font-size:2.35mm}
+.wallet-back-supervision>.wallet-supervision-legend{box-sizing:border-box;display:grid;height:auto;min-height:0;grid-template-rows:repeat(5,minmax(0,1fr));gap:.2mm;align-items:stretch;justify-content:stretch;padding:.8mm 2.2mm;font-size:1.9mm;line-height:1.2;border-top:.2mm solid #d7e2ee}
+.wallet-supervision-level{display:grid;grid-template-columns:3mm minmax(0,1fr);gap:1mm;align-items:center;min-height:0}
+.wallet-supervision-level>b{display:grid;place-items:center;width:2.7mm;height:2.5mm;border-radius:.6mm;font-size:1.9mm}
+.wallet-supervision-level>span{white-space:normal;overflow-wrap:anywhere}
+@media print{.wallet-supervision-level>b{-webkit-print-color-adjust:exact;print-color-adjust:exact}}

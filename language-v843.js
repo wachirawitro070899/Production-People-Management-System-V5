@@ -2962,6 +2962,7 @@ Layout โรงงาน|Factory Layout
  Object.assign(dictionary,{'ยังซิงก์ JD ไม่สำเร็จ ฉบับในเครื่องยังเก็บไว้':'JD sync is pending; your local copy is retained'});
  Object.assign(dictionary,{'รายงานตรงต่อ Manager':'Reports directly to Manager','ดูแลแผนกผลิต':'Supervises production sections','แผนก':'sections','ยังไม่มีพนักงานในตำแหน่งนี้':'No employee assigned to this position','กำหนดพนักงาน':'Assign employee','เลือกพนักงานสำหรับ Supervisor Production':'Choose an employee for Supervisor Production','เปิดข้อมูลพนักงานเพื่อกำหนดตำแหน่ง Supervisor Production':'Open the employee record to assign the Supervisor Production position','กรุณาเลือกพนักงาน':'Please choose an employee'});
  Object.assign(dictionary,{'โครงสร้างพนักงานตามตำแหน่งและแผนก':'Employee structure by position and section'});
+ Object.assign(dictionary,{"เริ่มเรียนรู้ · ต้องมีผู้ควบคุมตลอดเวลา": "Beginner · Constant supervision required", "ทำได้บางส่วน · ต้องมีผู้ควบคุมใกล้ชิด": "Developing · Close supervision required", "ทำงานได้เอง · แจ้งหัวหน้าเมื่อผิดปกติ": "Independent · Report abnormalities to supervisor", "ชำนาญ · ทำงานเอง แก้ปัญหาและแนะนำผู้อื่น": "Skilled · Work independently, troubleshoot and coach", "ผู้เชี่ยวชาญ · ฝึกสอนและประเมินทักษะผู้อื่น": "Expert · Train others and assess their skills", "ความสามารถและการควบคุมดูแล ระดับ 1–5": "Work ability and supervision, levels 1–5"});
  const reverse={};
  for(const [th,en] of Object.entries(dictionary))if(en&&/[A-Za-z]/.test(en))reverse[en]=th;
  Object.assign(reverse,englishUI,{
