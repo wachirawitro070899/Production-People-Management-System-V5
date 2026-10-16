@@ -22,6 +22,8 @@
   const holder=document.createElement('div');holder.style.cssText='position:absolute;left:-100000px;top:0;width:'+Math.max(1400,target.scrollWidth)+'px;background:white;pointer-events:none';
   const clone=target.cloneNode(true);clone.removeAttribute('id');
   clone.querySelectorAll('.no-print,.stamping-print-page,.sorting-print-pages,.stamping-role-source,button').forEach(node=>node.remove());
+  // The layout clone must not start another request for every Google portrait.
+  clone.querySelectorAll('img').forEach(img=>{img.removeAttribute('src');img.removeAttribute('srcset');img.removeAttribute('onerror')});
   clone.querySelectorAll('.person[data-edit]').forEach(card=>{
    for(const [key,value]of Object.entries({width:'160px','min-width':'160px','max-width':'160px',flex:'0 0 160px',height:'auto','min-height':'180px','max-height':'none',transform:'none'}))card.style.setProperty(key,value,'important');
   });
@@ -50,14 +52,15 @@
   }finally{holder.remove()}
  }
  function imageData(source){return new Promise((resolve,reject)=>{
-  const image=new Image(),timer=setTimeout(()=>{image.src='';reject(Error('photo timeout'))},10000);
+  const image=new Image(),timer=setTimeout(()=>{image.onload=image.onerror=null;image.src='';reject(Error('photo timeout'))},5000);
+  image.referrerPolicy='no-referrer';
   image.crossOrigin='anonymous';image.onload=()=>{clearTimeout(timer);try{
    const canvas=document.createElement('canvas');canvas.width=160;canvas.height=160;const ctx=canvas.getContext('2d');ctx.fillStyle='#fff';ctx.fillRect(0,0,160,160);
    const side=Math.min(image.naturalWidth,image.naturalHeight);if(!side)throw Error('empty photo');ctx.drawImage(image,(image.naturalWidth-side)/2,0,side,side,0,0,160,160);resolve(canvas.toDataURL('image/png'));
   }catch(error){reject(error)}};image.onerror=()=>{clearTimeout(timer);reject(Error('photo unavailable'))};image.src=source;
  })}
  async function portrait(employee){
-  const sources=[...new Set([employee.photoData,employee.photoUrl,employee.photo].filter(v=>typeof v==='string'&&v.trim()))];
+  const sources=window.PPMSEmployeePhotos?.sources(employee)||[...new Set([employee.photoData,employee.photoUrl,employee.photo].filter(v=>typeof v==='string'&&v.trim()))];
   for(const source of sources)try{return {data:await imageData(source),failed:false}}catch(_){}
   return {data:null,failed:sources.length>0};
  }
@@ -105,13 +108,19 @@
  }
  async function download(options){
   if(busy)return;busy=true;const notify=options.notify||(()=>{});
+  let panel;
   try{
-   const model=snapshot(options);notify('กำลังสร้างผังองค์กร Excel พร้อมรูป...');await dependencies();
-   const photos=new Array(model.nodes.length);let cursor=0;
-   await Promise.all(Array.from({length:Math.min(6,model.nodes.length)},async()=>{while(cursor<model.nodes.length){const i=cursor++;photos[i]=await portrait(model.nodes[i].employee)}}));
-   const buffer=await workbook(model,photos),url=URL.createObjectURL(new Blob([buffer],{type:MIME})),link=document.createElement('a');link.href=url;link.download=model.title.replace(/[^A-Za-z0-9ก-๙_-]+/g,'_')+'.xlsx';document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);
+   const model=snapshot(options);notify('กำลังสร้างผังองค์กร Excel พร้อมรูป...');
+   document.getElementById('organizationExcelProgress')?.remove();panel=document.createElement('section');panel.id='organizationExcelProgress';panel.className='no-print';panel.setAttribute('role','status');panel.style.cssText='position:fixed;bottom:18px;right:18px;max-width:420px;padding:18px;background:#fff;border:2px solid #164d84;border-radius:12px;box-shadow:0 3px 20px #0003;z-index:100001';panel.innerHTML='<b>กำลังเตรียม Excel...</b><br><progress style="width:100%;margin-top:8px" max="100" value="0"></progress>';document.body.append(panel);
+   const label=panel.querySelector('b'),progress=panel.querySelector('progress');await dependencies();
+   const photos=new Array(model.nodes.length);let cursor=0,completed=0;
+   await Promise.all(Array.from({length:Math.min(8,model.nodes.length)},async()=>{while(cursor<model.nodes.length){const i=cursor++;photos[i]=await portrait(model.nodes[i].employee);completed++;label.textContent=`กำลังโหลดรูป ${completed}/${model.nodes.length} คน`;progress.value=completed/Math.max(1,model.nodes.length)*90}}));
+   label.textContent='กำลังบันทึกไฟล์ Excel...';const buffer=await workbook(model,photos),url=URL.createObjectURL(new Blob([buffer],{type:MIME})),link=document.createElement('a');link.href=url;link.download=model.title.replace(/[^A-Za-z0-9ก-๙_-]+/g,'_')+'.xlsx';link.textContent='ดาวน์โหลด Excel';link.className='button';link.style.cssText='display:inline-block;margin-top:10px;padding:10px 18px;background:#164d84;color:#fff;border-radius:6px';label.textContent='ไฟล์ Excel พร้อมแล้ว';progress.value=100;panel.append(link);link.click();
+   const close=document.createElement('button');close.type='button';close.textContent='ปิด';close.style.marginLeft='10px';close.onclick=()=>{URL.revokeObjectURL(url);panel.remove()};panel.append(close);
+   // Keep a real download link available if the browser blocks an automatic download.
+   setTimeout(()=>{URL.revokeObjectURL(url);panel.remove()},15*60*1000);
    const failed=photos.filter(p=>p.failed).length;notify(failed?`ดาวน์โหลด Excel แล้ว · โหลดรูปไม่ได้ ${failed} คน กรุณาตรวจสอบรูปในรายชื่อ`:'ดาวน์โหลดผังองค์กร Excel พร้อมรูปแล้ว',failed?'error':'ok');
-  }catch(error){notify('สร้างผังองค์กร Excel ไม่สำเร็จ: '+error.message,'error');alert('สร้างผังองค์กร Excel ไม่สำเร็จ: '+error.message)}finally{busy=false}
+  }catch(error){panel?.remove();notify('สร้างผังองค์กร Excel ไม่สำเร็จ: '+error.message,'error');alert('สร้างผังองค์กร Excel ไม่สำเร็จ: '+error.message)}finally{busy=false}
  }
  window.PPMSOrganizationExcel={download,snapshot,workbook,portrait};
 })();

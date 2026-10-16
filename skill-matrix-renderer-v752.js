@@ -22,6 +22,7 @@
  function datesFor(employee){const last=String(employee.skillUpdatedAt||new Date().toISOString().slice(0,10)).slice(0,10),date=new Date(last);if(Number.isNaN(date.getTime()))return{last:'-',next:'-'};date.setMonth(date.getMonth()+3);return{last,next:date.toISOString().slice(0,10)}}
  function logoSrc(){return document.querySelector('header .logo img')?.src||document.querySelector('.brand .logo img')?.src||''}
  function employeeAvatar(employee){
+  if(window.PPMSEmployeePhotos)return window.PPMSEmployeePhotos.markup(employee,true);
   const name=html(employee.name||employee.id||'Employee');
   // Admin and Leader uploads use photoData; photo is the legacy field.
   const sources=[...new Set([employee.photoData,employee.photoUrl,employee.photo].filter(value=>typeof value==='string'&&value.trim()).map(value=>value.trim()))];
