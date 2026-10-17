@@ -46,8 +46,26 @@ const png='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAIAAAAlC+aJAAA
   }
   const rosterDrawing=new w.DOMParser().parseFromString(await zip.file('xl/drawings/drawing2.xml').async('string'),'application/xml');assert.equal(rosterDrawing.querySelectorAll('hlinkClick').length,2);
   const rosterRels=await zip.file('xl/drawings/_rels/drawing2.xml.rels').async('string');assert(rosterRels.includes('Job Descriptions'));
+  const chart=reopened.getWorksheet('Organization Chart'),noteText=note=>typeof note==='string'?note:note.texts.map(t=>t.text).join(''),markers=[];
+  chart.eachRow(row=>row.eachCell(cell=>{if(cell.value==='JD'&&cell.type!==ExcelJS.ValueType.Merge)markers.push(cell)}));
+  assert.equal(markers.length,3,'Each chart employee has an exposed Note cell');
+  for(let i=0;i<3;i++){
+   const marker=markers.find(cell=>noteText(cell.note).includes('Emp.ID: '+native.nodes[i].employee.id));assert(marker,'Correct employee note');
+   const note=noteText(marker.note);assert.equal(noteText(roster.getCell(i+2,9).note),note,'Roster and chart preserve the same JD');
+   const rect={x:(marker.col-1)*8,y:(marker.row-1)*4,w:16,h:12};assert(native.nodes.every(n=>!(rect.x<n.x+n.w&&rect.x+rect.w>n.x&&rect.y<n.y+n.h&&rect.y+rect.h>n.y)),'Note trigger is outside floating cards');
+   if(i===0){assert(note.includes('ทดสอบ'.repeat(500)));assert(note.includes('PURPOSE'));assert(note.includes('JD-001'));assert(note.includes('หน้าที่ & <QA>'))}
+   if(i===1)assert(note.includes('No saved JD'));if(i===2)assert(note.includes('Draft'));
+  }
+  for(const link of drawing.querySelectorAll('hlinkClick')){const tip=link.getAttribute('tooltip');assert(tip.length<=255);assert(tip.startsWith('JD: '));assert(tip.includes('ชี้ช่อง JD'))}
+  for(const file of ['xl/comments1.xml','xl/comments2.xml','xl/drawings/vmlDrawing1.vml','xl/drawings/vmlDrawing2.vml']){
+   const source=await zip.file(file).async('string'),parsed=new w.DOMParser().parseFromString(source,'application/xml');assert.equal(parsed.querySelector('parsererror'),null,file+' is valid XML');
+   if(file.endsWith('.vml')){assert(source.includes('visibility:hidden'),'Notes start closed');assert(source.includes('width:360pt;height:390pt'),'Readable popup dimensions')}
+  }
+  assert(!Object.keys(zip.files).some(name=>/vbaProject/i.test(name)),'Still a macro-free XLSX');
+  const dense=structuredClone(native);dense.nodes.forEach((n,i)=>{n.x=100+(i%2)*176;n.y=100+Math.floor(i/2)*196;n.w=160;n.h=180});
+  const denseBook=new ExcelJS.Workbook();await denseBook.xlsx.load(Buffer.from(await nativeExporter.workbook(dense,[{data:png},{data:png},{data:null}])));let denseNotes=0;denseBook.getWorksheet('Organization Chart').eachRow(row=>row.eachCell(cell=>{if(cell.value==='JD'&&cell.type!==ExcelJS.ValueType.Merge)denseNotes++}));assert.equal(denseNotes,3,'Notes remain exposed in 16px gaps between tightly packed cards');
   const out=path.join(os.tmpdir(),'ppms-native-organization-test.xlsx');fs.writeFileSync(out,bytes);
-  assert.deepEqual(errors,[]);console.log('PASS actual Excel button routing; department/plant/Sorting scoping; deduplicated Section print copies; hierarchy parents; native grouped editable text/cards/photos/connectors; embedded images; text IDs; safe literal names; failed-photo labels; correct photo/card/roster JD links and return links; personal/position/plant JD selection; offline edits; admin permissions; long JD fields; workbook reopen. Fixture:',out);
+  assert.deepEqual(errors,[]);console.log('PASS actual Excel button routing; department/plant/Sorting scoping; deduplicated Section print copies; hierarchy parents; native grouped editable text/cards/photos/connectors; embedded images; text IDs; safe literal names; failed-photo labels; correct photo/card/roster JD links and return links; personal/position/plant JD selection; offline edits; admin permissions; long JD fields; macro-free JD Notes beside cards and in roster; bounded photo tooltips; dense-card note placement; workbook reopen. Fixture:',out);
  }finally{dom.window.close()}
  // Existing app timers can run after JSDOM teardown; this script owns its process.
  process.exit(0);
