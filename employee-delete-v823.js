@@ -27,14 +27,24 @@ async function change(path,update){
  throw Error('มีการแก้รายชื่อพร้อมกัน • ระบบจะส่งรายการรอลบซ้ำ');
 }
 function records(value){return (Array.isArray(value)?value:Object.values(value||{})).filter(e=>e&&e.id!=null)}
-async function remove(id){
+async function remove(id,snapshot=null){
  id=String(id);
  const initial=await request('employees');
- const leaving=records(initial.value).find(e=>String(e.id)===id);
+ const remoteLeaving=records(initial.value).find(e=>String(e.id)===id),leaving=remoteLeaving||snapshot;
  if(leaving){
   const encodedKey=!id.startsWith('__ppmskey__')&&!/[.#$\[\]\/]/.test(id)?id:'__ppmskey__'+encodeURIComponent(id).replace(/\./g,'%2E');
   const key=encodeURIComponent(encodedKey),ngKey=encodeURIComponent(id.replace(/[.#$\[\]\/]/g,'_'));
-  await change('formerEmployees/'+key,old=>({...leaving,...(old||{}),resignedAt:old?.resignedAt||new Date().toISOString(),archiveReason:'resigned'}));
+  const requested=snapshot||{},now=new Date().toISOString(),previous=(await request('formerEmployees/'+key)).value;
+  if(previous?.id&&!previous.resignationEventId)await change('formerEmployeeHistory/'+encodeURIComponent('legacy_'+encodedKey),old=>old||previous);
+  const eventId=requested.resignationEventId||('legacy_'+encodedKey),archive={...leaving,
+   resignationEventId:eventId,resignedAt:requested.resignedAt||now,resignationDate:requested.resignationDate||now.slice(0,10),
+   resignationReason:requested.resignationReason||'',resignationNote:requested.resignationNote||'',recordedBy:requested.recordedBy||'',
+   organizationDivision:requested.organizationDivision||leaving.organizationDivision||'Production Division',organizationPlant:requested.organizationPlant||leaving.organizationPlant||'โรง 1',
+   employmentRecords:requested.employmentRecords||{},employmentStatus:'resigned',archived:true,archiveReason:'resigned'};
+  const saved=await change('formerEmployeeHistory/'+encodeURIComponent(eventId),old=>remoteLeaving?archive:(old||archive));
+  if(String(saved?.id)!==id)throw Error('ไม่สามารถยืนยันประวัติลาออกได้');
+  await change('formerEmployees/'+key,old=>String(old?.resignedAt||'')>String(saved.resignedAt)?old:saved);
+  snapshot=saved;
   if(Array.isArray(leaving.ngHistory)&&leaving.ngHistory.length)await change('ngHistoryArchive/'+ngKey,old=>({...leaving,...(old||{}),employmentStatus:'resigned',archived:true,archivedAt:old?.archivedAt||new Date().toISOString()}));
  }
  // Publish the tombstone first so other devices cannot merge a cached employee
@@ -42,13 +52,13 @@ async function remove(id){
  await change('deletedEmployeeIds',value=>[...new Set([...(Array.isArray(value)?value:Object.values(value||{})).map(String),id])]);
  await change('employees',value=>{
   const existing=records(value).find(e=>String(e.id)===id);
-  if(options.createOnly&&existing){const error=Error('รหัสพนักงานนี้มีอยู่แล้ว');error.code='employee-exists';error.existing=existing;throw error}
+  if(existing&&JSON.stringify(existing)!==JSON.stringify(remoteLeaving))throw Error('ข้อมูลพนักงานเปลี่ยนระหว่างบันทึกลาออก • ระบบจะเก็บข้อมูลล่าสุดก่อนลองใหม่');
   if(Array.isArray(value))return value.filter(e=>!e||String(e.id)!==id);
   const next={...(value||{})};for(const [key,e] of Object.entries(next))if(e&&String(e.id)===id)delete next[key];return next;
  });
  const [roster,deleted]=await Promise.all([request('employees'),request('deletedEmployeeIds')]);
  if(records(roster.value).some(e=>String(e.id)===id)||!Object.values(deleted.value||{}).map(String).includes(id))throw Error('Firebase ยังไม่ยืนยันการลบ • เก็บรายการรอลบไว้แล้ว');
- return {employees:roster.value,deletedEmployeeIds:Object.values(deleted.value||{}).map(String)};
+ return {employees:roster.value,deletedEmployeeIds:Object.values(deleted.value||{}).map(String),formerEmployee:snapshot};
 }
 // Save the employee collection independently of the large ppms root socket.
 async function upsert(data,originalId='',options={}){
@@ -111,5 +121,5 @@ setInterval(pollDeletions,5000);
 window.addEventListener('online',pollDeletions);
 window.addEventListener('focus',pollDeletions);
 window.addEventListener('DOMContentLoaded',pollDeletions);
-window.PPMS_EMPLOYEE_DELETE_SERVICE={remove(id){id=String(id);if(running.has(id))return running.get(id);const job=remove(id).finally(()=>running.delete(id));running.set(id,job);return job}};
+window.PPMS_EMPLOYEE_DELETE_SERVICE={remove(id,snapshot){id=String(id);if(running.has(id))return running.get(id);const job=remove(id,snapshot).finally(()=>running.delete(id));running.set(id,job);return job}};
 })();
