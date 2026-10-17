@@ -3046,18 +3046,33 @@ Layout โรงงาน|Factory Layout
    return (/[A-Za-zก-๙]/.test(before)?' ':'')+dictionary[match]+(/[A-Za-zก-๙]/.test(after)?' ':'');
   }).replace(/([A-Za-z])(?=[ก-๙])/g,'$1 ').replace(/([ก-๙])(?=[A-Za-z])/g,'$1 ');
  }
- const ignored=el=>!el||el.closest('script,style,textarea,code,pre,[contenteditable="true"],[data-i18n-ignore],.ppms-language-control,.person b,.factory-chart-person b,.stamping-card-name,.sorting-card-name');
- let employeeNames=[],rosterSource='';
+ const ignored=el=>!el||el.closest('script,style,textarea,code,pre,[contenteditable="true"],[data-i18n-ignore],.ppms-language-control');
+ let employeeNames=[],employeeNameDisplays=new Map(),employeeNamePattern=null,rosterSource='';
  function refreshProtectedNames(){
   try{const raw=localStorage.getItem('ppms_v3_employees')||'[]';if(raw===rosterSource)return;rosterSource=raw;
-   employeeNames=[...new Set(JSON.parse(raw).flatMap(e=>[e.name,e.thaiName,e.englishName,e.nameEn,e.nameTh]).filter(n=>typeof n==='string'&&n.trim().length>1))].sort((a,b)=>b.length-a.length);
-  }catch{employeeNames=[]}
+   employeeNameDisplays=new Map();
+   const rows=JSON.parse(raw),list=Array.isArray(rows)?rows:Object.values(rows||{});
+   for(const e of list){
+    if(!e)continue;
+    const clean=value=>typeof value==='string'?value.trim():'';
+    const thai=clean(e.thaiName)||clean(e.nameTh),english=clean(e.englishName)||clean(e.nameEn)||clean(e.name);
+    for(const alias of [e.name,e.thaiName,e.englishName,e.nameEn,e.nameTh].map(clean).filter(n=>n.length>1)){
+     const display={th:thai||english||alias,en:english||thai||alias},previous=employeeNameDisplays.get(alias);
+     // Shared names must not resolve to a different employee's identity.
+     employeeNameDisplays.set(alias,previous&&(previous.th!==display.th||previous.en!==display.en)?{th:alias,en:alias}:display);
+    }
+   }
+   employeeNames=[...employeeNameDisplays.keys()].sort((a,b)=>b.length-a.length);
+   employeeNamePattern=employeeNames.length?new RegExp('(?<![\\p{L}\\p{N}])(?:'+employeeNames.map(escape).join('|')+')(?![\\p{L}\\p{N}])','gu'):null;
+  }catch{employeeNames=[];employeeNameDisplays=new Map();employeeNamePattern=null}
  }
  function displayText(source){
   const protectedValues=[];
   const hold=value=>{const token='\uE000'+protectedValues.length+'\uE001';protectedValues.push(value);return token};
   let safe=source;
-  for(const name of employeeNames)safe=safe.split(name).join(hold(name));
+  if(employeeNamePattern){
+   safe=safe.replace(employeeNamePattern,name=>hold(employeeNameDisplays.get(name)?.[language]||name));
+  }
   safe=safe.replace(/\b[A-Za-z0-9]+(?:[-_][A-Za-z0-9]+)+\b/g,value=>/[0-9]/.test(value)?hold(value):value);
   safe=safe.replace(/https?:\/\/[^\s<>]+|\b[\w.-]+\.(?:js|json|csv|xlsx?|pdf|png|jpe?g|html)\b/gi,hold);
   return translate(safe).replace(/\uE000(\d+)\uE001/g,(_,i)=>protectedValues[Number(i)]);
