@@ -35,37 +35,30 @@ const png='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAIAAAAlC+aJAAA
   assert.equal(drawing.querySelector('parsererror'),null);assert.equal(drawing.getElementsByTagNameNS('*','grpSp').length,3);assert.equal(drawing.getElementsByTagNameNS('*','pic').length,2);assert.equal(drawing.getElementsByTagNameNS('*','cxnSp').length,2);assert(drawing.documentElement.textContent.includes('นาย ทดสอบ & <QA>'));
   for(const link of drawing.querySelectorAll('stCxn,endCxn'))assert(drawing.querySelector('cNvPr[id="'+link.getAttribute('id')+'"]'),'Connectors reference existing employee shapes');
   const rels=await zip.file('xl/drawings/_rels/drawing1.xml.rels').async('string');assert(rels.includes('orgJD0')); for(let i=0;i<2;i++)assert(zip.file('xl/media/org-photo-'+i+'.png'));
-  const reopened=new ExcelJS.Workbook();await reopened.xlsx.load(bytes);assert.equal(reopened.worksheets.length,3);const roster=reopened.getWorksheet('Employees');assert.equal(roster.getCell('B2').value,'001');assert.equal(roster.getCell('C4').value,'=1+2');assert.equal(roster.getCell('A4').value,'โหลดรูปไม่สำเร็จ');assert.equal(roster.getImages().length,2);
-  const jdSheet=reopened.getWorksheet('Job Descriptions'),jdText=[];jdSheet.eachRow(row=>jdText.push(row.getCell(1).text));
-  assert(jdText.includes('=1+2'));assert(jdText.includes('PURPOSE'));assert(jdText.includes('JD-001 / 02 / 2026-10-17'));assert(jdText.some(t=>t.includes('No saved JD')));assert(jdText.some(t=>t.includes('Draft')));assert(jdText.join('').includes('ทดสอบ'.repeat(500)),'Long JD content is preserved');
-  const relationDoc=new w.DOMParser().parseFromString(rels,'application/xml');
+  const reopened=new ExcelJS.Workbook();await reopened.xlsx.load(bytes);assert.equal(reopened.worksheets.length,native.nodes.length+2);const roster=reopened.getWorksheet('Employees');assert.equal(roster.getCell('B2').value,'001');assert.equal(roster.getCell('C4').value,'=1+2');assert.equal(roster.getCell('A4').value,'โหลดรูปไม่สำเร็จ');assert.equal(roster.getImages().length,2);
+  assert.equal(reopened.getWorksheet('Job Descriptions'),undefined,'No combined JD sheet mixing employees');
+  const relationDoc=new w.DOMParser().parseFromString(rels,'application/xml'),jdSheets=[];
   for(let i=0;i<3;i++){
    const target=relationDoc.querySelector('[Id="orgJD'+i+'"]').getAttribute('Target');assert.equal(roster.getCell(i+2,9).hyperlink,target);
-   const anchor=Number(target.match(/!A(\d+)$/)[1]);assert(jdSheet.getCell(anchor,1).text.endsWith(' · '+native.nodes[i].employee.id));assert.equal(jdSheet.getCell(anchor+1,1).hyperlink,"#'Organization Chart'!A1");
+   const match=target.match(/^#'([^']+)'!B2$/);assert(match,'Card links to the top of a dedicated JD form');
+   const sheet=reopened.getWorksheet(match[1]);assert(sheet);jdSheets.push(sheet);
+   assert.equal(sheet.getCell('B6').value,native.nodes[i].employee.name);assert(sheet.getCell('B8').text.includes('Emp.ID: '+native.nodes[i].employee.id));assert(sheet.getCell('B8').text.includes(native.nodes[i].employee.position));
+   assert.equal(sheet.getCell('B4').hyperlink,"#'Organization Chart'!A1");assert.equal(sheet.views[0].ySplit,8,'Employee identity stays visible while scrolling');
+   assert.equal(sheet.getCell('B2').border.left.style,'medium');assert.equal(sheet.getCell('G2').border.right.style,'medium');assert.equal(sheet.getCell(sheet.rowCount,2).border.bottom.style,'medium');
+   const text=[];sheet.eachRow(row=>{for(const cell of [row.getCell(2),row.getCell(4)])if(cell.type!==ExcelJS.ValueType.Merge)text.push(cell.text)});
+   if(i===0){assert(text.includes('=1+2'));assert(text.includes('PURPOSE'));assert(text.includes('JD-001 / 02'));assert(text.includes('2026-10-17'));assert(text.join('').includes('ทดสอบ'.repeat(500)),'Full long JD is preserved')}
+   if(i===1)assert(text.some(t=>t.includes('No saved JD')));if(i===2)assert(text.some(t=>t.includes('Draft')));
+   for(let j=0;j<3;j++)if(j!==i)assert(!text.some(t=>t.includes('Emp.ID: '+native.nodes[j].employee.id)),'No other employee JD shares this form');
    const group=drawing.querySelector('grpSp cNvPr[id="'+(100+i*10)+'"]');assert(group.querySelector('hlinkClick'));if(i<2)assert(drawing.querySelector('cNvPr[name="Photo '+native.nodes[i].employee.id+'"] hlinkClick'));
   }
   const rosterDrawing=new w.DOMParser().parseFromString(await zip.file('xl/drawings/drawing2.xml').async('string'),'application/xml');assert.equal(rosterDrawing.querySelectorAll('hlinkClick').length,2);
-  const rosterRels=await zip.file('xl/drawings/_rels/drawing2.xml.rels').async('string');assert(rosterRels.includes('Job Descriptions'));
-  const chart=reopened.getWorksheet('Organization Chart'),noteText=note=>typeof note==='string'?note:note.texts.map(t=>t.text).join(''),markers=[];
-  chart.eachRow(row=>row.eachCell(cell=>{if(cell.value==='JD'&&cell.type!==ExcelJS.ValueType.Merge)markers.push(cell)}));
-  assert.equal(markers.length,3,'Each chart employee has an exposed Note cell');
-  for(let i=0;i<3;i++){
-   const marker=markers.find(cell=>noteText(cell.note).includes('Emp.ID: '+native.nodes[i].employee.id));assert(marker,'Correct employee note');
-   const note=noteText(marker.note);assert.equal(noteText(roster.getCell(i+2,9).note),note,'Roster and chart preserve the same JD');
-   const rect={x:(marker.col-1)*8,y:(marker.row-1)*4,w:16,h:12};assert(native.nodes.every(n=>!(rect.x<n.x+n.w&&rect.x+rect.w>n.x&&rect.y<n.y+n.h&&rect.y+rect.h>n.y)),'Note trigger is outside floating cards');
-   if(i===0){assert(note.includes('ทดสอบ'.repeat(500)));assert(note.includes('PURPOSE'));assert(note.includes('JD-001'));assert(note.includes('หน้าที่ & <QA>'))}
-   if(i===1)assert(note.includes('No saved JD'));if(i===2)assert(note.includes('Draft'));
-  }
-  for(const link of drawing.querySelectorAll('hlinkClick')){const tip=link.getAttribute('tooltip');assert(tip.length<=255);assert(tip.startsWith('JD: '));assert(tip.includes('ชี้ช่อง JD'))}
-  for(const file of ['xl/comments1.xml','xl/comments2.xml','xl/drawings/vmlDrawing1.vml','xl/drawings/vmlDrawing2.vml']){
-   const source=await zip.file(file).async('string'),parsed=new w.DOMParser().parseFromString(source,'application/xml');assert.equal(parsed.querySelector('parsererror'),null,file+' is valid XML');
-   if(file.endsWith('.vml')){assert(source.includes('visibility:hidden'),'Notes start closed');assert(source.includes('width:360pt;height:390pt'),'Readable popup dimensions')}
-  }
-  assert(!Object.keys(zip.files).some(name=>/vbaProject/i.test(name)),'Still a macro-free XLSX');
-  const dense=structuredClone(native);dense.nodes.forEach((n,i)=>{n.x=100+(i%2)*176;n.y=100+Math.floor(i/2)*196;n.w=160;n.h=180});
-  const denseBook=new ExcelJS.Workbook();await denseBook.xlsx.load(Buffer.from(await nativeExporter.workbook(dense,[{data:png},{data:png},{data:null}])));let denseNotes=0;denseBook.getWorksheet('Organization Chart').eachRow(row=>row.eachCell(cell=>{if(cell.value==='JD'&&cell.type!==ExcelJS.ValueType.Merge)denseNotes++}));assert.equal(denseNotes,3,'Notes remain exposed in 16px gaps between tightly packed cards');
+  const rosterRels=await zip.file('xl/drawings/_rels/drawing2.xml.rels').async('string');assert(rosterRels.includes('JD_001')&&rosterRels.includes('JD_002'));
+  assert(!Object.keys(zip.files).some(name=>/comments|vmlDrawing|vbaProject/i.test(name)),'No comments, Notes, or macros remain');
+  const chart=reopened.getWorksheet('Organization Chart');assert.equal(chart.getColumn(1).width,25,'Restore the original lightweight chart grid');
+  for(const link of drawing.querySelectorAll('hlinkClick'))assert(!link.getAttribute('tooltip').includes('ชี้ช่อง JD'),'Remove the JD hover preview');
+  for(const sheet of reopened.worksheets)sheet.eachRow(row=>row.eachCell(cell=>assert.equal(cell.note,undefined)));
   const out=path.join(os.tmpdir(),'ppms-native-organization-test.xlsx');fs.writeFileSync(out,bytes);
-  assert.deepEqual(errors,[]);console.log('PASS actual Excel button routing; department/plant/Sorting scoping; deduplicated Section print copies; hierarchy parents; native grouped editable text/cards/photos/connectors; embedded images; text IDs; safe literal names; failed-photo labels; correct photo/card/roster JD links and return links; personal/position/plant JD selection; offline edits; admin permissions; long JD fields; macro-free JD Notes beside cards and in roster; bounded photo tooltips; dense-card note placement; workbook reopen. Fixture:',out);
+  assert.deepEqual(errors,[]);console.log('PASS actual Excel button routing; department/plant/Sorting scoping; deduplicated Section print copies; hierarchy parents; native grouped editable text/cards/photos/connectors; embedded images; text IDs; safe literal names; failed-photo labels; correct photo/card/roster JD links and return links; personal/position/plant JD selection; offline edits; admin permissions; long JD fields; no Notes or JD hover previews; distinct framed JD sheets with persistent employee identity; workbook reopen. Fixture:',out);
  }finally{dom.window.close()}
  // Existing app timers can run after JSDOM teardown; this script owns its process.
  process.exit(0);
