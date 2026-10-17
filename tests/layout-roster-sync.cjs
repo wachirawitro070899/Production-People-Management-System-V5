@@ -12,7 +12,7 @@ const app=fs.readFileSync('app-v588.js','utf8'),start=app.indexOf(' applyEmploye
 let events=0,renders=0;
 const sync={pendingEmployeeSaves:{},employees:[...people],organizationRenderMaster:{employees:[...people]},evaluations:[{employeeId:'1'},{employeeId:'3'}],training:[{employeeId:'1'}],deletedEmployeeIds:new Set(),current:'factoryLayout',persistDeletedIds(){},persistCloudToLocal(){},window:{dispatchEvent(){events++}},Event:class{},queueRemoteRender(){renders++}};
 vm.createContext(sync);vm.runInContext('this.runtime={'+app.slice(start,end)+'};',sync);
-sync.runtime.applyEmployeeDeletionSnapshot(['1']);assert.deepEqual(sync.employees.map(e=>e.id),['2','3']);assert.deepEqual(sync.organizationRenderMaster.employees.map(e=>e.id),['2','3']);assert.equal(sync.training.length,0);assert(sync.deletedEmployeeIds.has('1'));assert.equal(events,1);assert.equal(renders,0);
+sync.runtime.applyEmployeeDeletionSnapshot(['1']);assert.deepEqual(sync.employees.map(e=>e.id),['2','3']);assert.deepEqual(sync.organizationRenderMaster.employees.map(e=>e.id),['2','3']);assert.equal(sync.training.length,1,'Training history is preserved after resignation');assert(sync.deletedEmployeeIds.has('1'));assert.equal(events,1);assert.equal(renders,0);
 sync.runtime.applyEmployeeDeletionSnapshot(['1']);assert.equal(events,1);
 sync.employees.push(people[0]);sync.organizationRenderMaster.employees.push(people[0]);sync.runtime.applyEmployeeDeletionSnapshot(['1']);assert(!sync.employees.some(e=>e.id==='1'));
 console.log('Passed: day/night display, shared unassigned pool, stale/deleted assignments, deletion propagation, idempotency, stale roster removal.');

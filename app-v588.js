@@ -4,7 +4,7 @@
 if(window.ppmsErrorGuard?.ready)await window.ppmsErrorGuard.ready;
 const SEED=Array.isArray(window.EMPLOYEE_SEED)?window.EMPLOYEE_SEED:[];
 const KEY='ppms_v3_employees', ATTENDANCE_KEY='ppms_v3_attendance', ATTENDANCE_SETTINGS_KEY='ppms_v3_attendance_settings', ATTENDANCE_DEVICES_KEY='ppms_v3_attendance_devices', ATTENDANCE_DELETED_DATES_KEY='ppms_v3_attendance_deleted_dates', ATTENDANCE_DELETED_RECORDS_KEY='ppms_v3_attendance_deleted_records', SHIFT_SCHEDULE_KEY='ppms_v3_shift_schedules', SHIFT_CLOUD_DIRTY_KEY='ppms_v3_shift_cloud_dirty', HOLIDAY_KEY='ppms_v3_holidays', SKILL_OVERRIDE_KEY='ppms_v3_skill_overrides', EVAL_KEY='ppms_v3_evaluations', TRAIN_KEY='ppms_v3_training', EXAM_RESULT_KEY='ppms_v3_exam_results', EXAM_DELETED_KEY='ppms_v3_exam_deleted_keys', EXAM_BANK_KEY='ppms_v3_exam_bank', EXAM_BANK_PENDING_KEY='ppms_v3_exam_bank_pending', SHARED_KEY='ppms_v3_shared_data_version', DELETED_KEY='ppms_v3_deleted_employee_ids', CLOUD_DIRTY_KEY='ppms_v3_cloud_dirty', LOCAL_UPDATED_KEY='ppms_v3_local_updated_at', ADMIN_ACCOUNT_KEY='ppms_v3_admin_accounts';
-const EMPLOYEE_ROOT_FIELDS=new Set(['employees','meta','deletedEmployeeIds','evaluations','training','examResults','examDeletedKeys','examQuestionBank','shiftSchedules','holidays','skillOverrides','ngHistoryArchive','formerEmployees','attendanceRecords','attendanceSettings','attendanceDevices','attendanceInbox','examResultInbox','examResultsByKey']);
+const EMPLOYEE_ROOT_FIELDS=new Set(['employees','meta','deletedEmployeeIds','evaluations','training','examResults','examDeletedKeys','examQuestionBank','shiftSchedules','holidays','skillOverrides','ngHistoryArchive','formerEmployees','formerEmployeeHistory','attendanceRecords','attendanceSettings','attendanceDevices','attendanceInbox','examResultInbox','examResultsByKey']);
 const EMPLOYEE_DELETE_PENDING_KEY='ppms_v3_pending_employee_deletes';
 const EMPLOYEE_SAVE_PENDING_KEY='ppms_v3_pending_employee_saves';
 let pendingEmployeeSaves=loadObject(EMPLOYEE_SAVE_PENDING_KEY);
@@ -299,7 +299,7 @@ function levelDescriptions(){return [
 function levelLegend(){return `<div class="skill-legend">${levelDescriptions().map(x=>`<span class="lv${x.level}"><b>${x.level}</b> ${x.en}</span>`).join('')}</div>`}
 function levelDescriptionHtml(){return `<div class="level-description-grid">${levelDescriptions().map(x=>`<div class="level-description-item lv${x.level}"><strong>Level ${x.level} – ${x.en}</strong><span>${x.th}</span></div>`).join('')}</div>`}
 
-const pages=[['factoryLayout','Layout โรงงาน'],['attendanceAdmin','Attendance & KPI'],['dashboard','Organization Chart'],['section','Section View'],['sectionChart','Section Organization Chart'],['add','Add Employee'],['search','Search Employee'],['examPlan','Examination Plan'],['matrix','Section Skill Matrix'],['cards','Employee Skill Card'],['ngDashboard','ประวัติการขาดลามาสายและงานเสีย'],['exam','Examination'],['examCheck','เช็ค/แก้ไขข้อสอบ'],['examHistory','Examination History'],['accounts','User Management'],['export','Export Center']];
+const pages=[['factoryLayout','Layout โรงงาน'],['attendanceAdmin','Attendance & KPI'],['dashboard','Organization Chart'],['section','Section View'],['sectionChart','Section Organization Chart'],['add','Add Employee'],['search','Search Employee'],['resignations','ประวัติพนักงานลาออก'],['examPlan','Examination Plan'],['matrix','Section Skill Matrix'],['cards','Employee Skill Card'],['ngDashboard','ประวัติการขาดลามาสายและงานเสีย'],['exam','Examination'],['examCheck','เช็ค/แก้ไขข้อสอบ'],['examHistory','Examination History'],['accounts','User Management'],['export','Export Center']];
 
 function loadSkillOverrides(){try{const x=JSON.parse(localStorage.getItem(SKILL_OVERRIDE_KEY)||'{}');return x&&typeof x==='object'&&!Array.isArray(x)?x:{}}catch{return {}}}
 function persistSkillOverrides(){try{const existing=loadSkillOverrides();for(const e of employees||[]){if(!e||e.id==null)continue;const id=String(e.id),rev=employeeRevision(e);if(!rev&&!e.skillLevels&&!e.currentSkillLevel)continue;const old=existing[id]||{};if(!old.skillRevisionAt||String(rev)>=String(old.skillRevisionAt)){existing[id]={currentSkillLevel:e.currentSkillLevel,skillLevels:e.skillLevels,skillUpdatedAt:e.skillUpdatedAt,skillRevisionAt:rev,skillQuarter:e.skillQuarter,skillEvaluator:e.skillEvaluator,skillHistory:e.skillHistory}}}localStorage.setItem(SKILL_OVERRIDE_KEY,JSON.stringify(existing))}catch(err){console.warn('Skill override write failed',err)}}
@@ -560,11 +560,11 @@ async function retryPendingExamBankCloud(){
 
 function hasFirebaseConfig(){const c=window.PPMS_FIREBASE_CONFIG||{};return Boolean(c.apiKey&&c.databaseURL&&c.projectId)}
 function setCloudStatus(text){cloudStatus=text;const el=document.querySelector('#cloudStatus');if(el)el.textContent=text}
-function cloudPayload(){return{employees,ngHistoryArchive,deletedEmployeeIds:[...deletedEmployeeIds],evaluations,training,examResults,examDeletedKeys:[...examDeletedKeys],examQuestionBank,shiftSchedules,holidays,skillOverrides:loadSkillOverrides(),meta:{updatedAt:new Date().toISOString(),version:APP_DATA_VERSION,preserveAllAdminAndEmployeeData:true,attendanceMasterSeparated:true,attendanceMasterRoot:ATTENDANCE_CLOUD_ROOT,hybridShiftRoster:true,fourRoundMondayPlanner:true,orgChartActiveShiftSort:true,sortingSplitDashboard:true,sortingSplitShiftPlanning:true,uiStableRemoteSync:true,formInteractionLock:true,allControlInteractionLock:true,backgroundRenderDeferred:true,firebaseKeyEncoding:'V486',holidayCalendar:true,autoSundayHoliday:true,shiftCloudAuthoritative:true,employeeMaster:'firebase',employeeMasterVersion:'V489',shiftCloudVersion:'V479'}}}
+function cloudPayload(){return{employees,ngHistoryArchive,formerEmployeeHistory:window.PPMSResignations?.records()||{},deletedEmployeeIds:[...deletedEmployeeIds],evaluations,training,examResults,examDeletedKeys:[...examDeletedKeys],examQuestionBank,shiftSchedules,holidays,skillOverrides:loadSkillOverrides(),meta:{updatedAt:new Date().toISOString(),version:APP_DATA_VERSION,preserveAllAdminAndEmployeeData:true,attendanceMasterSeparated:true,attendanceMasterRoot:ATTENDANCE_CLOUD_ROOT,hybridShiftRoster:true,fourRoundMondayPlanner:true,orgChartActiveShiftSort:true,sortingSplitDashboard:true,sortingSplitShiftPlanning:true,uiStableRemoteSync:true,formInteractionLock:true,allControlInteractionLock:true,backgroundRenderDeferred:true,firebaseKeyEncoding:'V486',holidayCalendar:true,autoSundayHoliday:true,shiftCloudAuthoritative:true,employeeMaster:'firebase',employeeMasterVersion:'V489',shiftCloudVersion:'V479'}}}
 function persistCloudToLocal(){try{employees=applySkillOverrides(employees);persistSkillOverrides();localStorage.setItem(KEY,JSON.stringify(employees));localStorage.setItem(EVAL_KEY,JSON.stringify(evaluations));localStorage.setItem(TRAIN_KEY,JSON.stringify(training));localStorage.setItem(EXAM_RESULT_KEY,JSON.stringify(examResults));localStorage.setItem(EXAM_DELETED_KEY,JSON.stringify([...examDeletedKeys]));localStorage.setItem(EXAM_BANK_KEY,JSON.stringify(examQuestionBank));localStorage.setItem(ATTENDANCE_KEY,JSON.stringify(attendance));localStorage.setItem(ATTENDANCE_SETTINGS_KEY,JSON.stringify(attendanceSettings));localStorage.setItem(ATTENDANCE_DEVICES_KEY,JSON.stringify(attendanceDevices));localStorage.setItem(SHIFT_SCHEDULE_KEY,JSON.stringify(shiftSchedules));localStorage.setItem(HOLIDAY_KEY,JSON.stringify(holidays));persistDeletedIds()}catch(err){console.warn('Local cache write failed',err)}}
 function employeeRevision(e){const history=skillHistory(e);return String(e?.skillRevisionAt||history[0]?.createdAt||e?.updatedAt||e?.skillUpdatedAt||'')}
 function mergeEmployeesNewest(localList,cloudList){const localMap=new Map((localList||[]).map(e=>[String(e.id),e])),cloudMap=new Map((cloudList||[]).map(e=>[String(e.id),e])),ids=new Set([...localMap.keys(),...cloudMap.keys()]);return [...ids].map(id=>{const l=localMap.get(id),c=cloudMap.get(id);if(!l)return c;if(!c)return l;const lr=employeeRevision(l),cr=employeeRevision(c);const skillSource=lr>=cr?l:c,base={...l,...c};return {...base,currentSkillLevel:skillSource.currentSkillLevel,skillLevels:skillSource.skillLevels,skillUpdatedAt:skillSource.skillUpdatedAt,skillRevisionAt:skillSource.skillRevisionAt,skillQuarter:skillSource.skillQuarter,skillEvaluator:skillSource.skillEvaluator,skillHistory:skillSource.skillHistory,photoData:l.photoData||c.photoData||'',photoUrl:l.photoUrl||c.photoUrl||''}})}
-function localCachePayload(){return{employees:loadEmployees(),deletedEmployeeIds:[...loadDeletedIds()],evaluations:loadArray(EVAL_KEY),training:loadArray(TRAIN_KEY),examResults:loadArray(EXAM_RESULT_KEY),examDeletedKeys:loadArray(EXAM_DELETED_KEY),examQuestionBank:loadObject(EXAM_BANK_KEY),attendance:loadArray(ATTENDANCE_KEY),attendanceSettings:loadObject(ATTENDANCE_SETTINGS_KEY),attendanceDevices:loadObject(ATTENDANCE_DEVICES_KEY),shiftSchedules:loadObject(SHIFT_SCHEDULE_KEY),holidays:loadObject(HOLIDAY_KEY),skillOverrides:loadSkillOverrides(),meta:{updatedAt:localStorage.getItem(LOCAL_UPDATED_KEY)||''}}}
+function localCachePayload(){return{formerEmployeeHistory:window.PPMSResignations?.records()||{},employees:loadEmployees(),deletedEmployeeIds:[...loadDeletedIds()],evaluations:loadArray(EVAL_KEY),training:loadArray(TRAIN_KEY),examResults:loadArray(EXAM_RESULT_KEY),examDeletedKeys:loadArray(EXAM_DELETED_KEY),examQuestionBank:loadObject(EXAM_BANK_KEY),attendance:loadArray(ATTENDANCE_KEY),attendanceSettings:loadObject(ATTENDANCE_SETTINGS_KEY),attendanceDevices:loadObject(ATTENDANCE_DEVICES_KEY),shiftSchedules:loadObject(SHIFT_SCHEDULE_KEY),holidays:loadObject(HOLIDAY_KEY),skillOverrides:loadSkillOverrides(),meta:{updatedAt:localStorage.getItem(LOCAL_UPDATED_KEY)||''}}}
 function recordStableKey(r,type='generic'){
  if(!r||typeof r!=='object')return JSON.stringify(r);
  if(type==='evaluation')return [r.employeeId||r.id||'',r.createdAt||r.date||'',r.quarter||'',r.skill||r.focusSkill||''].join('::');
@@ -646,6 +646,7 @@ function mergeCloudPayloadPreserve(serverValue,localValue){
   ...server,
   employees:mergedEmployees,
   ngHistoryArchive:{...(local.ngHistoryArchive&&typeof local.ngHistoryArchive==='object'?local.ngHistoryArchive:{}),...(server.ngHistoryArchive&&typeof server.ngHistoryArchive==='object'?server.ngHistoryArchive:{})},
+  formerEmployeeHistory:{...(local.formerEmployeeHistory||{}),...(server.formerEmployeeHistory||{})},
   deletedEmployeeIds:[...deleted],
   evaluations:mergeRecordArrays(server.evaluations,local.evaluations,'evaluation'),
   training:mergeRecordArrays(server.training,local.training,'training'),
@@ -1207,29 +1208,31 @@ async function retryPendingEmployeeSaves(){
   try{await syncEmployeeCloudNow(job.data,job.originalId,job)}catch(err){console.warn('Employee save pending',err);break}
  }}finally{employeeSaveRetryRunning=false}
 }
-async function deleteEmployeeCloudNow(employeeId){
+async function deleteEmployeeCloudNow(employeeId,metadata={}){
  if(employeeId==null)return false;
- const id=String(employeeId);
+ const id=String(employeeId),leaving=(organizationRenderMaster?.employees||employees).find(e=>String(e.id)===id);
+ if(!window.PPMSResignations)throw Error('กรุณาโหลดหน้าใหม่เพื่อใช้ระบบประวัติลาออก');
+ const archive=leaving?window.PPMSResignations.capture(leaving,{evaluations:(organizationRenderMaster?.evaluations||evaluations).filter(e=>String(e.employeeId)===id),training:(organizationRenderMaster?.training||training).filter(e=>String(e.employeeId)===id) },metadata):window.PPMSResignations.pending(id);
  queueEmployeeDelete(id);
  // Do not launch a root save: its realtime transaction can fail with disconnect
  // and can compete with a deletion while attendance writes are arriving.
  clearTimeout(cloudTimer);
  employees=employees.filter(e=>String(e.id)!==id);
  if(organizationRenderMaster)organizationRenderMaster.employees=organizationRenderMaster.employees.filter(e=>String(e.id)!==id);
- evaluations=evaluations.filter(e=>String(e.employeeId)!==id);
- training=training.filter(e=>String(e.employeeId)!==id);
+ // Keep evaluation and training records for the employee's archived history.
  persistCloudToLocal();window.dispatchEvent(new Event('ppms-employees-changed'));
  if(!window.PPMS_EMPLOYEE_DELETE_SERVICE)throw Error('กรุณาโหลดหน้าใหม่เพื่อใช้ระบบลบพนักงานล่าสุด');
  cloudWritePending=true;
  try{
-  const confirmed=await window.PPMS_EMPLOYEE_DELETE_SERVICE.remove(id);
+  const confirmed=await window.PPMS_EMPLOYEE_DELETE_SERVICE.remove(id,firebaseEncodeData(archive));
+  window.PPMSResignations.confirmed(firebaseDecodeData(confirmed.formerEmployee));
   employeeMasterWriteRevision++;pendingRemoteSnapshot=null;
   deletedEmployeeIds=new Set([...deletedEmployeeIds,...confirmed.deletedEmployeeIds]);
   employees=applySkillOverrides(cloudEmployeeList(firebaseDecodeData(confirmed)).filter(e=>!deletedEmployeeIds.has(String(e.id))));
   if(organizationRenderMaster)organizationRenderMaster.employees=employees;
   confirmedEmployeeDeletes.add(id);persistDeletedIds();persistCloudToLocal();
   window.dispatchEvent(new Event('ppms-employees-changed'));
-  setCloudStatus('ลบพนักงานจาก Firebase ถาวรแล้ว');
+  setCloudStatus('บันทึกประวัติลาออกและนำออกจากรายชื่อปัจจุบันแล้ว');
   return true;
  }finally{cloudWritePending=false;flushPendingRemoteSnapshot()}
 }
@@ -1450,7 +1453,7 @@ function head(title,sub='',actions=''){return `${actions?`<div class="top-action
 function printBtn(){return `<button data-action="printSettings">ตั้งค่าพิมพ์ / บันทึก PDF</button>`}
 function downloadBtn(action='currentCsv'){return `<button data-action="${action}"></button>`}
 function reportButtons(){return `<button data-action="pagePdf">ดาวน์โหลด PDF</button><button data-action="pageExcel">ดาวน์โหลด Excel</button>`}
-function employeeRows(list){return [...list].sort((a,b)=>skillMatrixPositionRank(a.position)-skillMatrixPositionRank(b.position)||orgSeniorityCompare(a,b)).map(e=>`<tr><td class="employee-photo-cell"><button type="button" class="avatar-button" data-edit="${esc(e.id)}" title="แก้ไขข้อมูลและรูปภาพ">${avatar(e)}</button></td><td>${esc(e.id)}</td><td>${esc(e.name)}</td><td>${esc(e.phone||'-')}</td><td>${esc(e.section)}</td><td>${employeePositionLabel(e)}</td><td>${esc(e.startDate||'-')}</td><td>${esc(age(employeeSeniorityStart(e)))}</td><td class="no-print"><button type="button" data-edit="${esc(e.id)}" class="secondary edit-employee-btn">แก้ไขข้อมูล / รูป</button> <button type="button" data-delete="${esc(e.id)}" class="danger">ลบ</button></td></tr>`).join('')}
+function employeeRows(list){return [...list].sort((a,b)=>skillMatrixPositionRank(a.position)-skillMatrixPositionRank(b.position)||orgSeniorityCompare(a,b)).map(e=>`<tr><td class="employee-photo-cell"><button type="button" class="avatar-button" data-edit="${esc(e.id)}" title="แก้ไขข้อมูลและรูปภาพ">${avatar(e)}</button></td><td>${esc(e.id)}</td><td>${esc(e.name)}</td><td>${esc(e.phone||'-')}</td><td>${esc(e.section)}</td><td>${employeePositionLabel(e)}</td><td>${esc(e.startDate||'-')}</td><td>${esc(age(employeeSeniorityStart(e)))}</td><td class="no-print"><button type="button" data-edit="${esc(e.id)}" class="secondary edit-employee-btn">แก้ไขข้อมูล / รูป</button> <button type="button" data-delete="${esc(e.id)}" class="danger">ลาออก / ลบรายชื่อ</button></td></tr>`).join('')}
 function orgActiveShiftKey(){const m=currentThaiMinutes();return m>=420&&m<1140?'day':'night'}
 function orgShiftLabel(key){return key==='night'?'กะดึก / Night Shift':'กะเช้า / Day Shift'}
 function orgSectionDescriptors(){
@@ -2614,9 +2617,9 @@ function renderCore(){
  else if(!isAdmin&&!isLeaderMode()&&!['exam','attendance'].includes(current))current=EXAM_LINK?'exam':'attendance';
  refreshOrganizationSections();
  nav();
- const map={factoryLayout:()=>window.PPMS_FACTORY_LAYOUT?.page()||head('Layout โรงงาน','กำลังโหลดหน้า Layout กรุณารีเฟรช'),attendance:attendancePage,attendanceAdmin:attendanceAdminPage,leaderShift:leaderShiftPage,dashboard,section:()=>sectionView(false),sectionChart:()=>sectionView(true),add,search,examPlan:examinationPlanPage,matrix:()=>matrixPage(false),cards:cardsPage,ngDashboard:ngDashboardPage,exam:examPage,examCheck:examCheckPage,examHistory:examHistoryPage,accounts:accountsPage,export:exportPage};
+ const map={factoryLayout:()=>window.PPMS_FACTORY_LAYOUT?.page()||head('Layout โรงงาน','กำลังโหลดหน้า Layout กรุณารีเฟรช'),attendance:attendancePage,attendanceAdmin:attendanceAdminPage,leaderShift:leaderShiftPage,dashboard,section:()=>sectionView(false),sectionChart:()=>sectionView(true),add,search,resignations:()=>window.PPMSResignations.page(),examPlan:examinationPlanPage,matrix:()=>matrixPage(false),cards:cardsPage,ngDashboard:ngDashboardPage,exam:examPage,examCheck:examCheckPage,examHistory:examHistoryPage,accounts:accountsPage,export:exportPage};
  try{
-  $('#app').innerHTML=(map[current]||dashboard)();if(isAdmin&&!document.querySelector('#app [data-organization-division]'))$('#app').insertAdjacentHTML('afterbegin',organizationScopeBar());window.PPMSOrganizationScope.applyTitles();bind();enhanceSelects();updateAuth();renderQRCodes();window.PPMS_FACTORY_LAYOUT?.mount();
+  $('#app').innerHTML=(map[current]||dashboard)();if(isAdmin&&!document.querySelector('#app [data-organization-division]'))$('#app').insertAdjacentHTML('afterbegin',organizationScopeBar());window.PPMSOrganizationScope.applyTitles();bind();enhanceSelects();updateAuth();renderQRCodes();window.PPMS_FACTORY_LAYOUT?.mount();window.PPMSResignations?.mount();
   if(focusState){
    let next=focusState.id?document.getElementById(focusState.id):null;
    if(!next&&focusState.name)next=document.querySelector(`[name="${CSS.escape(focusState.name)}"]`);
@@ -3029,13 +3032,12 @@ window.PPMS_RUNTIME={
   for(const id of remote)deletedEmployeeIds.add(id);
   employees=employees.filter(e=>!remote.has(String(e.id)));
   if(organizationRenderMaster)organizationRenderMaster.employees=organizationRenderMaster.employees.filter(e=>!remote.has(String(e.id)));
-  evaluations=evaluations.filter(e=>!remote.has(String(e.employeeId)));
-  training=training.filter(e=>!remote.has(String(e.employeeId)));
+  // Active views filter by the roster; historical records remain available.
   persistDeletedIds();persistCloudToLocal();
   window.dispatchEvent(new Event('ppms-employees-changed'));
   if(current!=='factoryLayout')queueRemoteRender();
  },
- async deleteEmployeeNow(id){if(!isAdmin&&!isLeaderMode())throw Error('กรุณาเข้าสู่ระบบ Admin หรือ Leader');const e=(organizationRenderMaster?.employees||employees).find(e=>String(e.id)===String(id));if(!isAdmin&&(!e||e.section!==leaderEmployee()?.section))throw Error('ลบได้เฉพาะพนักงานใน Section ของตนเอง');return deleteEmployeeCloudNow(id)},
+ async deleteEmployeeNow(id,metadata={}){if(!isAdmin&&!isLeaderMode())throw Error('กรุณาเข้าสู่ระบบ Admin หรือ Leader');const e=(organizationRenderMaster?.employees||employees).find(e=>String(e.id)===String(id));if(!isAdmin&&(!e||e.section!==leaderEmployee()?.section))throw Error('ลบได้เฉพาะพนักงานใน Section ของตนเอง');const result=await deleteEmployeeCloudNow(id,metadata);renderFromUserControlChange();return result},
  factoryLayoutIsAdmin:()=>isAdmin&&sessionStorage.getItem('ppms_admin')==='1',
  syncAdminAccounts(list){if(!isAdmin)return;adminAccounts=normalizeAdminAccounts(list);localStorage.setItem(ADMIN_ACCOUNT_KEY,JSON.stringify(adminAccounts));if(current==='accounts')renderCore()},
  changeAdminAccount,

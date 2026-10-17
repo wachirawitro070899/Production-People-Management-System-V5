@@ -22,7 +22,8 @@ async function setup(admin=true,entry='index.html'){
  w.document.dispatchEvent(new w.Event('DOMContentLoaded'));
  await wait(400);return {dom,w,errors,warnings};
 }
-(async()=>{
+module.exports={setup,employees};
+if(require.main===module)(async()=>{
  const {dom,w,errors,warnings}=await setup();
  try{
   const pages=[...w.document.querySelectorAll('#nav [data-page]')].map(b=>b.dataset.page);assert(pages.length>10,'Admin navigation must load');

@@ -114,6 +114,7 @@
 วันที่เริ่มงาน|Start date
 ประเภทพนักงาน|Employment type
 วันที่ปรับเป็นพนักงานประจำ|Permanent employment date
+ประวัติพนักงานลาออก|Resignation History
 อายุงาน|Length of service
 ข้อมูลพนักงาน|Employee information
 เพิ่มพนักงาน|Add employee
