@@ -310,6 +310,18 @@ function controls(){if(!admin())return;if(window.PPMSOrganizationEditor?.draggin
  const bar=document.querySelector('.organization-scope-bar');bar?.querySelector('[data-open-jd]:not([data-jd-employee-id])')?.remove();
  document.querySelectorAll('.factory-summary .factory-org-section').forEach(section=>{if(section.querySelector('[data-open-jd]'))return;const b=document.createElement('button');b.type='button';b.dataset.openJd='1';b.dataset.jdSection=window.PPMSLanguage?.sourceText(section.querySelector('h4'))||section.querySelector('h4')?.textContent||'';b.textContent='JD รายบุคคล';b.className='ppms-jd-role';section.querySelector('h4')?.after(b)});cardControls();subscribe();seedMissingJDs();seedPositionJDs();upgradeSectionJDs()}
 window.PPMSNormalizePosition=canonicalPosition;
+// Export saved JD records, including pending offline edits, without creating drafts.
+window.PPMSJDExport={async snapshot(people){
+ if(!admin())return people.map(()=>null);
+ await window.PPMS_JD_OFFLINE?.ready;
+ const available=Object.values(window.PPMS_JD_OFFLINE?.overlay(records)||records);
+ return people.map(person=>{
+  const context=employeeJDContext(person.id);if(!context)return null;
+  const personal=available.find(r=>r&&String(r.employeeId||'')===String(person.id));
+  const role=personal||available.find(r=>r&&!r.employeeId&&['division','plant','section'].every(k=>normalize(r[k]).toLowerCase()===normalize(context[k]).toLowerCase())&&canonicalPosition(r.position).toLowerCase()===canonicalPosition(context.position).toLowerCase());
+  return role?JSON.parse(JSON.stringify({...role,exportSource:personal?'JD รายบุคคล / Individual JD':'JD ตามตำแหน่ง / Position JD'})):null;
+ });
+}};
 window.PPMSPositionTitle=record=>positionTitle({...record,division:record.division||record.organizationDivision||'Production Division'});
 window.addEventListener('ppms-language-changed',()=>refreshPositionTitles());
 // Capture on window before the chart's document handlers that open employee editing.

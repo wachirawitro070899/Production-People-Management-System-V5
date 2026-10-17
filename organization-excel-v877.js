@@ -70,9 +70,10 @@
  function textShape(id,text,x,y,w,h){return `<xdr:absoluteAnchor><xdr:pos x="${emu(x)}" y="${emu(y)}"/><xdr:ext cx="${emu(w)}" cy="${emu(h)}"/><xdr:sp><xdr:nvSpPr><xdr:cNvPr id="${id}" name="${xml(text)}"/><xdr:cNvSpPr txBox="1"/></xdr:nvSpPr><xdr:spPr>${transform(x,y,w,h)}<a:prstGeom prst="rect"><a:avLst/></a:prstGeom><a:noFill/><a:ln><a:noFill/></a:ln></xdr:spPr><xdr:txBody><a:bodyPr wrap="square" lIns="0" tIns="0" rIns="0" bIns="0"/><a:lstStyle/>${paragraph(text,1100,true)}</xdr:txBody></xdr:sp><xdr:clientData/></xdr:absoluteAnchor>`}
  function cardShape(node,index,hasPhoto){
   const {employee:e,x,y,w,h}=node,id=100+index*10,pw=Math.min(64,w-12),ph=64,photoX=(w-pw)/2;
+  const jdLink=`<a:hlinkClick r:id="orgJD${index}" tooltip="${xml('เปิด JD / View JD: '+(e.name||e.id))}"/>`;
   const color=/manager|ผู้จัดการ/i.test(e.position)?'DBEAFE':/engineer|วิศวกร/i.test(e.position)?'D1FAE5':/supervisor|หัวหน้างาน/i.test(e.position)?'EDE9FE':/leader|หัวหน้าทีม/i.test(e.position)?'FEF3C7':'F1F5F9';
-  const picture=hasPhoto?`<xdr:pic><xdr:nvPicPr><xdr:cNvPr id="${id+2}" name="Photo ${xml(e.id)}"/><xdr:cNvPicPr><a:picLocks noChangeAspect="1"/></xdr:cNvPicPr></xdr:nvPicPr><xdr:blipFill><a:blip r:embed="orgPhoto${index}"/><a:stretch><a:fillRect/></a:stretch></xdr:blipFill><xdr:spPr>${transform(photoX,8,pw,ph)}<a:prstGeom prst="rect"><a:avLst/></a:prstGeom></xdr:spPr></xdr:pic>`:'';
-  return `<xdr:absoluteAnchor><xdr:pos x="${emu(x)}" y="${emu(y)}"/><xdr:ext cx="${emu(w)}" cy="${emu(h)}"/><xdr:grpSp><xdr:nvGrpSpPr><xdr:cNvPr id="${id}" name="Employee ${xml(e.id)}"/><xdr:cNvGrpSpPr/></xdr:nvGrpSpPr><xdr:grpSpPr><a:xfrm><a:off x="${emu(x)}" y="${emu(y)}"/><a:ext cx="${emu(w)}" cy="${emu(h)}"/><a:chOff x="0" y="0"/><a:chExt cx="${emu(w)}" cy="${emu(h)}"/></a:xfrm></xdr:grpSpPr><xdr:sp><xdr:nvSpPr><xdr:cNvPr id="${id+1}" name="${xml(e.name||e.id)}"/><xdr:cNvSpPr/></xdr:nvSpPr><xdr:spPr>${transform(0,0,w,h)}<a:prstGeom prst="roundRect"><a:avLst/></a:prstGeom><a:solidFill><a:srgbClr val="${color}"/></a:solidFill><a:ln w="12700"><a:solidFill><a:srgbClr val="5177A0"/></a:solidFill></a:ln></xdr:spPr><xdr:txBody><a:bodyPr wrap="square" lIns="38100" tIns="${emu(hasPhoto?78:16)}" rIns="38100" bIns="19050" anchor="t"/><a:lstStyle/>${paragraph(e.name||e.thaiName||e.id,850,true)}${paragraph(e.id,800)}${paragraph(e.position||'',800)}</xdr:txBody></xdr:sp>${picture}</xdr:grpSp><xdr:clientData/></xdr:absoluteAnchor>`;
+  const picture=hasPhoto?`<xdr:pic><xdr:nvPicPr><xdr:cNvPr id="${id+2}" name="Photo ${xml(e.id)}">${jdLink}</xdr:cNvPr><xdr:cNvPicPr><a:picLocks noChangeAspect="1"/></xdr:cNvPicPr></xdr:nvPicPr><xdr:blipFill><a:blip r:embed="orgPhoto${index}"/><a:stretch><a:fillRect/></a:stretch></xdr:blipFill><xdr:spPr>${transform(photoX,8,pw,ph)}<a:prstGeom prst="rect"><a:avLst/></a:prstGeom></xdr:spPr></xdr:pic>`:'';
+  return `<xdr:absoluteAnchor><xdr:pos x="${emu(x)}" y="${emu(y)}"/><xdr:ext cx="${emu(w)}" cy="${emu(h)}"/><xdr:grpSp><xdr:nvGrpSpPr><xdr:cNvPr id="${id}" name="Employee ${xml(e.id)}">${jdLink}</xdr:cNvPr><xdr:cNvGrpSpPr/></xdr:nvGrpSpPr><xdr:grpSpPr><a:xfrm><a:off x="${emu(x)}" y="${emu(y)}"/><a:ext cx="${emu(w)}" cy="${emu(h)}"/><a:chOff x="0" y="0"/><a:chExt cx="${emu(w)}" cy="${emu(h)}"/></a:xfrm></xdr:grpSpPr><xdr:sp><xdr:nvSpPr><xdr:cNvPr id="${id+1}" name="${xml(e.name||e.id)}">${jdLink}</xdr:cNvPr><xdr:cNvSpPr/></xdr:nvSpPr><xdr:spPr>${transform(0,0,w,h)}<a:prstGeom prst="roundRect"><a:avLst/></a:prstGeom><a:solidFill><a:srgbClr val="${color}"/></a:solidFill><a:ln w="12700"><a:solidFill><a:srgbClr val="5177A0"/></a:solidFill></a:ln></xdr:spPr><xdr:txBody><a:bodyPr wrap="square" lIns="38100" tIns="${emu(hasPhoto?78:16)}" rIns="38100" bIns="19050" anchor="t"/><a:lstStyle/>${paragraph(e.name||e.thaiName||e.id,850,true)}${paragraph(e.id,800)}${paragraph(e.position||'',800)}</xdr:txBody></xdr:sp>${picture}</xdr:grpSp><xdr:clientData/></xdr:absoluteAnchor>`;
  }
  function connector(from,to,index,fromIndex,toIndex,points){
   if(points){
@@ -83,28 +84,70 @@
   const x1=from.x+from.w/2,y1=from.y+from.h,x2=to.x+to.w/2,y2=to.y,x=Math.min(x1,x2),y=Math.min(y1,y2),w=Math.max(1,Math.abs(x2-x1)),h=Math.max(1,Math.abs(y2-y1));
   return `<xdr:absoluteAnchor><xdr:pos x="${emu(x)}" y="${emu(y)}"/><xdr:ext cx="${emu(w)}" cy="${emu(h)}"/><xdr:cxnSp><xdr:nvCxnSpPr><xdr:cNvPr id="${100000+index}" name="Reporting line ${index}"/><xdr:cNvCxnSpPr><a:stCxn id="${101+fromIndex*10}" idx="2"/><a:endCxn id="${101+toIndex*10}" idx="0"/></xdr:cNvCxnSpPr></xdr:nvCxnSpPr><xdr:spPr><a:xfrm flipH="${x1>x2?1:0}" flipV="${y1>y2?1:0}"><a:off x="${emu(x)}" y="${emu(y)}"/><a:ext cx="${emu(w)}" cy="${emu(h)}"/></a:xfrm><a:prstGeom prst="bentConnector3"><a:avLst/></a:prstGeom><a:ln w="15240"><a:solidFill><a:srgbClr val="5177A0"/></a:solidFill></a:ln></xdr:spPr></xdr:cxnSp><xdr:clientData/></xdr:absoluteAnchor>`;
  }
+ function jobDescriptions(book,model,records){
+  const sheet=book.addWorksheet('Job Descriptions',{views:[{showGridLines:false}],pageSetup:{paperSize:9,orientation:'portrait',fitToPage:true,fitToWidth:1,fitToHeight:0}});
+  for(let col=1;col<=6;col++)sheet.getColumn(col).width=19;
+  const anchors=[];
+  function line(value,heading=false){
+   const number=sheet.rowCount+1;sheet.mergeCells(number,1,number,6);const cell=sheet.getCell(number,1);cell.value=String(value??'');cell.font={name:'Tahoma',size:11,bold:heading,color:{argb:heading?'FFFFFFFF':'FF173C63'}};cell.alignment={vertical:'middle',wrapText:true};sheet.getRow(number).height=heading?30:34;
+   if(heading)cell.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FF164D84'}};
+   return cell;
+  }
+  function field(label,value){
+   line(label,true);
+   // Split long fields into readable rows instead of clipping Excel's row height.
+   const text=String(value||'—').replace(/\r\n?/g,'\n');
+   for(const part of text.split('\n')){const chars=Array.from(part);if(!chars.length)line(' ');else for(let offset=0;offset<chars.length;offset+=90)line(chars.slice(offset,offset+90).join(''))}
+  }
+  line('JOB DESCRIPTION / รายละเอียดงาน',true);
+  line('ข้อมูล JD ณ วันที่ส่งออก / JD snapshot: '+new Date().toISOString());
+  model.nodes.forEach((node,index)=>{
+   if(index)sheet.getRow(sheet.rowCount).addPageBreak();
+   const e=node.employee,jd=records[index],anchor=sheet.rowCount+1;anchors.push("#'Job Descriptions'!A"+anchor);
+   line((e.name||e.thaiName||e.id)+' · '+e.id,true);
+   const back=line('กลับผังองค์กร / Back to Organization Chart');back.value={text:back.value,hyperlink:"#'Organization Chart'!A1"};back.font={name:'Tahoma',size:11,color:{argb:'FF0563C1'},underline:true};
+   field('ตำแหน่ง / Position',e.position);field('แผนก / Section',e.sortingGroup||e.section);
+   if(!jd){field('สถานะ JD / JD status','ไม่พบ JD ที่บันทึกไว้ หรือไม่มีสิทธิ์ส่งออก / No saved JD available for export');return}
+   field('แหล่งข้อมูล / Source',jd.exportSource);
+   if(jd.draft)field('สถานะเอกสาร / Document status','ฉบับร่าง / Draft');
+   field('Division / โรงงาน',String(jd.division||'—')+' / '+String(jd.plant||'—'));
+   field('JD No. / Revision / Effective Date',[jd.documentNo||'—',jd.revision||'—',jd.effectiveDate||'—'].join(' / '));
+   field('รายงานต่อ / Reports to',jd.reportsTo);
+   if(jd.jobPurpose)field('วัตถุประสงค์ / Job purpose',jd.jobPurpose);
+   field('หน้าที่และความรับผิดชอบ / Responsibilities',jd.responsibilities);
+   field('คุณสมบัติและทักษะ / Qualifications and skills',jd.qualifications);
+   if(jd.documentUrl)field('เอกสารแนบ / Attached document URL',jd.documentUrl);
+   field('อัปเดต / Updated',[jd.updatedAt,jd.updatedBy].filter(Boolean).join(' / '));
+  });
+  sheet.pageSetup.printArea='A1:F'+sheet.rowCount;
+  return anchors;
+ }
  async function workbook(model,photos){
   const book=new ExcelJS.Workbook();book.creator='Jinrong';book.created=new Date();
   const chart=book.addWorksheet('Organization Chart',{views:[{showGridLines:false,zoomScale:75}],pageSetup:{paperSize:8,orientation:'landscape',fitToPage:true,fitToWidth:1,fitToHeight:0}});
   chart.getColumn(1).width=25;chart.getCell('A1').value=model.title;chart.getCell('A1').font={name:'Tahoma',size:16,bold:true,color:{argb:'FF173C63'}};
-  chart.getCell('A2').value='คลิกกล่องเพื่อย้าย · ดับเบิลคลิกข้อความเพื่อแก้ไข · คลิกขวา > Group > Ungroup เพื่อเปลี่ยนรูป';chart.getCell('A2').font={name:'Tahoma',size:10};
+  chart.getCell('A2').value='คลิกรูปเพื่อเปิด JD · คลิกกล่องเพื่อย้าย · ดับเบิลคลิกข้อความเพื่อแก้ไข · คลิกขวา > Group > Ungroup เพื่อเปลี่ยนรูป';chart.getCell('A2').font={name:'Tahoma',size:10};
   // Establish the worksheet drawing relationship; replace the seed with native shapes below.
   const seed=book.addImage({base64:'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAIAAAAlC+aJAAAAY0lEQVR4nO3PQQ3AIADAQMAdTpGCrIngcVnSU9DOfe74s6UDXjWgNaA1oDWgNaA1oDWgNaA1oDWgNaA1oDWgNaA1oDWgNaA1oDWgNaA1oDWgNaA1oDWgNaA1oDWgNaA1oDWgfWAgAjlqSohoAAAAAElFTkSuQmCC',extension:'png'});chart.addImage(seed,{tl:{col:0,row:3},ext:{width:1,height:1}});
   const lastCol=Math.min(16384,Math.ceil(model.width/64)),lastRow=Math.min(1048576,Math.ceil(model.height/20));
   chart.pageSetup.printArea=`A1:${chart.getColumn(lastCol).letter}${lastRow}`;
+  const jdRecords=await window.PPMSJDExport?.snapshot(model.nodes.map(n=>n.employee))||model.nodes.map(()=>null);
   const roster=book.addWorksheet('Employees',{views:[{state:'frozen',ySplit:1}],pageSetup:{orientation:'landscape',fitToPage:true,fitToWidth:1,fitToHeight:0}});
-  const headers=['Photo','Emp.ID','Name','Position','Section','Team','Reports to','Start Date'];
-  roster.addRow(headers);[14,18,40,28,32,25,20,18].forEach((width,i)=>roster.getColumn(i+1).width=width);
+  const headers=['Photo','Emp.ID','Name','Position','Section','Team','Reports to','Start Date','JD'];
+  roster.addRow(headers);[14,18,40,28,32,25,20,18,22].forEach((width,i)=>roster.getColumn(i+1).width=width);
   roster.getRow(1).height=26;roster.getRow(1).eachCell(cell=>{cell.font={name:'Tahoma',bold:true,color:{argb:'FFFFFFFF'}};cell.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FF164D84'}}});
+  const jdAnchors=jobDescriptions(book,model,jdRecords);
   model.nodes.forEach((node,i)=>{
    const e=node.employee,row=roster.addRow([photos[i].failed?'โหลดรูปไม่สำเร็จ':photos[i].data?'':'ไม่มีรูป',String(e.id),e.name||e.thaiName||'',e.position||'',e.sortingGroup||e.section||'',e.organizationTeam||e.stampingShift||e.team||e.shift||'',node.parent,e.startDate||'']);row.height=60;
    row.eachCell(cell=>{cell.font={name:'Tahoma',size:10};cell.alignment={vertical:'middle',wrapText:true}});roster.getCell(row.number,2).numFmt='@';
-   if(photos[i].data){const image=book.addImage({base64:photos[i].data,extension:'png'});roster.addImage(image,{tl:{col:0.15,row:row.number-0.9},ext:{width:64,height:64},editAs:'oneCell'})}
-  });roster.autoFilter={from:{row:1,column:1},to:{row:Math.max(1,roster.rowCount),column:8}};
+   const jdCell=roster.getCell(row.number,9);jdCell.value={text:'เปิด JD / View JD',hyperlink:jdAnchors[i]};jdCell.font={name:'Tahoma',size:10,color:{argb:'FF0563C1'},underline:true};
+   if(photos[i].data){const image=book.addImage({base64:photos[i].data,extension:'png'});roster.addImage(image,{tl:{col:0.15,row:row.number-0.9},ext:{width:64,height:64},editAs:'oneCell',hyperlinks:{hyperlink:jdAnchors[i],tooltip:'เปิด JD / View JD'}})}
+  });roster.autoFilter={from:{row:1,column:1},to:{row:Math.max(1,roster.rowCount),column:9}};
   const zip=await JSZip.loadAsync(await book.xlsx.writeBuffer()),relations=[],shapes=[],indices=new Map(model.nodes.map((n,i)=>[String(n.employee.id),i])),routes=window.PPMSOrganizationLines?.route(model);
   model.nodes.forEach((node,i)=>{const p=indices.get(node.parent);if(p!==undefined)shapes.push(connector(model.nodes[p],node,i,p,i,routes?.get(i)))});
   model.labels.forEach((label,i)=>shapes.push(textShape(200000+i,label.text,label.x,label.y,label.w,Math.max(28,label.h))));
   model.nodes.forEach((node,i)=>{
+   relations.push(`<Relationship Id="orgJD${i}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="${xml(jdAnchors[i])}" TargetMode="External"/>`);
    shapes.push(cardShape(node,i,!!photos[i].data));if(!photos[i].data)return;
    zip.file(`xl/media/org-photo-${i}.png`,photos[i].data.split(',')[1],{base64:true});relations.push(`<Relationship Id="orgPhoto${i}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/org-photo-${i}.png"/>`);
   });
