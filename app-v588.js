@@ -1382,7 +1382,7 @@ function scheduleRemoteCachePersist(){
 // V471: ไม่บังคับ render ตอน focusout/change เพราะทำให้ฟอร์มและ dropdown เด้งระหว่างกรอก
 const $=s=>document.querySelector(s), esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function age(start){if(!start)return'-';const a=new Date(start),b=new Date();let y=b.getFullYear()-a.getFullYear(),m=b.getMonth()-a.getMonth();if(m<0){y--;m+=12}return `${y?y+' ปี ':''}${m} เดือน`}
-function rank(pos=''){pos=pos.toLowerCase();if(/^(?:sup\.?\s+production|production\s+(?:sup\.?|supervisor)|supervisor\s+production|หัวหน้างานฝ่ายผลิต)$/i.test(pos.trim()))return'supervisor';if(pos.includes('manager'))return'manager';if(pos.includes('engineer'))return'engineer';if(pos.includes('supervisor'))return'supervisor';if(pos.includes('leader'))return'leader';if(pos.includes('technician'))return'technician';if(/\b(?:operator|opeartor|operater)\b|^op(?:\b|\d)|พนักงานทั่วไป|พนักงานผลิต/i.test(pos.trim()))return'operator';return'other'}
+function rank(pos=''){pos=pos.toLowerCase();if(/^(?:sup\.?\s+production|production\s+(?:sup\.?|supervisor)|supervisor\s+production|หัวหน้างานฝ่ายผลิต)$/i.test(pos.trim()))return'supervisor';if(pos.includes('manager'))return'manager';if(pos.includes('engineer'))return'engineer';if(pos.includes('supervisor'))return'supervisor';if(pos.includes('specialist'))return'specialist';if(pos.includes('leader'))return'leader';if(pos.includes('technician'))return'technician';if(/\b(?:operator|opeartor|operater)\b|^op(?:\b|\d)|พนักงานทั่วไป|พนักงานผลิต/i.test(pos.trim()))return'operator';return'other'}
 function employeeEmploymentRank(e){return /^(permanent|พนักงานประจำ)$/i.test(String(e?.contractType||'').trim())?0:1}
 function employeeSeniorityStart(e){return employeeEmploymentRank(e)===0?String(e?.permanentStartDate||e?.startDate||''):String(e?.startDate||'')}
 function orgSeniorityCompare(a,b){
@@ -1445,7 +1445,7 @@ function employeeHistoryCardSummary(e){
  return `<div class="employee-history-stats" role="group" aria-label="สรุปประวัติพนักงาน"><div class="history-ng-counts"><span class="history-yellow" data-history-count="yellow"><b>${yellow}</b>ใบเหลือง</span><span class="history-red" data-history-count="red"><b>${ng.red}</b>ใบแดง</span></div><div class="history-attendance-counts"><span data-history-count="absent"><b>${a.absent}</b>ขาด</span><span data-history-count="leave"><b>${a.leave}</b>ลา</span><span data-history-count="late"><b>${a.late}</b>มาสาย</span></div></div>`;
 }
 function person(e,showAttendance=false){const history=showAttendance&&current==='ngDashboard'?employeeHistoryCardSummary(e):'';return `<div class="person ${rank(e.position)} person-editable" data-edit="${esc(e.id)}" role="button" tabindex="0" title="${history?'คลิกเพื่อดูประวัติการขาดลามาสายและงานเสีย':'คลิกเพื่อดูข้อมูลและประวัติ Attendance'}">${avatar(e)}<b>${esc(e.name)}</b><small>${esc(e.id)}<br>${employeePositionLabel(e)}</small>${history}</div>`}
-function levelName(r){return({manager:'Manager',engineer:'Engineer',supervisor:'Supervisor',leader:'Leader',technician:'Technician',operator:'Operator',other:'Other'})[r]}
+function levelName(r){return({manager:'Manager',engineer:'Engineer',supervisor:'Supervisor',specialist:'Specialist',leader:'Leader',technician:'Technician',operator:'Operator',other:'Other'})[r]}
 function nav(){const n=$('#nav');if(isLeaderMode()){if(n){n.innerHTML='<button data-page="leaderShift" class="active">จัดกะพนักงาน</button>';n.onclick=()=>{current='leaderShift';render()}}document.body.classList.remove('exam-only-mode');return}if(!isAdmin){if(n){const publicPages=[['attendance','Attendance / เช็คชื่อ'],['exam','Examination / ระบบสอบ']];n.innerHTML=publicPages.map(([id,t])=>`<button data-page="${id}" class="${id===current?'active':''}">${t}</button>`).join('');n.onclick=e=>{const b=e.target.closest('[data-page]');if(b){current=b.dataset.page;render()}}}document.body.classList.add('exam-only-mode');return;}document.body.classList.remove('exam-only-mode');const visiblePages=pages;n.innerHTML=visiblePages.map(([id,t])=>`<button data-page="${id}" class="${id===current?'active':''}">${t}</button>`).join('');n.onclick=e=>{const b=e.target.closest('[data-page]');if(b&&isAdmin){current=b.dataset.page;render()}}}
 function leaderShiftPage(){const e=leaderEmployee();if(!e)return head('จัดกะพนักงาน','ไม่พบสิทธิ์ Leader')+'<div class="empty">กรุณาออกจากระบบแล้วเข้าสู่ระบบด้วยรหัสพนักงาน Leader อีกครั้ง</div>';const count=employees.filter(x=>String(x.section)===String(e.section)).length;return head('จัดกะพนักงาน',`${esc(e.name)} • ${esc(e.section)}`)+`<div class="panel leader-shift-panel"><h3>แผนกะล่วงหน้า 4 รอบ</h3><p>คุณสามารถดูและแก้ไขกะได้เฉพาะพนักงานใน <b>${esc(e.section)}</b> จำนวน ${count} คน</p><button type="button" data-action="leaderOpenShift">เปิดหน้าแก้ไขกะ</button><p class="modal-note">สิทธิ์ Leader ไม่สามารถเปิดหน้าจัดการอื่น เปลี่ยน Section หรือตั้งกะให้ทุกแผนกได้</p></div>`}
 function leaderLoginPrompt(){const p=String(prompt('กรอกรหัสพนักงาน Leader เพื่อจัดกะ')||'').trim();if(!p)return;const emp=employees.find(e=>String(e.id)===p);if(!emp)return alert('ไม่พบรหัสพนักงานนี้');if(!isLeaderEmployee(emp))return alert('รหัสนี้ไม่มีสิทธิ์ Leader สำหรับจัดกะ');if(!String(emp.section||'').trim())return alert('Leader คนนี้ยังไม่ได้กำหนด Section กรุณาให้ Admin แก้ไขข้อมูลพนักงานก่อน');isAdmin=false;leaderId=String(emp.id);sessionStorage.removeItem('ppms_admin');sessionStorage.setItem('ppms_leader_id',leaderId);sessionStorage.setItem('shiftRosterSection',String(emp.section));current='leaderShift';render();status(`เข้าสู่หน้าจัดกะ ${emp.section} สำเร็จ`);setTimeout(()=>{if(isLeaderMode())shiftManagementModal(String(emp.section),currentShiftCycleStart())},0)}
@@ -1485,7 +1485,7 @@ function orgSectionDescriptors(){
 }
 function orgEmployeesForDescriptor(d){const production=organizationScope().division==='Production Division';return employees.filter(e=>e.section===d.section&&rank(e.position)!=='manager'&&(!production||!window.PPMSProductionHierarchy?.isSupervisor(e.position))&&(!d.sortingGroup||String(e.sortingGroup||'')===d.sortingGroup))}
 function orgFixedLeadershipLevels(list){
- const order=['supervisor','leader'];
+ const order=['supervisor','specialist','leader'];
  const levels=order.map(r=>{
   const group=list.filter(e=>rank(e.position)===r).sort(orgSeniorityCompare);
   return group.length?`<div class="level rank-level-${r}"><h4>${levelName(r)}</h4><div class="people">${group.map(e=>person(e,true)).join('')}</div></div>`:'';
@@ -1493,16 +1493,16 @@ function orgFixedLeadershipLevels(list){
  return levels?`<div class="org-fixed-leadership">${levels}</div>`:'';
 }
 function orgDepartmentLevels(list){
- const order=['supervisor','leader','engineer','technician','other','operator'];
+ const order=['supervisor','specialist','leader','engineer','technician','other','operator'];
  return order.map(r=>{
   const group=list.filter(e=>rank(e.position)===r).sort(orgSeniorityCompare);
   return group.length?`<div class="level rank-level-${r}"><h4>${levelName(r)}</h4><div class="people">${group.map(e=>person(e,true)).join('')}</div></div>`:'';
  }).join('')||'<div class="empty">ไม่มีข้อมูลพนักงาน</div>';
 }
 function orgShiftLevels(list,shiftKey,isActive){
- // Supervisor และ Leader เป็นโครงสร้างประจำ Section จึงไม่ย้ายตาม Day/Night Shift
+ // Supervisor, Specialist และ Leader เป็นโครงสร้างประจำ Section จึงไม่ย้ายตาม Day/Night Shift
  const order=['engineer','technician','other','operator'];
- const shiftList=list.filter(e=>!['supervisor','leader'].includes(rank(e.position))&&employeeShiftKey(e,thaiDateKey())===shiftKey);
+ const shiftList=list.filter(e=>!['supervisor','specialist','leader'].includes(rank(e.position))&&employeeShiftKey(e,thaiDateKey())===shiftKey);
  const levels=order.map(r=>{
   const group=shiftList.filter(e=>rank(e.position)===r).sort(orgSeniorityCompare);
   return group.length?`<div class="level rank-level-${r}"><h4>${levelName(r)}</h4><div class="people">${group.map(e=>person(e,true)).join('')}</div></div>`:'';
@@ -1550,7 +1550,7 @@ function sectionChartOptions(values=sections){const out=[];for(const value of va
 function sectionChartMatches(employee,selected){if(!sectionChartIsSorting(selected))return employee.section===selected;const group=sectionChartSortingName(selected);return sectionChartIsSorting(employee.section)&&(!group||sectionChartSortingGroup(employee)===group)}
 function sectionChartEmployees(selected,list=employees){return list.filter(e=>sectionChartMatches(e,selected)&&(organizationScope().division!=='Production Division'||!window.PPMSProductionHierarchy?.isSupervisor(e.position))).slice().sort(orgSeniorityCompare)}
 function sectionChartTeamPreferenceKey(section){const scope=organizationScope();return 'ppms_section_chart_team_view_v871::'+scope.division+'::'+scope.plant+'::'+section}
-function sectionChartLevels(list){return ['manager','engineer','supervisor','leader','technician','other','operator'].map(r=>{const members=list.filter(e=>rank(e.position)===r).sort(orgSeniorityCompare);return members.length?`<div class="level level-${r}"><h4>${levelName(r)}</h4><div class="people">${members.map(sectionExamPerson).join('')}</div></div>`:''}).join('')}
+function sectionChartLevels(list){return ['manager','engineer','supervisor','specialist','leader','technician','other','operator'].map(r=>{const members=list.filter(e=>rank(e.position)===r).sort(orgSeniorityCompare);return members.length?`<div class="level level-${r}"><h4>${levelName(r)}</h4><div class="people">${members.map(sectionExamPerson).join('')}</div></div>`:''}).join('')}
 function sectionChartTeamMarkup(list,selected){
  const sorting=sectionChartIsSorting(selected),groups=sorting?(sectionChartSortingName(selected)?[sectionChartSortingName(selected)]:['Sorting 1','Sorting 2']):[''];
  const boards=groups.map(group=>{

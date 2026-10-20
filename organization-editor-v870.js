@@ -16,7 +16,7 @@
  const record=value=>cache[scopeKey(value)]||{parents:{}};
  const people=value=>window.PPMSOrganizationScope.employees(read('ppms_v3_employees',[]),value).filter(e=>e&&e.id!=null&&!window.PPMS_RUNTIME?.factoryLayoutDeletedEmployeeIds?.().includes(String(e.id)));
  const currentPeople=()=>people(scope());
- const priority=position=>{const p=String(position||'');return /manager|ผู้จัดการ/i.test(p)?0:/engineer|วิศวกร/i.test(p)?1:/supervisor|หัวหน้างาน|หัวหน้าแผนก/i.test(p)?2:/leader|หัวหน้าทีม/i.test(p)?3:/technician|ช่าง/i.test(p)?4:/operator|opeartor|operater|^op\b|พนักงานทั่วไป|พนักงานผลิต|พนักงานปฏิบัติการ/i.test(p)?6:5};
+ const priority=position=>{const p=String(position||'');return /manager|ผู้จัดการ/i.test(p)?0:/engineer|วิศวกร/i.test(p)?1:/supervisor|หัวหน้างาน|หัวหน้าแผนก/i.test(p)?2:/specialist/i.test(p)?2.5:/leader|หัวหน้าทีม/i.test(p)?3:/technician|ช่าง/i.test(p)?4:/operator|opeartor|operater|^op\b|พนักงานทั่วไป|พนักงานผลิต|พนักงานปฏิบัติการ/i.test(p)?6:5};
  const employment=e=>/^(permanent|พนักงานประจำ)$/i.test(String(e.contractType||'Permanent'))?0:1;
  const start=e=>{const n=Date.parse((employment(e)===0?e.permanentStartDate:'')||e.startDate||'');return Number.isFinite(n)?n:Number.MAX_SAFE_INTEGER};
  const seniority=(a,b)=>employment(a)-employment(b)||start(a)-start(b)||String(a.id).localeCompare(String(b.id),undefined,{numeric:true});
