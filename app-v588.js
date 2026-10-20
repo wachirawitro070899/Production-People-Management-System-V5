@@ -1914,7 +1914,13 @@ function attendanceGradeLabel(score){const g=attendanceGrade(score);return g==='
 function kpiPeriodStart(year){const c=attendanceConfig(),start=String(c.kpiStartDate||thaiDateKey()),sy=Number(start.slice(0,4)),y=Number(year);if(y<sy)return null;if(y===sy)return start;return `${y}-01-01`}
 function daysSinceThaiDate(dateStr){const today=new Date(thaiDateKey()+'T00:00:00+07:00'),d=new Date(String(dateStr)+'T00:00:00+07:00');return Math.floor((today-d)/86400000)}
 function attendanceWorkDates(year){const start=kpiPeriodStart(year);if(!start)return[];return [...new Set(attendance.filter(r=>String(r.date||'').startsWith(String(year)+'-')&&String(r.date)>=start&&!r.autoAbsent).map(r=>String(r.date)))].sort()}
-function employeeEligibleOnDate(emp,date){const sd=String(emp?.startDate||'').slice(0,10);return !sd||sd>date?(!sd):true}
+const employeeImportAttendanceDates=new Map();
+function employeeEligibleOnDate(emp,date){
+ let sd=String(emp?.startDate||'').slice(0,10);
+ // Imported rosters without employment dates must not create earlier absences.
+ if(!sd&&emp?.importedAt){const imported=String(emp.importedAt);if(!employeeImportAttendanceDates.has(imported)){const time=new Date(imported);employeeImportAttendanceDates.set(imported,Number.isFinite(time.getTime())?thaiDateKey(time):'')}sd=employeeImportAttendanceDates.get(imported)}
+ return !sd||sd<=date;
+}
 function thaiDateRange(start,end){const out=[];let d=String(start||'');for(let guard=0;d&&d<=String(end||'')&&guard<370;guard++,d=dateKeyOffsetFrom(d,1))out.push(d);return out}
 function nextEmployeeShiftDeadline(emp,workDate){let next=dateKeyOffsetFrom(workDate,1);for(let i=0;i<14&&isHoliday(next);i++)next=dateKeyOffsetFrom(next,1);const sh=shiftConfig(emp,next);return new Date(`${next}T${sh.checkInOpen}:00+07:00`)}
 function employeeAbsenceDeadline(emp,workDate){const sh=shiftConfig(emp,workDate);return new Date(new Date(`${workDate}T${sh.lateReasonAfter}:00+07:00`).getTime()+30*60000)}
