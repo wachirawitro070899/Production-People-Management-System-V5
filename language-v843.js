@@ -14,6 +14,7 @@
 กรุณาเชื่อมต่ออินเทอร์เน็ตก่อนแก้ไขชื่อ Section|Connect to the internet before renaming a Section
 ชื่อ Section ถูกแก้ไขจากเครื่องอื่น กรุณาเปิดรายการใหม่|Another device renamed this Section. Reopen the form.
 รายชื่อพนักงานและเครื่องจักรที่จัดไว้จะอยู่ใน Section เดิม|Employees and machine assignments remain in this Section
+หัวหน้างานขึ้นรูปโลหะและแม่พิมพ์|Head of Forming & Tooling
 ผังกำลังคน|Manpower Planning
 ผังกำลังคนแยก Section|Section Manpower Planning
 ยกเลิก|Cancel

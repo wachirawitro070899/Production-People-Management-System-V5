@@ -132,13 +132,14 @@ function seniorityCompare(a,b){
  const start=e=>{const t=Date.parse(String((type(e)===0?e?.permanentStartDate:'')||e?.startDate||''));return Number.isFinite(t)?t:Number.MAX_SAFE_INTEGER};
  return type(a)-type(b)||start(a)-start(b)||String(a?.id||'').localeCompare(String(b?.id||''),undefined,{numeric:true,sensitivity:'base'});
 }
-function positionRank(name){const x=String(name||'').toLowerCase();if(/specialist/.test(x))return -1;if(/leader/.test(x))return 0;if(/supervisor/.test(x))return 1;if(/engineer/.test(x))return 2;if(/technician/.test(x))return 3;if(/\b(?:operator|opeartor|operater)\b|^op(?:\b|\d)|พนักงานทั่วไป|พนักงานผลิต/.test(x.trim()))return 5;return 4}
-function positionClass(name){const x=String(name||'').toLowerCase();if(/specialist/.test(x))return'specialist';if(/leader/.test(x))return'leader';if(/supervisor/.test(x))return'supervisor';if(/engineer/.test(x))return'engineer';if(/technician/.test(x))return'technician';if(/\b(?:operator|opeartor|operater)\b|^op(?:\b|\d)|พนักงานทั่วไป|พนักงานผลิต/.test(x.trim()))return'operator';return'other'}
+function positionRank(name){const x=String(name||'').toLowerCase();if(window.PPMSProductionHierarchy?.isHead(name))return -2;if(/specialist/.test(x))return -1;if(/leader/.test(x))return 0;if(/supervisor/.test(x))return 1;if(/engineer/.test(x))return 2;if(/technician/.test(x))return 3;if(/\b(?:operator|opeartor|operater)\b|^op(?:\b|\d)|พนักงานทั่วไป|พนักงานผลิต/.test(x.trim()))return 5;return 4}
+function positionClass(name){const x=String(name||'').toLowerCase();if(window.PPMSProductionHierarchy?.isHead(name))return'head';if(/specialist/.test(x))return'specialist';if(/leader/.test(x))return'leader';if(/supervisor/.test(x))return'supervisor';if(/engineer/.test(x))return'engineer';if(/technician/.test(x))return'technician';if(/\b(?:operator|opeartor|operater)\b|^op(?:\b|\d)|พนักงานทั่วไป|พนักงานผลิต/.test(x.trim()))return'operator';return'other'}
 function renderDivisionChart(select,detail){
  const division=select.value,plant=division==='Production Division'?(document.getElementById('factoryPlantChart')?.value||master.plants[0]):'รวม',hierarchy=window.PPMSProductionHierarchy;
  const members=chartPeople().filter(e=>{const x=divisionOf(e);return x.division===division&&(division!=='Production Division'||x.plant===plant)});
  const managers=members.filter(e=>/manager/i.test(String(e.position||''))),supervisors=division==='Production Division'&&hierarchy?members.filter(e=>hierarchy.isSupervisor(e.position)).sort(seniorityCompare):[];
- const workers=members.filter(e=>!managers.includes(e)&&!supervisors.includes(e));
+ const heads=division==='Production Division'&&hierarchy?members.filter(e=>hierarchy.isHead(e.position)).sort(seniorityCompare):[];
+ const workers=members.filter(e=>!managers.includes(e)&&!supervisors.includes(e)&&!heads.includes(e));
  const names=[...new Set([...sectionsFor(division,plant),...workers.map(e=>String(e.section||'')).filter(Boolean)])];
  const legacySorting=workers.some(e=>e.section==='Sorting Section'),canonical=value=>hierarchy?hierarchy.sectionKey(value):value;
  const sections=names.filter((name,index)=>!(legacySorting&&/^sorting\s*[12]$/i.test(name))&&names.findIndex(value=>canonical(value)===canonical(name))===index).flatMap(section=>section==='Sorting Section'?[{section,title:'Sorting 1',sortingGroup:'Sorting 1'},{section,title:'Sorting 2',sortingGroup:'Sorting 2'}]:[{section,title:section,sortingGroup:''}]).filter(item=>!(master.removedSections?.[sectionKey(division,plant)]||[]).some(name=>canonical(name)===canonical(item.title))||workers.some(e=>canonical(e.section)===canonical(item.section)&&(!item.sortingGroup||e.sortingGroup===item.sortingGroup)));
@@ -152,7 +153,7 @@ function renderDivisionChart(select,detail){
   return {...item,html:'<section class="factory-org-section" data-org-section="'+esc(item.title)+'"><h4>'+esc(item.title)+'</h4><div class="factory-org-meta">'+sectionMembers.length+' Employees</div><button type="button" class="section-position-add" data-add-section-position data-section="'+esc(section)+'">+ เพิ่มตำแหน่งใน Section</button>'+(roles||'<div class="factory-section-empty">ยังไม่มีตำแหน่ง</div>')+'</section>'};
  });
  const managerHtml=managers.length?'<div class="factory-manager"><div class="factory-people">'+managers.map(personCard).join('')+'</div></div>':'';
- const organization=division==='Production Division'&&hierarchy?hierarchy.chartMarkup(chart,supervisors.map(personCard).join(''),{factory:true}):'<div class="factory-org-sections">'+(chart.map(item=>item.html).join('')||'<div class="factory-chart-empty">ยังไม่มี Section — กด “+ เพิ่ม Section”</div>')+'</div>';
+ const organization=division==='Production Division'&&hierarchy?hierarchy.chartMarkup(chart,supervisors.map(personCard).join(''),{factory:true,heads:heads.map(personCard).join('')}):'<div class="factory-org-sections">'+(chart.map(item=>item.html).join('')||'<div class="factory-chart-empty">ยังไม่มี Section — กด “+ เพิ่ม Section”</div>')+'</div>';
  detail.innerHTML='<div class="org-config-head"><h3 class="factory-chart-title">'+esc(division)+(division==='Production Division'?' — '+esc(plant):'')+'</h3><button type="button" data-add-factory-section>+ เพิ่ม Section</button></div>'+managerHtml+organization;
  deleteSectionControls();scopeTitle();
 }
