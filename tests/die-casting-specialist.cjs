@@ -4,7 +4,7 @@ const {setup,master,employees}=new Function('require',prefix+'\nreturn {setup,ma
 const wait=ms=>new Promise(resolve=>setTimeout(resolve,ms)),scope='Production Division::โรง 1',sections=['Die-Casting Mold Maintenance Section','หลอมอลูมิเนียม','คัดครีบ-พ่นทราย-X-Ray'];
 master.sectionMap[scope].push(...sections);master.sections.push(...sections);master.sectionLabels={[scope]:[{section:sections[1],name:'Die casting'},{section:sections[2],name:'Polishing / Shot Blasting / X-Ray'}]};
 const employee=(id,section,position='Operator',extra={})=>({id,name:'TEST '+id,position,section,startDate:'2020-01-01',contractType:'Permanent',skillLevels:{},currentSkillLevel:1,...extra});
-employees.push(employee('CASTING-SPECIALIST',sections[0],'Die casting Specialist'),employee('HEAD','Stamping Section','Head of Forming & Tooling'),...sections.map((section,i)=>employee('CASTING-'+i,section)),employee('CASTING-OTHER-PLANT',sections[0],'Die casting Specialist',{organizationPlant:'โรง 2'}));
+employees.push(employee('CASTING-SPECIALIST',sections[0],'Die casting Specialist'),employee('HEAD','Stamping Section','Stamping Specialist'),...sections.map((section,i)=>employee('CASTING-'+i,section)),employee('CASTING-OTHER-PLANT',sections[0],'Die casting Specialist',{organizationPlant:'โรง 2'}));
 (async()=>{
  for(const entry of ['index.html','factory-organization.html','404.html']){
   const {dom,w,errors}=await setup(entry);

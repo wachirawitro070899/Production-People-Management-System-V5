@@ -2,12 +2,12 @@
 (()=>{
  'use strict';
  const position='Supervisor Production',supervisorSection='Production Division';
- const headPosition='Head of Forming & Tooling',headSections=['Bending Section','Stamping Section','Tapping Section','Tooling Maintenance Section'];
+ const headPosition='Stamping Specialist',headSections=['Bending Section','Stamping Section','Tapping Section','Tooling Maintenance Section'];
  const sectionOrder=['stamping','bending','tapping','welding','cnc','sorting1','sorting2'];
  const sectionKey=value=>window.PPMSOrganizationScope?.sectionKey(value)||String(value||'').trim().toLowerCase().replace(/\s+section$/,'').replace(/\s+/g,'').replace(/^taping$/,'tapping');
- function isHead(value){return /^(?:Head of Forming & Tooling|หัวหน้างานขึ้นรูปโลหะและแม่พิมพ์)$/i.test(String(value||'').trim())}
+ function isHead(value){return /^(?:Stamping Specialist|ผู้เชี่ยวชาญงานปั๊มโลหะ|ผู้เชี่ยวชาญงานปั้ม|Head of Forming & Tooling|หัวหน้างานขึ้นรูปโลหะและแม่พิมพ์)$/i.test(String(value||'').trim())}
  function headOwns(section){return headSections.some(name=>sectionKey(name)===sectionKey(section))}
- function headTitle(language=window.PPMSLanguage?.language||'th'){return language==='en'?headPosition:'หัวหน้างานขึ้นรูปโลหะและแม่พิมพ์'}
+ function headTitle(language=window.PPMSLanguage?.language||'th'){return language==='en'?headPosition:'ผู้เชี่ยวชาญงานปั๊มโลหะ'}
  const castingPosition='Die Casting Specialist',castingSections=[
   ['Die-Casting Mold Maintenance Section','ช่างซ่อมแม่พิมพ์อลูมิเนียม'],
   ['Die casting','Die casting Section','หลอมอลูมิเนียม'],
@@ -38,7 +38,7 @@
   const sectionClass=options.factory?'factory-org-sections':'division-sections',peopleClass=options.factory?'factory-people':'people';
   const casting=hasCasting?'<section class="production-casting-branch" data-reports-to="Die Casting Specialist"><div class="production-casting-top"><h4>Die Casting Specialist</h4><div class="'+peopleClass+'">'+options.castingSpecialists+'</div><small>Die-Casting Mold Maintenance · Die Casting · Polishing / Shot Blasting / X-Ray</small></div><div class="'+sectionClass+' production-casting-sections">'+castingOwned.map(item=>item.html).join('')+'</div></section>':'';
   const directContent='<div class="'+sectionClass+'">'+direct.filter(item=>!castingOwned.includes(item)).map(item=>item.html).join('')+'</div>'+casting;
-  const head=hasHead?'<section class="production-head-branch" data-reports-to="Head of Forming &amp; Tooling"><div class="production-head-top"><h4>Head of Forming &amp; Tooling</h4><div class="'+peopleClass+'">'+options.heads+'</div><small>Bending · Stamping · Tapping · Tooling Maintenance</small></div><div class="'+sectionClass+' production-head-sections">'+owned.map(item=>item.html).join('')+'</div></section>':'';
+  const head=hasHead?'<section class="production-head-branch" data-reports-to="Stamping Specialist"><div class="production-head-top"><h4>Stamping Specialist</h4><div class="'+peopleClass+'">'+options.heads+'</div><small>Bending · Stamping · Tapping · Tooling Maintenance</small></div><div class="'+sectionClass+' production-head-sections">'+owned.map(item=>item.html).join('')+'</div></section>':'';
   const remaining=production.filter(item=>!owned.includes(item)),content=hasHead?'<div class="production-supervised-content">'+head+(remaining.length?'<div class="'+sectionClass+' production-other-sections">'+remaining.map(item=>item.html).join('')+'</div>':'')+'</div>':'<div class="'+sectionClass+'">'+production.map(item=>item.html).join('')+'</div>';
   return '<div class="production-reporting-tree'+(hasHead?' has-forming-tooling-head':'')+(hasCasting?' has-casting-specialist':'')+'">'+
    ((direct.length||hasCasting)?'<section class="production-reporting-branch production-direct-sections" data-reports-to="Manager"><div class="production-branch-heading"><small>'+direct.length+' แผนก</small></div>'+directContent+'</section>':'')+
@@ -52,7 +52,7 @@
    ['ตรวจการปฏิบัติตาม WI และ Control Plan ประสานวิศวกรรมและคุณภาพเพื่อแก้ไขปัญหากระบวนการ','Verify WI and control-plan compliance and coordinate process issues with Engineering and Quality.'],
    ['พัฒนาหัวหน้าทีมและพนักงานทั้ง 4 แผนก ติดตาม KPI และรายงานผลต่อผู้บังคับบัญชาตามผังองค์กร','Develop the four section teams, monitor KPIs, and report to the supervisor defined in the organization chart.']
   ];
-  return {...scope,employeeId:'',employeeName:'',documentNo:'',revision:'DRAFT',effectiveDate:'',reportsTo:'หัวหน้างานฝ่ายผลิต / Supervisor Production',jobPurpose:'บริหารงานขึ้นรูปโลหะและแม่พิมพ์ ครอบคลุม Bending, Stamping, Tapping และ Tooling Maintenance\nLead forming and tooling across Bending, Stamping, Tapping, and Tooling Maintenance.',responsibilities:duties.map((item,index)=>(index+1)+'. '+item.join('\n   ')).join('\n'),qualifications:'มีความรู้กระบวนการพับ ปั๊ม ต๊าป การซ่อมบำรุงแม่พิมพ์ และการบริหารทีม\nKnowledge of bending, stamping, tapping, tooling maintenance, and team leadership.',documentUrl:'',status:'draft',templateSource:'PPMS Forming & Tooling Head V897',templateVersion:1,version:1};
+  return {...scope,employeeId:'',employeeName:'',documentNo:'',revision:'DRAFT',effectiveDate:'',reportsTo:'หัวหน้างานฝ่ายผลิต / Supervisor Production',jobPurpose:'บริหารงานขึ้นรูปโลหะและแม่พิมพ์ ครอบคลุม Bending, Stamping, Tapping และ Tooling Maintenance\nLead forming and tooling across Bending, Stamping, Tapping, and Tooling Maintenance.',responsibilities:duties.map((item,index)=>(index+1)+'. '+item.join('\n   ')).join('\n'),qualifications:'มีความรู้กระบวนการพับ ปั๊ม ต๊าป การซ่อมบำรุงแม่พิมพ์ และการบริหารทีม\nKnowledge of bending, stamping, tapping, tooling maintenance, and team leadership.',documentUrl:'',status:'draft',templateSource:'PPMS Stamping Specialist four-section lead V899',templateVersion:1,version:1};
  }
  function castingJD(scope){
   const duties=[
@@ -74,10 +74,10 @@
    ['ประเมินความสามารถและพัฒนาหัวหน้าทีมกับพนักงานใน 7 แผนกที่รับผิดชอบ','Assess competence and develop leaders and employees in the seven supervised sections.']
   ];
   if(headMode){
-   duties[0]=['กำกับดูแล Stamping, Bending, Tapping, Tooling Maintenance, Welding, CNC, Sorting 1 และ Sorting 2 ผ่าน Head และหัวหน้าแผนกตามสายบังคับบัญชา','Supervise Stamping, Bending, Tapping, Tooling Maintenance, Welding, CNC, Sorting 1, and Sorting 2 through the Head and section leaders.'];
+   duties[0]=['กำกับดูแล Stamping, Bending, Tapping, Tooling Maintenance, Welding, CNC, Sorting 1 และ Sorting 2 ผ่าน Stamping Specialist และหัวหน้าแผนกตามสายบังคับบัญชา','Supervise Stamping, Bending, Tapping, Tooling Maintenance, Welding, CNC, Sorting 1, and Sorting 2 through the Stamping Specialist and section leaders.'];
    for(const pair of duties)for(let i=0;i<pair.length;i++)pair[i]=pair[i].replace(/7 แผนก/g,'8 แผนก').replace(/\bseven\b/g,'eight');
   }
-  return {...scope,employeeId:'',employeeName:'',documentNo:'',revision:'DRAFT',effectiveDate:'',reportsTo:'ผู้จัดการฝ่ายผลิต / Production Manager',jobPurpose:headMode?'กำกับดูแลการผลิตของ 8 แผนกผ่าน Head และหัวหน้าแผนก\nSupervise the eight production sections through the Head and section leaders.':'กำกับดูแลการผลิตของ 7 แผนกให้เป็นไปตามแผน คุณภาพ การส่งมอบ และความปลอดภัย\nSupervise the seven production sections against production, quality, delivery, and safety targets.',responsibilities:duties.map((item,index)=>(index+1)+'. '+item.join('\n   ')).join('\n'),qualifications:'มีความรู้กระบวนการผลิต การวางแผนกำลังคน การวิเคราะห์ KPI และการบริหารทีม\nKnowledge of manufacturing processes, manpower planning, KPI analysis, and team supervision.',documentUrl:'',status:'draft',templateSource:'PPMS Supervisor Production V862',templateVersion:5,version:1};
+  return {...scope,employeeId:'',employeeName:'',documentNo:'',revision:'DRAFT',effectiveDate:'',reportsTo:'ผู้จัดการฝ่ายผลิต / Production Manager',jobPurpose:headMode?'กำกับดูแลการผลิตของ 8 แผนกผ่าน Stamping Specialist และหัวหน้าแผนก\nSupervise the eight production sections through the Stamping Specialist and section leaders.':'กำกับดูแลการผลิตของ 7 แผนกให้เป็นไปตามแผน คุณภาพ การส่งมอบ และความปลอดภัย\nSupervise the seven production sections against production, quality, delivery, and safety targets.',responsibilities:duties.map((item,index)=>(index+1)+'. '+item.join('\n   ')).join('\n'),qualifications:'มีความรู้กระบวนการผลิต การวางแผนกำลังคน การวิเคราะห์ KPI และการบริหารทีม\nKnowledge of manufacturing processes, manpower planning, KPI analysis, and team supervision.',documentUrl:'',status:'draft',templateSource:'PPMS Supervisor Production V862',templateVersion:5,version:1};
  }
  window.PPMSProductionHierarchy={position,castingPosition,castingSections,isCastingSpecialist,castingOwns,castingJD,headPosition,headSections,isHead,headOwns,headTitle,headJD,supervisorSection,sectionKey,hasSpecialist,specialistVacancyMarkup,isSupervisor,reportsToSupervisor,withPosition,chartMarkup,supervisorJD};
 })();
