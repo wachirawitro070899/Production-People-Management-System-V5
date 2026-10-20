@@ -78,10 +78,10 @@ function canonicalPosition(value){
  return aliases[key]||text;
 }
 
-function positionTitle(record){
+function positionTitle(record,card=false){
  const language=window.PPMSLanguage?.language||'th',p=canonicalPosition(record.position),lower=p.toLowerCase();
  const translate=value=>window.PPMSLanguage?.translate(String(value||''),language)||String(value||'');
- const section=normalize(record.section).replace(/\s+Section$/i,'');
+ const section=card?'':normalize(record.section).replace(/\s+Section$/i,'');
  const division=normalize(record.division).replace(/\s+Division$/i,'');
  const known={'Production':['การผลิต','Production'],'Stamping':['ปั๊ม','Stamping'],'Welding':['เชื่อม','Welding'],'Bending':['พับ','Bending'],'Tapping':['ต๊าป','Tapping'],'Taping':['ต๊าป','Taping'],'CNC':['ซีเอ็นซี','CNC'],'Tooling':['แม่พิมพ์','Tooling'],'Sorting1':['คัดแยก 1','Sorting 1'],'Sorting2':['คัดแยก 2','Sorting 2'],'QC':['ควบคุมคุณภาพ','Quality Control'],'WH':['คลังสินค้า','Warehouse'],'HR':['บุคคล','Human Resources']};
  const subject=value=>known[value]?.[language==='en'?1:0]||translate(value);
@@ -92,9 +92,9 @@ function positionTitle(record){
  if(window.PPMSProductionHierarchy?.isSupervisor(p))return language==='en'?'Supervisor Production':'หัวหน้างานฝ่ายผลิต';
   if(special[p])return special[p][language==='en'?1:0];
  const role=roles.find(([pattern])=>pattern.test(p));
- if(!role)return translate(p)+(section?' · '+subject(section):'');
- let area=section||division;
- if(role[2]==='Manager')area=division||section;
+ if(!role)return translate(p)+(card?'':(section?' · '+subject(section):''));
+ let area=card?'':section||division;
+ if(role[2]==='Manager')area=division||(card?'':section);
  if(role[2]==='Engineer'){
   if(/production|การผลิต|^pe$/.test(lower))area='Production';
   else if(/tooling|แม่พิมพ์/.test(lower))area='Tooling';
@@ -109,7 +109,7 @@ function positionTitle(record){
 function refreshPositionTitles(){
  document.querySelectorAll('[data-employee-position-id]').forEach(el=>{
   const employee=roster().find(e=>String(e.id)===el.dataset.employeePositionId);
-  if(employee){const next=positionTitle({...employee,...employeeJDContext(employee.id)});if(el.textContent!==next)el.textContent=next;}
+  if(employee){const next=positionTitle({...employee,...employeeJDContext(employee.id)},Boolean(el.closest('.person,.factory-chart-person')));if(el.textContent!==next)el.textContent=next;}
  });
  document.querySelectorAll('#jdDialog [data-jd-position-title]').forEach(el=>{
   const record=records[el.dataset.jdPositionTitle];if(record){const next=positionTitle(record);if(el.textContent!==next)el.textContent=next;}
@@ -325,6 +325,7 @@ window.PPMSJDExport={async snapshot(people){
  });
 }};
 window.PPMSPositionTitle=record=>positionTitle({...record,division:record.division||record.organizationDivision||'Production Division'});
+window.PPMSCardPositionTitle=record=>positionTitle({...record,division:record.division||record.organizationDivision||'Production Division'},true);
 window.addEventListener('ppms-language-changed',()=>refreshPositionTitles());
 // Capture on window before the chart's document handlers that open employee editing.
 window.addEventListener('click',e=>{

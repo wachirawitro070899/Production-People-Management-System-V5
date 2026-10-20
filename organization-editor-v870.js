@@ -80,7 +80,7 @@
   const full=model(record(scope()),currentPeople()),shown=new Set(visible.map(e=>String(e.id))),children=new Map([['',[]]]);
   for(const e of visible){let parent=full.parents.get(String(e.id))||'',visited=new Set();while(parent&&!shown.has(parent)&&!visited.has(parent)){visited.add(parent);parent=full.parents.get(parent)||''}if(!shown.has(parent))parent='';if(!children.has(parent))children.set(parent,[]);children.get(parent).push(e)}
   for(const list of children.values())list.sort((a,b)=>priority(a.position)-priority(b.position)||seniority(a,b));
-  const node=e=>`<article class="org-tree-node" data-org-node="${esc(e.id)}"><div class="org-tree-card">${person(e)}<span class="org-tree-section">${esc(e.sortingGroup||e.section)}</span></div>${children.get(String(e.id))?.length?`<div class="org-tree-children">${children.get(String(e.id)).map(node).join('')}</div>`:''}</article>`;
+  const node=e=>`<article class="org-tree-node" data-org-node="${esc(e.id)}"><div class="org-tree-card">${person(e)}</div>${children.get(String(e.id))?.length?`<div class="org-tree-children">${children.get(String(e.id)).map(node).join('')}</div>`:''}</article>`;
   return `<div class="organization-reporting-chart"><div class="org-tree-roots">${children.get('').map(node).join('')||'<div class="empty">ไม่มีข้อมูล</div>'}</div></div>`;
  }
  async function request(path,options={}){
