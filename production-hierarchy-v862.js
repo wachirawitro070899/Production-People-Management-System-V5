@@ -22,6 +22,21 @@
   const key=sectionKey(section).replace(/[-_]/g,'');return division==='Production Division'&&['cnc','diecasting','welding','stamping'].includes(key)&&!(key==='stamping'&&scopedHeads().length)&&!(key==='diecasting'&&scopedRoles(isCastingSpecialist).length);
  }
  function specialistVacancyMarkup(){return '<div class="person specialist organization-position-vacancy" data-vacant-position="specialist"><div class="avatar">—</div><b>ว่าง</b><small>Specialist</small></div>'}
+ // Planned slots are organization settings, not employee records.
+ const vacancyPositionKey=value=>/^(?:pe|production\s*engineer|วิศวกรการผลิต)$/i.test(String(value||'').trim())?'productionengineer':String(value||'').trim().toLowerCase();
+ function positionVacancies(section,scope=window.PPMSOrganizationScope?.current()){
+  if(!section||!scope)return [];
+  try{
+   const api=window.PPMSOrganizationScope,master=api.master(),targets=Object.values(master.positionVacancies||{}).filter(target=>target&&target.division===scope.division&&target.plant===scope.plant&&sectionKey(target.section)===sectionKey(section)&&Number.isInteger(target.required)&&target.required>0&&target.required<=100);
+   if(!targets.length)return [];
+   const raw=JSON.parse(localStorage.getItem('ppms_v3_employees')||'[]'),people=api.employees((Array.isArray(raw)?raw:Object.values(raw||{})).filter(Boolean),scope);
+   return targets.map(target=>({...target,count:Math.max(0,target.required-people.filter(e=>sectionKey(e.section)===sectionKey(section)&&vacancyPositionKey(e.position)===vacancyPositionKey(target.position)).length)})).filter(target=>target.count>0);
+  }catch{return []}
+ }
+ function positionVacancyMarkup(target){
+  const esc=value=>String(value||'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char])),pe=vacancyPositionKey(target.position)==='productionengineer';
+  return Array.from({length:target.count},()=>'<div class="person '+(pe?'engineer':'other')+' organization-position-vacancy" data-vacant-position="'+esc(target.position)+'" data-position-vacancy-id="'+esc(target.id)+'"><div class="avatar">—</div><b>ว่าง</b><small>'+esc(target.position)+(pe?' (PE)':'')+'</small></div>').join('');
+ }
  function isSupervisor(value){return /^(?:sup\.?\s+production|production\s+(?:sup\.?|supervisor)|supervisor\s+production|หัวหน้างานฝ่ายผลิต)$/i.test(String(value||'').trim())}
  function reportsToSupervisor(section){return sectionOrder.includes(sectionKey(section))||sectionKey(section)==='sorting'}
  function withPosition(source){
@@ -79,5 +94,5 @@
   }
   return {...scope,employeeId:'',employeeName:'',documentNo:'',revision:'DRAFT',effectiveDate:'',reportsTo:'ผู้จัดการฝ่ายผลิต / Production Manager',jobPurpose:headMode?'กำกับดูแลการผลิตของ 8 แผนกผ่าน Stamping Specialist และหัวหน้าแผนก\nSupervise the eight production sections through the Stamping Specialist and section leaders.':'กำกับดูแลการผลิตของ 7 แผนกให้เป็นไปตามแผน คุณภาพ การส่งมอบ และความปลอดภัย\nSupervise the seven production sections against production, quality, delivery, and safety targets.',responsibilities:duties.map((item,index)=>(index+1)+'. '+item.join('\n   ')).join('\n'),qualifications:'มีความรู้กระบวนการผลิต การวางแผนกำลังคน การวิเคราะห์ KPI และการบริหารทีม\nKnowledge of manufacturing processes, manpower planning, KPI analysis, and team supervision.',documentUrl:'',status:'draft',templateSource:'PPMS Supervisor Production V862',templateVersion:5,version:1};
  }
- window.PPMSProductionHierarchy={position,castingPosition,castingSections,isCastingSpecialist,castingOwns,castingJD,headPosition,headSections,isHead,headOwns,headTitle,headJD,supervisorSection,sectionKey,hasSpecialist,specialistVacancyMarkup,isSupervisor,reportsToSupervisor,withPosition,chartMarkup,supervisorJD};
+ window.PPMSProductionHierarchy={position,castingPosition,castingSections,isCastingSpecialist,castingOwns,castingJD,headPosition,headSections,isHead,headOwns,headTitle,headJD,supervisorSection,sectionKey,hasSpecialist,specialistVacancyMarkup,positionVacancies,positionVacancyMarkup,isSupervisor,reportsToSupervisor,withPosition,chartMarkup,supervisorJD};
 })();

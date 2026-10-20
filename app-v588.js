@@ -1493,11 +1493,12 @@ function orgFixedLeadershipLevels(list){
  return levels?`<div class="org-fixed-leadership">${levels}</div>`:'';
 }
 function orgDepartmentLevels(list,section){
+ const vacancyAPI=window.PPMSProductionHierarchy,vacancies=typeof current!=='undefined'&&current==='ngDashboard'?[]:(vacancyAPI?.positionVacancies?.(section,organizationScope())||[]);
  const order=['head','supervisor','specialist','leader','engineer','technician','other','operator'];
  return order.map(r=>{
-  const group=list.filter(e=>rank(e.position)===r).sort(orgSeniorityCompare);
+  const group=list.filter(e=>rank(e.position)===r).sort(orgSeniorityCompare),slots=vacancies.filter(target=>rank(target.position)===r).map(target=>vacancyAPI.positionVacancyMarkup(target)).join('');
   if(r==='specialist'&&!group.length&&window.PPMSProductionHierarchy?.hasSpecialist(section,organizationScope().division))return `<div class="level rank-level-specialist"><h4>Specialist</h4><div class="people">${window.PPMSProductionHierarchy.specialistVacancyMarkup()}</div></div>`;
-  return group.length?`<div class="level rank-level-${r}"><h4>${levelName(r)}</h4><div class="people">${group.map(e=>person(e,true)).join('')}</div></div>`:'';
+  return group.length||slots?`<div class="level rank-level-${r}"><h4>${levelName(r)}</h4><div class="people">${group.map(e=>person(e,true)).join('')}${slots}</div></div>`:'';
  }).join('')||'<div class="empty">ไม่มีข้อมูลพนักงาน</div>';
 }
 function orgShiftLevels(list,shiftKey,isActive){
@@ -1552,7 +1553,10 @@ function sectionChartOptions(values=sections){const out=[],hidden=sectionChartSe
 function sectionChartMatches(employee,selected){if(!sectionChartIsSorting(selected))return employee.section===selected;const group=sectionChartSortingName(selected);return sectionChartIsSorting(employee.section)&&(!group||sectionChartSortingGroup(employee)===group)}
 function sectionChartEmployees(selected,list=employees){return list.filter(e=>sectionChartMatches(e,selected)&&(organizationScope().division!=='Production Division'||!window.PPMSProductionHierarchy?.isSupervisor(e.position))).slice().sort(orgSeniorityCompare)}
 function sectionChartTeamPreferenceKey(section){const scope=organizationScope();return 'ppms_section_chart_team_view_v871::'+scope.division+'::'+scope.plant+'::'+section}
-function sectionChartLevels(list,section){return ['manager','head','engineer','supervisor','specialist','leader','technician','other','operator'].map(r=>{const members=list.filter(e=>rank(e.position)===r).sort(orgSeniorityCompare);if(r==='specialist'&&!members.length&&window.PPMSProductionHierarchy?.hasSpecialist(section,organizationScope().division))return `<div class="level level-specialist"><h4>Specialist</h4><div class="people">${window.PPMSProductionHierarchy.specialistVacancyMarkup()}</div></div>`;return members.length?`<div class="level level-${r}"><h4>${levelName(r)}</h4><div class="people">${members.map(sectionExamPerson).join('')}</div></div>`:''}).join('')}
+function sectionChartLevels(list,section){
+ const vacancyAPI=window.PPMSProductionHierarchy,vacancies=vacancyAPI?.positionVacancies?.(section,organizationScope())||[];
+ return ['manager','head','engineer','supervisor','specialist','leader','technician','other','operator'].map(r=>{const members=list.filter(e=>rank(e.position)===r).sort(orgSeniorityCompare),slots=vacancies.filter(target=>rank(target.position)===r).map(target=>vacancyAPI.positionVacancyMarkup(target)).join('');if(r==='specialist'&&!members.length&&vacancyAPI?.hasSpecialist(section,organizationScope().division))return `<div class="level level-specialist"><h4>Specialist</h4><div class="people">${vacancyAPI.specialistVacancyMarkup()}</div></div>`;return members.length||slots?`<div class="level level-${r}"><h4>${levelName(r)}</h4><div class="people">${members.map(sectionExamPerson).join('')}${slots}</div></div>`:''}).join('');
+}
 function sectionChartTeamMarkup(list,selected){
  const sorting=sectionChartIsSorting(selected),groups=sorting?(sectionChartSortingName(selected)?[sectionChartSortingName(selected)]:['Sorting 1','Sorting 2']).filter(group=>!sectionChartSectionHidden(group)):[''];
  const boards=groups.map(group=>{
