@@ -195,7 +195,7 @@
  }
  function exportCsv(){
   const rows=[['Section','เครื่อง/จุดงาน','อัตรารวมที่ต้องใช้','จำนวนจัดแล้ว','ขาด','เกิน','รหัสพนักงาน','ชื่อพนักงาน','ทีม','ตำแหน่ง','เกณฑ์']];
-  for(const m of workpoints().filter(m=>!section||m.section===section)){const list=combinedPeople(m),visible=visiblePeople(list),n=combinedTarget(m);for(const e of visible.length?visible:teamFilter()==='all'?[{}]:[])rows.push([m.section,m.name+(m.isGroup?' ['+m.members.map(x=>x.name||x.id).join(', ')+']':''),n??'',list.length,n===null?'':Math.max(0,n-list.length),n===null?'':Math.max(0,list.length-n),e.id||'',e.thaiName||e.name||'',employeeTeam(e),e.position||'',m.manpower?.basis||''])}
+  for(const m of workpoints().filter(m=>!section||m.section===section)){const list=combinedPeople(m),visible=visiblePeople(list),n=combinedTarget(m);for(const e of visible.length?visible:teamFilter()==='all'?[{}]:[])rows.push([window.PPMSOrganizationScope?.sectionLabel(m.section)||m.section,m.name+(m.isGroup?' ['+m.members.map(x=>x.name||x.id).join(', ')+']':''),n??'',list.length,n===null?'':Math.max(0,n-list.length),n===null?'':Math.max(0,list.length-n),e.id||'',e.thaiName||e.name||'',employeeTeam(e),e.position||'',m.manpower?.basis||''])}
   const safe=v=>{const text=String(v??'');return '"'+(/^[=+@\-\t\r]/.test(text)?"'"+text:text).replace(/"/g,'""')+'"'};
   const url=URL.createObjectURL(new Blob(['\ufeff'+rows.map(r=>r.map(safe).join(',')).join('\r\n')],{type:'text/csv;charset=utf-8'})),a=document.createElement('a');a.href=url;a.download='Manpower_Section_'+new Date().toISOString().slice(0,10)+'.csv';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
  }

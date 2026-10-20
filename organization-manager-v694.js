@@ -85,7 +85,7 @@ function addSection(name,division,plant){
  const job={id:crypto.randomUUID?.()||String(Date.now())+'_'+Math.random(),division,plant,name,createdAt:new Date().toISOString()},queued=[...sectionJobs,job];
  localStorage.setItem(SECTION_OUTBOX,JSON.stringify(queued));sectionJobs=queued;sectionSyncNotice='บันทึกแผนกในเครื่องแล้ว • รอซิงก์';applyOrganizationMaster(next);void syncSections();return {name,pending:true};
 }
-window.PPMSOrganizationManager={...(window.PPMSOrganizationManager||{}),applyMaster:applyOrganizationMaster,addSection,syncSections,pendingSections:()=>sectionJobs.map(job=>({...job}))};
+window.PPMSOrganizationManager={...(window.PPMSOrganizationManager||{}),applyMaster:applyOrganizationMaster,addSection,renameSection,syncSections,pendingSections:()=>sectionJobs.map(job=>({...job}))};
 function saveEmployee(id,x){emap[id]=x;localStorage.setItem(EK,JSON.stringify(emap));db()?.ref('employeeOrganization/'+encodeURIComponent(id)).set(x).catch(console.warn)}
 function addStyle(){if(document.getElementById('orgManagerCss'))return;const s=document.createElement('style');s.id='orgManagerCss';s.textContent='.factory-summary{margin:12px 0;padding:16px;border:1px solid #b8c9dc;border-radius:14px;background:#f8fbff}.factory-plants{display:grid;grid-template-columns:repeat(3,minmax(280px,1fr));gap:12px;margin:14px 0}.factory-plant{border:2px solid #2563eb;border-radius:12px;background:#fff;overflow:hidden}.factory-plant h3{margin:0;padding:12px;background:#164d84;color:#fff}.factory-plant-count{display:block;padding:8px 12px;color:#475569}.factory-section-list{display:grid;gap:6px;padding:10px}.factory-section-slot{border:1px dashed #93a9c2;border-radius:8px;padding:8px;background:#f8fafc}.factory-central{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:9px}.factory-card{padding:11px;border:1px solid #d8e3ee;border-radius:10px;background:#fff}.factory-card b,.factory-card span{display:block}.factory-card span{font-size:12px;color:#64748b}.org-config{position:fixed;inset:0;z-index:10020;background:#0f172acc;display:grid;place-items:center;padding:16px}.org-config>section{width:min(1050px,96vw);max-height:92vh;overflow:auto;background:#fff;border-radius:16px;padding:20px}.org-config-head{display:flex;justify-content:space-between;gap:10px}.org-config-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.org-config-box{border:1px solid #d7e2ed;border-radius:12px;padding:12px}.org-config-row,.org-config-add{display:flex;gap:8px;align-items:center;padding:6px 0}.org-config-row span,.org-config-add input{flex:1}@media(max-width:1000px){.factory-plants{grid-template-columns:1fr}}@media(max-width:700px){.org-config-grid{grid-template-columns:1fr}}';document.head.append(s)}
 const labels={divisions:'Division',sections:'Section',positions:'ตำแหน่ง'};
@@ -221,6 +221,7 @@ function withoutSection(source,division,plant,name){
  const aliases=values.filter(value=>sectionIdentity(value)===identity);
  if(!aliases.length)return (next.removedSections?.[key]||[]).some(value=>sectionIdentity(value)===identity)?source:undefined;
  next.sectionMap[key]=values.filter(value=>sectionIdentity(value)!==identity);
+ if(Array.isArray(next.sectionLabels?.[key]))next.sectionLabels[key]=next.sectionLabels[key].filter(item=>sectionIdentity(item.section)!==identity);
  for(const position of Object.keys(next.sectionPositions||{}))if(position.startsWith(key+'::')&&sectionIdentity(position.slice(key.length+2))===identity)delete next.sectionPositions[position];
  if(!Object.values(next.sectionMap).some(list=>Array.isArray(list)&&list.some(value=>sectionIdentity(value)===identity)))next.sections=(next.sections||[]).filter(value=>sectionIdentity(value)!==identity);
  next.removedSections||={};next.removedSections[key]=[...new Set([...(next.removedSections[key]||[]),...aliases,name])];
@@ -262,8 +263,69 @@ async function deleteSection(division,plant,name,button){
  }catch(error){alert('ลบ Section ไม่สำเร็จ: '+(error.name==='AbortError'?'การเชื่อมต่อหมดเวลา กรุณาลองใหม่':error.message))}
  finally{sectionDeleteRunning=false;button.disabled=false;button.textContent=label;void syncSections()}
 }
-function deleteSectionControls(){
+function sectionDisplayName(name,division,plant,source=master){return window.PPMSOrganizationScope?.sectionLabel(name,{division,plant},source)||name}
+function renamedSection(source,division,plant,section,name,expectedName){
+ const key=sectionKey(division,plant),names=source?.sectionMap?.[key]||[],identity=sectionIdentity(section);
+ if(!names.some(value=>sectionIdentity(value)===identity))throw Error('ไม่พบ Section ในรายการล่าสุด กรุณาเปิดรายการใหม่');
+ if(names.some(value=>sectionIdentity(value)!==identity&&[value,sectionDisplayName(value,division,plant,source)].some(label=>sectionIdentity(label)===sectionIdentity(name))))throw Error('มีชื่อ Section นี้แล้วใน Division / โรงงานที่เลือก');
+ const current=sectionDisplayName(section,division,plant,source);if(current===name)return source;
+ if(expectedName!==undefined&&current!==expectedName)throw Error('ชื่อ Section ถูกแก้ไขจากเครื่องอื่น กรุณาเปิดรายการใหม่');
+ const next=JSON.parse(JSON.stringify(source));next.sectionLabels||={};
+ const labels=Array.isArray(next.sectionLabels[key])?next.sectionLabels[key]:[];
+ next.sectionLabels[key]=[...labels.filter(item=>sectionIdentity(item.section)!==identity),{section:names.find(value=>sectionIdentity(value)===identity),name}];
+ next._updatedAt=Math.max(Date.now(),Number(source._updatedAt||0)+1);return next;
+}
+async function renameSection(division,plant,section,name,expectedName){
+ if(!sectionAdmin())throw Error('กรุณาเข้าสู่ระบบ Admin');
+ if(navigator.onLine===false)throw Error('กรุณาเชื่อมต่ออินเทอร์เน็ตก่อนแก้ไขชื่อ Section');
+ if(sectionSyncing||sectionDeleteRunning)throw Error('กำลังซิงก์แผนก กรุณารอสักครู่แล้วลองอีกครั้ง');
+ name=sectionName(name);plant=division==='Production Division'?plant:'รวม';
+ if(!name||name.length>100||!sectionIdentity(name)||!master.divisions.includes(division)||(division==='Production Division'&&!master.plants.includes(plant)))throw Error('กรุณาระบุชื่อ Section ให้ถูกต้อง (ไม่เกิน 100 ตัวอักษร)');
+ sectionDeleteRunning=true;
+ try{
+  for(let attempt=0;attempt<5;attempt++){
+   const existing=await sectionMasterRequest({headers:{'X-Firebase-ETag':'true'}});if(!existing.etag)throw Error('ฐานข้อมูลยังไม่ยืนยันเวอร์ชัน กรุณาลองใหม่');
+   const next=renamedSection(existing.value,division,plant,section,name,expectedName);
+   if(next===existing.value){applyOrganizationMaster(next);return name}
+   const saved=await sectionMasterRequest({method:'PUT',headers:{'Content-Type':'application/json','if-match':existing.etag},body:JSON.stringify(next)});
+   if(saved.status===412)continue;
+   if(sectionDisplayName(section,division,plant,saved.value||{})!==name)throw Error('ฐานข้อมูลยังไม่ยืนยันการแก้ไข กรุณาลองใหม่');
+   applyOrganizationMaster(saved.value);sectionSyncNotice='แก้ไขชื่อ Section เรียบร้อยแล้ว';sectionSyncStatus();return name;
+  }
+  throw Error('มีการแก้ไขพร้อมกัน กรุณาลองอีกครั้ง');
+ }finally{sectionDeleteRunning=false;void syncSections()}
+}
+function renameSectionControls(){
  if(!sectionAdmin())return;
+ const scope=window.PPMSOrganizationScope?.current()||{division:master.divisions[0],plant:master.plants[0]},names=sectionsFor(scope.division,scope.plant);
+ document.querySelectorAll('.division-section[data-org-section],.factory-org-section[data-org-section]').forEach(card=>{
+  if(card.querySelector('[data-rename-section]'))return;
+  const name=names.find(value=>sectionIdentity(value)===sectionIdentity(card.dataset.orgSection));if(!name)return;
+  const button=document.createElement('button');button.type='button';button.className='secondary section-position-add no-print';button.dataset.renameSection=name;button.textContent='แก้ไขชื่อ Section';
+  (card.querySelector('.division-section-head')||card.querySelector('h4'))?.after(button);
+ });
+ const bar=document.querySelector('.organization-scope-bar');if(bar&&!bar.querySelector('[data-rename-section-picker]')){
+  const button=document.createElement('button');button.type='button';button.className='secondary no-print';button.dataset.renameSectionPicker='1';button.textContent='แก้ไขชื่อ Section';bar.append(button);
+ }
+}
+function openRenameSectionPicker(selected){
+ if(!sectionAdmin())return;document.getElementById('renameSectionDialog')?.remove();
+ const scope=window.PPMSOrganizationScope.current(),{division,plant}=scope,names=sectionsFor(division,plant);
+ if(!names.length){alert('ยังไม่มี Section');return}
+ const dialog=document.createElement('div');dialog.id='renameSectionDialog';dialog.className='org-config';
+ dialog.innerHTML='<section style="max-width:580px" role="dialog" aria-modal="true" aria-labelledby="renameSectionTitle"><h2 id="renameSectionTitle">แก้ไขชื่อ Section</h2><p>'+esc(division)+(division==='Production Division'?' · '+esc(plant):'')+'</p><form><label>Section<select name="section">'+names.map(name=>'<option value="'+esc(name)+'">'+esc(name)+'</option>').join('')+'</select></label><label>ชื่อ Section ใหม่<input name="name" maxlength="100" required autocomplete="off"></label><p>รายชื่อพนักงานและเครื่องจักรที่จัดไว้จะอยู่ใน Section เดิม</p><p role="status" data-rename-message></p><div class="actions"><button type="submit">บันทึกชื่อ Section</button><button type="button" class="secondary" data-rename-cancel>ยกเลิก</button></div></form></section>';
+ document.body.append(dialog);const form=dialog.querySelector('form'),message=form.querySelector('[data-rename-message]');let expectedName='';
+ const choose=()=>{expectedName=sectionDisplayName(form.elements.section.value,division,plant);form.elements.name.value=expectedName;message.textContent=''};
+ if(selected&&names.includes(selected))form.elements.section.value=selected;choose();form.elements.section.onchange=choose;
+ const cancel=()=>{if(!form.querySelector('[type="submit"]').disabled)dialog.remove()};dialog.querySelector('[data-rename-cancel]').onclick=cancel;dialog.onkeydown=e=>{if(e.key==='Escape')cancel()};
+ form.onsubmit=async e=>{e.preventDefault();const controls=[...form.querySelectorAll('button,input,select')];controls.forEach(node=>node.disabled=true);message.textContent='กำลังบันทึกชื่อ Section...';
+  try{await renameSection(division,plant,form.elements.section.value,form.elements.name.value,expectedName);dialog.remove();alert('แก้ไขชื่อ Section เรียบร้อยแล้ว')}
+  catch(error){message.textContent='แก้ไขชื่อ Section ไม่สำเร็จ: '+(error.name==='AbortError'?'การเชื่อมต่อหมดเวลา กรุณาลองใหม่':error.message);controls.forEach(node=>node.disabled=false)}
+ };form.elements.name.focus();form.elements.name.select();
+}
+document.addEventListener('click',e=>{const button=e.target.closest('[data-rename-section],[data-rename-section-picker]');if(!button)return;e.preventDefault();e.stopImmediatePropagation();openRenameSectionPicker(button.dataset.renameSection)},true);
+function deleteSectionControls(){
+ if(!sectionAdmin())return;renameSectionControls();
  const division=document.getElementById('factoryDivisionChart')?.value||document.getElementById('globalOrganizationDivision')?.value||sessionStorage.getItem('ppms_scope_division')||master.divisions[0],
  plant=division==='Production Division'?(document.getElementById('factoryPlantChart')?.value||sessionStorage.getItem('ppms_scope_plant')||master.plants[0]):'รวม';
  document.querySelectorAll('.factory-org-section').forEach(card=>{
@@ -300,7 +362,7 @@ function withNewSection(source,division,plant,name){
  const next=JSON.parse(JSON.stringify(source));next.sectionMap||={};next.sections||=[];
  const key=sectionKey(division,plant),list=next.sectionMap[key]||[];
  const identity=value=>globalThis.PPMSOrganizationScope?.sectionKey(value)||sectionName(value).toLowerCase().replace(/^แผนก\s*/,'').replace(/\s+section$/i,'');
- if(list.some(x=>identity(x)===identity(name)))return undefined;
+ if(list.some(x=>[x,globalThis.PPMSOrganizationScope?.sectionLabel?.(x,{division,plant},source)||x].some(value=>identity(value)===identity(name))))return undefined;
  next.sectionMap[key]=[...list,name];if(next.removedSections?.[key])next.removedSections[key]=next.removedSections[key].filter(x=>identity(x)!==identity(name));if(!next.sections.includes(name))next.sections.push(name);
  next._updatedAt=Date.now();return next;
 }

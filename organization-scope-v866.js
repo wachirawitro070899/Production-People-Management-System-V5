@@ -13,6 +13,23 @@
 
   return sectionAliases.get(plain)||plain;
  }
+ // Names are scoped presentation metadata; existing employee, machine and history keys stay stable.
+ function sectionLabel(value,scope=current(),m=master()){
+  const key=sectionKey(value),labels=m.sectionLabels?.[scope.division+'::'+scope.plant];
+  return (Array.isArray(labels)?labels:[]).find(item=>sectionKey(item?.section)===key)?.name||value;
+ }
+ function sectionDisplayEntries(scope=current(),m=master()){
+  const labels=m.sectionLabels?.[scope.division+'::'+scope.plant];if(!Array.isArray(labels))return [];
+  const people=read('ppms_v3_employees',[]),names=[...(m.sectionMap?.[scope.division+'::'+scope.plant]||[]),...employees(Array.isArray(people)?people:Object.values(people||{}),scope).map(e=>e.section)];
+  return labels.filter(item=>typeof item?.section==='string'&&typeof item?.name==='string').map(item=>({...item,aliases:[...new Set([item.section,item.name,...names.filter(value=>sectionKey(value)===sectionKey(item.section))])]}));
+ }
+ function resolveSection(value,scope=current()){
+  const found=sectionDisplayEntries(scope).find(item=>sectionKey(item.name)===sectionKey(value));return found?.section||value;
+ }
+ function sectionDisplayScope(element){
+  const form=element?.closest?.('#employeeForm'),division=form?.elements.organizationDivision?.value;
+  return division?{division,plant:division==='Production Division'?(form.elements.organizationPlant?.value||current().plant):'รวม'}:current();
+ }
  function uniqueSections(names,preferred=[]){
   const labels=new Map();for(const name of preferred){const key=sectionKey(name);if(key&&!labels.has(key))labels.set(key,name)}
   const seen=new Set(),out=[];for(const name of names){const key=sectionKey(name);if(!key||seen.has(key))continue;seen.add(key);out.push(labels.get(key)||name)}return out;
@@ -37,6 +54,6 @@
   const plant=item?.plant||item?.organizationPlant||(plants.length===1?plants[0]:m.plants?.[0])||'โรง 1';
   return owner===scope.division&&(scope.division!=='Production Division'||plant===scope.plant);
  }
- window.PPMSOrganizationScope={current,master,employeeScope,employees,sectionKey,uniqueSections,sections,activate,title,applyTitles,contains};
+ window.PPMSOrganizationScope={current,master,employeeScope,employees,sectionKey,sectionLabel,sectionDisplayEntries,sectionDisplayScope,resolveSection,uniqueSections,sections,activate,title,applyTitles,contains};
  window.addEventListener('ppms-language-changed',applyTitles);
 })();

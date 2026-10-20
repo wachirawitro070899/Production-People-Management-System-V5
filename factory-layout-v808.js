@@ -346,11 +346,11 @@
     if (!admin() || busy || !ready) return;
     const old = data.machines[id] || {}, dlg = document.createElement('dialog'); dlg.className = 'fl-dialog';
     const sections = [...new Set([...scopedSections(),...roster().map(e => e.section)].filter(Boolean))].sort();
-    dlg.innerHTML = `<form><h3>${id ? 'แก้ไขเครื่อง/จุดงาน' : 'เพิ่มเครื่อง/จุดงาน'}</h3><label>ชื่อ/หมายเลขเครื่อง<input name="machineName" maxlength="80" value="${esc(old.name || '')}" required></label><label>Section<input name="machineSection" list="flSections" maxlength="100" value="${esc(old.section || section)}" required></label><datalist id="flSections">${sections.map(s => `<option value="${esc(s)}">`).join('')}</datalist><div class="fl-actions"><button type="submit">บันทึก</button><button type="button" data-fl-cancel class="secondary">ยกเลิก</button></div><p role="status"></p></form>`;
+    dlg.innerHTML = `<form><h3>${id ? 'แก้ไขเครื่อง/จุดงาน' : 'เพิ่มเครื่อง/จุดงาน'}</h3><label>ชื่อ/หมายเลขเครื่อง<input name="machineName" maxlength="80" value="${esc(old.name || '')}" required></label><label>Section<input name="machineSection" list="flSections" maxlength="100" value="${esc(window.PPMSOrganizationScope?.sectionLabel(old.section || section)||old.section||section)}" required></label><datalist id="flSections">${sections.map(s => `<option value="${esc(window.PPMSOrganizationScope?.sectionLabel(s)||s)}">`).join('')}</datalist><div class="fl-actions"><button type="submit">บันทึก</button><button type="button" data-fl-cancel class="secondary">ยกเลิก</button></div><p role="status"></p></form>`;
     document.body.append(dlg); dlg.showModal();
     dlg.querySelector('[data-fl-cancel]').onclick = () => dlg.close(); dlg.onclose = () => dlg.remove();
     dlg.querySelector('form').onsubmit = async event => {
-      event.preventDefault(); const fd = new FormData(event.target), name = String(fd.get('machineName') || '').trim(), sec = String(fd.get('machineSection') || '').trim();
+      event.preventDefault(); const fd = new FormData(event.target), name = String(fd.get('machineName') || '').trim(), typedSection = String(fd.get('machineSection') || '').trim(), resolvedSection=window.PPMSOrganizationScope?.resolveSection(typedSection)||typedSection, sec=old.section&&window.PPMSOrganizationScope?.sectionKey&&window.PPMSOrganizationScope.sectionKey(old.section)===window.PPMSOrganizationScope?.sectionKey(resolvedSection)?old.section:resolvedSection;
       if (!name || !sec) return;
       const context=scopeMetadata(),mid = id || uid(), buttons = dlg.querySelectorAll('button'); buttons.forEach(b => b.disabled = true);
       const ok = await save(d => {

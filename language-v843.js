@@ -5,6 +5,15 @@
  let language='th', scheduled=false, applying=false;
  try{language=localStorage.getItem(KEY)==='en'?'en':'th'}catch{}
  const dictionary=Object.fromEntries(`
+แก้ไขชื่อ Section|Rename Section
+ชื่อ Section ใหม่|New Section name
+บันทึกชื่อ Section|Save Section name
+กำลังบันทึกชื่อ Section...|Saving Section name...
+แก้ไขชื่อ Section เรียบร้อยแล้ว|Section name updated
+แก้ไขชื่อ Section ไม่สำเร็จ|Could not rename Section
+กรุณาเชื่อมต่ออินเทอร์เน็ตก่อนแก้ไขชื่อ Section|Connect to the internet before renaming a Section
+ชื่อ Section ถูกแก้ไขจากเครื่องอื่น กรุณาเปิดรายการใหม่|Another device renamed this Section. Reopen the form.
+รายชื่อพนักงานและเครื่องจักรที่จัดไว้จะอยู่ใน Section เดิม|Employees and machine assignments remain in this Section
 ผังกำลังคน|Manpower Planning
 ผังกำลังคนแยก Section|Section Manpower Planning
 ยกเลิก|Cancel
@@ -3069,13 +3078,25 @@ Layout โรงงาน|Factory Layout
    employeeNamePattern=employeeNames.length?new RegExp('(?<![\\p{L}\\p{N}])(?:'+employeeNames.map(escape).join('|')+')(?![\\p{L}\\p{N}])','gu'):null;
   }catch{employeeNames=[];employeeNameDisplays=new Map();employeeNamePattern=null}
  }
- function displayText(source){
+ const sectionDisplayCache=new Map();
+ function sectionDisplay(element){
+  const api=window.PPMSOrganizationScope;if(!api?.sectionDisplayEntries)return null;
+  const scope=api.sectionDisplayScope(element),key=scope.division+'::'+scope.plant;
+  if(sectionDisplayCache.has(key))return sectionDisplayCache.get(key);
+  const values=new Map();for(const item of api.sectionDisplayEntries(scope))for(const alias of item.aliases){
+   for(const text of [alias,translate(alias,'th'),translate(alias,'en')])if(text)values.set(text,item.name);
+  }
+  const keys=[...values.keys()].sort((a,b)=>b.length-a.length),result=keys.length?{values,pattern:new RegExp('(?<![\\p{L}\\p{N}])(?:'+keys.map(escape).join('|')+')(?![\\p{L}\\p{N}])','gu')}:null;
+  sectionDisplayCache.set(key,result);return result;
+ }
+ function displayText(source,element){
   const protectedValues=[];
   const hold=value=>{const token='\uE000'+protectedValues.length+'\uE001';protectedValues.push(value);return token};
   let safe=source;
   if(employeeNamePattern){
    safe=safe.replace(employeeNamePattern,name=>hold(employeeNameDisplays.get(name)?.[language]||name));
   }
+  const sections=sectionDisplay(element);if(sections)safe=safe.replace(sections.pattern,name=>hold(sections.values.get(name)));
   safe=safe.replace(/\b[A-Za-z0-9]+(?:[-_][A-Za-z0-9]+)+\b/g,value=>/[0-9]/.test(value)?hold(value):value);
   safe=safe.replace(/https?:\/\/[^\s<>]+|\b[\w.-]+\.(?:js|json|csv|xlsx?|pdf|png|jpe?g|html)\b/gi,hold);
   return translate(safe).replace(/\uE000(\d+)\uE001/g,(_,i)=>protectedValues[Number(i)]);
@@ -3085,7 +3106,7 @@ Layout โรงงาน|Factory Layout
   const current=node.nodeValue,state=texts.get(node);
   const original=state&&current===state.rendered?state.original:current;
   if(node.parentElement.tagName==='OPTION'&&!node.parentElement.hasAttribute('value'))node.parentElement.setAttribute('value',node.parentElement.value);
-  const rendered=displayText(original);
+  const rendered=displayText(original,node.parentElement);
   texts.set(node,{original,rendered});
   if(current!==rendered)node.nodeValue=rendered;
  }
@@ -3095,7 +3116,7 @@ Layout โรงงาน|Factory Layout
   for(const name of ['placeholder','title','aria-label','alt',...(el.matches('input[type=button],input[type=submit],input[type=reset]')?['value']:[])]){
    if(!el.hasAttribute(name))continue;
    const current=el.getAttribute(name),state=states[name],original=state&&current===state.rendered?state.original:current;
-   const rendered=displayText(original);states[name]={original,rendered};
+   const rendered=displayText(original,el);states[name]={original,rendered};
    if(current!==rendered)el.setAttribute(name,rendered);
   }
  }
@@ -3118,7 +3139,7 @@ Layout โรงงาน|Factory Layout
   if(window.PPMSOrganizationEditor?.dragging||window.PPMSSectionTeams?.dragging){scheduled=false;clearTimeout(dragTranslationTimer);dragTranslationTimer=setTimeout(queue,120);return}
   applying=true;scheduled=false;observer.disconnect();
   try{
-   refreshProtectedNames();document.documentElement.lang=language;controls();
+   refreshProtectedNames();sectionDisplayCache.clear();document.documentElement.lang=language;controls();
    const walker=document.createTreeWalker(document.body,NodeFilter.SHOW_TEXT);
    let node;while((node=walker.nextNode()))textNode(node);
    document.body.querySelectorAll('[placeholder],[title],[aria-label],[alt],input[type=button],input[type=submit],input[type=reset]').forEach(elementAttributes);
@@ -3141,7 +3162,7 @@ Layout โรงงาน|Factory Layout
  }
  function sourceText(element){if(!element)return '';const walker=document.createTreeWalker(element,NodeFilter.SHOW_TEXT);let node,out='';while((node=walker.nextNode())){const state=texts.get(node);out+=state&&node.nodeValue===state.rendered?state.original:node.nodeValue}return out}
  function translateDocument(doc){
-  if(!doc?.body)return;refreshProtectedNames();doc.documentElement.lang=language;
+  if(!doc?.body)return;refreshProtectedNames();sectionDisplayCache.clear();doc.documentElement.lang=language;
   const walker=doc.createTreeWalker(doc.body,NodeFilter.SHOW_TEXT);let node;
   while((node=walker.nextNode()))textNode(node);
   doc.body.querySelectorAll('[placeholder],[title],[aria-label],[alt],input[type=button],input[type=submit]').forEach(elementAttributes);
@@ -3150,6 +3171,7 @@ Layout โรงงาน|Factory Layout
  window.PPMSLanguage={translate,setLanguage,sourceText,translateDocument,get language(){return language},refresh:apply};
  window.addEventListener('storage',event=>{if(event.key===KEY)setLanguage(event.newValue,false)});
  window.addEventListener('beforeprint',apply);
+ window.addEventListener('ppms-organization-changed',queue);window.addEventListener('ppms-organization-scope-changed',queue);
  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',apply,{once:true});else apply();
 })();
 
