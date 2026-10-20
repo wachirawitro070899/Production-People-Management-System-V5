@@ -5,6 +5,8 @@
  let language='th', scheduled=false, applying=false;
  try{language=localStorage.getItem(KEY)==='en'?'en':'th'}catch{}
  const dictionary=Object.fromEntries(`
+ผังกำลังคน|Manpower Planning
+ผังกำลังคนแยก Section|Section Manpower Planning
 ยกเลิก|Cancel
 บันทึก|Save
 บันทึกข้อมูล|Save changes
