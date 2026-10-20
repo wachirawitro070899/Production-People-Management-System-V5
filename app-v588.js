@@ -2998,20 +2998,21 @@ window.PPMS_RUNTIME={
  async assignSectionChartTeam(id,team,context){
   if(!isAdmin||sessionStorage.getItem('ppms_admin')!=='1')throw Error('กรุณาเข้าสู่ระบบ Admin');
   if(![...SECTION_CHART_TEAMS,''].includes(team))throw Error('กรุณาเลือกทีม A ทีม B หรือทีมลอยเช้า');
-  const scope=organizationScope(),section=sessionStorage.getItem('chartSec')||sections[0];
-  if(current!=='sectionChart'||!context||context.division!==scope.division||context.plant!==scope.plant||context.section!==section)throw Error('ฝ่ายหรือแผนกเปลี่ยนแล้ว กรุณาเลือกพนักงานใหม่');
-  const employee=organizationScopedEmployees(organizationRenderMaster?.employees||employees).find(e=>String(e.id)===String(id)&&sectionChartMatches(e,section)&&!deletedEmployeeIds.has(String(e.id))&&!window.PPMSProductionHierarchy?.isSupervisor(e.position));
+  const workplace=['manpower','factoryLayout'].includes(current),scope=organizationScope(),section=workplace?String(context?.section||''):sessionStorage.getItem('chartSec')||sections[0];
+  if(!['sectionChart','manpower','factoryLayout'].includes(current)||!context||context.division!==scope.division||context.plant!==scope.plant||context.section!==section)throw Error('ฝ่ายหรือแผนกเปลี่ยนแล้ว กรุณาเลือกพนักงานใหม่');
+  const employee=organizationScopedEmployees(organizationRenderMaster?.employees||employees).find(e=>String(e.id)===String(id)&&sectionChartMatches(e,section)&&!deletedEmployeeIds.has(String(e.id))&&(workplace||!window.PPMSProductionHierarchy?.isSupervisor(e.position)));
   if(!employee)throw Error('ไม่พบพนักงานในแผนกที่เลือก');
-  if(sectionChartIsSorting(section)){const group=sectionChartSortingGroup(employee);if(!group||context.sortingGroup!==group||context.targetSortingGroup!==group)throw Error('กรุณาเลือกทีมภายในกลุ่ม Sorting เดียวกัน');}
+  if(!workplace&&sectionChartIsSorting(section)){const group=sectionChartSortingGroup(employee);if(!group||context.sortingGroup!==group||context.targetSortingGroup!==group)throw Error('กรุณาเลือกทีมภายในกลุ่ม Sorting เดียวกัน');}
   if(sectionChartEmployeeTeam(employee)===team)return {changed:false,pending:!!pendingEmployeeSaves[String(id)]};
   const field=employee.section==='Stamping Section'?'stampingShift':'organizationTeam',data={...employee,[field]:team,updatedAt:new Date().toISOString()},pending=pendingEmployeeSaves[String(id)],originalId=pending?.originalId??String(id),options=pending&&!pending.patchFields?{createOnly:pending.createOnly}:{patchFields:[field,'updatedAt'],expectedSection:employee.section,...(sectionChartIsSorting(employee.section)&&!sectionChartSortingName(employee.section)?{expectedSortingGroup:String(employee.sortingGroup||'')}:{})};
   const payload=options.patchFields?{id:String(id),...Object.fromEntries(options.patchFields.map(field=>[field,data[field]]))}:data;
-  queueEmployeeSave(payload,originalId,options);Object.assign(employee,data);persistCloudToLocal();window.dispatchEvent(new Event('ppms-employees-changed'));renderFromUserControlChange();
+  queueEmployeeSave(payload,originalId,options);Object.assign(employee,data);persistCloudToLocal();window.dispatchEvent(new Event('ppms-employees-changed'));if(current==='sectionChart')renderFromUserControlChange();
   if(navigator.onLine===false)return {changed:true,pending:true};
   sectionTeamWriteJobs++;
   const job=sectionTeamSaveQueue.catch(()=>{}).then(()=>syncEmployeeCloudNow(payload,originalId,options));sectionTeamSaveQueue=job;
   try{await job;return {changed:true,pending:!!pendingEmployeeSaves[String(id)]}}catch(error){if(['employee-missing','employee-section-changed'].includes(error.code))throw error;return {changed:true,pending:true,error:String(error.message||error)}}finally{sectionTeamWriteJobs--;if(current==='sectionChart')renderFromUserControlChange()}
  },
+ workplaceEmployeeTeam:sectionChartEmployeeTeam,
  sectionChartTeamPending:id=>!!pendingEmployeeSaves[String(id)],
  factoryLayoutEmployees:()=>organizationScopedEmployees(organizationRenderMaster?.employees||employees).filter(e=>e&&e.id!=null&&!deletedEmployeeIds.has(String(e.id))).map(e=>({...e})),
  refreshOrganizationChart(immediate=false){if(current==='dashboard')immediate?renderFromUserControlChange():render()},
