@@ -43,3 +43,15 @@
 @media print{.production-supervised-content{gap:4mm}.production-head-top{break-after:avoid-page}.production-head-top,.production-head-top h4{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
 
 .production-head-top{position:relative;padding-bottom:18px}.production-head-top:after{content:"";position:absolute;bottom:-24px;left:50%;height:24px;border-left:2px solid #a9b8c8}.production-head-sections{position:relative;border-top:2px solid #a9b8c8;padding-top:18px}
+
+/* Die Casting Specialist retains a separate three-section branch under Manager. */
+.production-casting-branch{position:relative;margin-top:28px;padding-top:18px;border-top:2px solid #a9b8c8;min-width:0}
+.production-casting-top{position:relative;display:flex;flex-direction:column;align-items:center;text-align:center;gap:8px;padding-bottom:18px;margin-bottom:24px}
+.production-casting-top h4{margin:0;padding:8px 14px;border:1px solid #0284c7;border-radius:18px;background:#f0f9ff;color:#075985}
+.production-casting-top>small{font-size:12px;color:#51677d;max-width:350px}
+.production-casting-top>.people,.production-casting-top>.factory-people{display:flex;justify-content:center;flex-wrap:wrap}
+.production-casting-top .person,.production-casting-top .factory-chart-person{width:150px;max-width:100%;border-color:#0284c7;background:#f0f9ff}
+.production-casting-top:after{content:"";position:absolute;bottom:-24px;left:50%;height:24px;border-left:2px solid #a9b8c8}
+.production-casting-sections.division-sections,.production-casting-sections.factory-org-sections{display:grid;position:relative;border-top:2px solid #a9b8c8;padding-top:18px;grid-template-columns:repeat(auto-fit,minmax(min(100%,230px),1fr));gap:12px;overflow:visible}
+.production-casting-sections.factory-org-sections>.factory-org-section{min-width:0}
+@media print{.production-casting-top{break-after:avoid-page}.production-casting-top,.production-casting-top h4{-webkit-print-color-adjust:exact;print-color-adjust:exact}}

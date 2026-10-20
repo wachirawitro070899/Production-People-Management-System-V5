@@ -1516,10 +1516,10 @@ function dashboard(historyPage=false){
  const today=thaiDateKey(),production=organizationScope().division==='Production Division',hierarchy=window.PPMSProductionHierarchy;
  const supervisors=production&&hierarchy?employees.filter(e=>hierarchy.isSupervisor(e.position)).sort(orgSeniorityCompare):[];
  const sectionCards=orgSectionDescriptors().map(d=>{
-  const list=orgEmployeesForDescriptor(d).filter(e=>!production||!hierarchy?.isHead(e.position));
+  const list=orgEmployeesForDescriptor(d).filter(e=>!production||(!hierarchy?.isHead(e.position)&&!hierarchy?.isCastingSpecialist(e.position)));
   return {...d,html:`<section class="division-section ${d.sortingGroup?'division-sorting-split':''}" data-org-section="${esc(d.title)}"><div class="division-section-head"><h3>${esc(d.title)}</h3><small>${list.length} Employees</small></div>${orgDepartmentLevels(list,d.section)}</section>`};
  });
- const chart=production&&hierarchy?hierarchy.chartMarkup(sectionCards,supervisors.map(e=>person(e,true)).join(''),{assign:isAdmin,heads:employees.filter(e=>hierarchy.isHead(e.position)).map(e=>person(e,true)).join('')}):`<div class="division-sections">${sectionCards.map(item=>item.html).join('')}</div>`;
+ const chart=production&&hierarchy?hierarchy.chartMarkup(sectionCards,supervisors.map(e=>person(e,true)).join(''),{assign:isAdmin,heads:employees.filter(e=>hierarchy.isHead(e.position)).map(e=>person(e,true)).join(''),castingSpecialists:employees.filter(e=>hierarchy.isCastingSpecialist(e.position)).map(e=>person(e,true)).join('')}):`<div class="division-sections">${sectionCards.map(item=>item.html).join('')}</div>`;
  const tree=!historyPage&&window.PPMSOrganizationEditor?.isTreeView(),organizationChart=tree?window.PPMSOrganizationEditor.chartMarkup(employees,e=>person(e,true)):managerTop+chart;
  const newThisMonth=employees.filter(e=>{const d=new Date(e.startDate),n=new Date();return !Number.isNaN(d.getTime())&&d.getMonth()===n.getMonth()&&d.getFullYear()===n.getFullYear()}).length;
  const positionCount=new Set(employees.map(e=>String(e.position||'').trim()).filter(Boolean)).size;

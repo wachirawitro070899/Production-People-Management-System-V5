@@ -16,7 +16,7 @@
  const record=value=>cache[scopeKey(value)]||{parents:{}};
  const people=value=>window.PPMSOrganizationScope.employees(read('ppms_v3_employees',[]),value).filter(e=>e&&e.id!=null&&!window.PPMS_RUNTIME?.factoryLayoutDeletedEmployeeIds?.().includes(String(e.id)));
  const currentPeople=()=>people(scope());
- const priority=position=>{const p=String(position||'');return /manager|ผู้จัดการ/i.test(p)?0:window.PPMSProductionHierarchy?.isHead(p)?0.5:/engineer|วิศวกร/i.test(p)?1:/supervisor|หัวหน้างาน|หัวหน้าแผนก/i.test(p)?2:/specialist/i.test(p)?2.5:/leader|หัวหน้าทีม/i.test(p)?3:/technician|ช่าง/i.test(p)?4:/operator|opeartor|operater|^op\b|พนักงานทั่วไป|พนักงานผลิต|พนักงานปฏิบัติการ/i.test(p)?6:5};
+ const priority=position=>{const p=String(position||'');return /manager|ผู้จัดการ/i.test(p)?0:window.PPMSProductionHierarchy?.isHead(p)?0.5:window.PPMSProductionHierarchy?.isCastingSpecialist(p)?0.75:/engineer|วิศวกร/i.test(p)?1:/supervisor|หัวหน้างาน|หัวหน้าแผนก/i.test(p)?2:/specialist/i.test(p)?2.5:/leader|หัวหน้าทีม/i.test(p)?3:/technician|ช่าง/i.test(p)?4:/operator|opeartor|operater|^op\b|พนักงานทั่วไป|พนักงานผลิต|พนักงานปฏิบัติการ/i.test(p)?6:5};
  const employment=e=>/^(permanent|พนักงานประจำ)$/i.test(String(e.contractType||'Permanent'))?0:1;
  const start=e=>{const n=Date.parse((employment(e)===0?e.permanentStartDate:'')||e.startDate||'');return Number.isFinite(n)?n:Number.MAX_SAFE_INTEGER};
  const seniority=(a,b)=>employment(a)-employment(b)||start(a)-start(b)||String(a.id).localeCompare(String(b.id),undefined,{numeric:true});
@@ -36,11 +36,13 @@
    const id=String(e.id);let parent='';
    if(priority(e.position)!==0){
     if(window.PPMSProductionHierarchy?.isSupervisor(e.position))parent=manager?String(manager.id):'';
+    else if(valueScope.division==='Production Division'&&window.PPMSProductionHierarchy?.isCastingSpecialist(e.position))parent=String(manager?.id||'');
     else if(valueScope.division==='Production Division'&&window.PPMSProductionHierarchy?.isHead(e.position))parent=String(supervisor?.id||manager?.id||'');
     else{
      const higher=sorted.filter(other=>String(other.id)!==id&&sectionOf(other)===sectionOf(e)&&priority(other.position)<priority(e.position)&&priority(other.position)!==0&&!window.PPMSProductionHierarchy?.isSupervisor(other.position)).sort((a,b)=>priority(b.position)-priority(a.position)||seniority(a,b));
      const head=valueScope.division==='Production Division'&&window.PPMSProductionHierarchy?.headOwns(e.section)?sorted.find(other=>window.PPMSProductionHierarchy.isHead(other.position)):null;
-     const chief=higher[0]||head||(supervisor&&window.PPMSProductionHierarchy.reportsToSupervisor(e.sortingGroup||e.section)?supervisor:manager);
+     const casting=valueScope.division==='Production Division'&&window.PPMSProductionHierarchy?.castingOwns(e.section)?sorted.find(other=>window.PPMSProductionHierarchy.isCastingSpecialist(other.position)):null;
+     const chief=higher[0]||head||casting||(supervisor&&window.PPMSProductionHierarchy.reportsToSupervisor(e.sortingGroup||e.section)?supervisor:manager);
      parent=chief?String(chief.id):'';
     }
    }

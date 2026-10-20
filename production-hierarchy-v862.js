@@ -8,9 +8,18 @@
  function isHead(value){return /^(?:Head of Forming & Tooling|หัวหน้างานขึ้นรูปโลหะและแม่พิมพ์)$/i.test(String(value||'').trim())}
  function headOwns(section){return headSections.some(name=>sectionKey(name)===sectionKey(section))}
  function headTitle(language=window.PPMSLanguage?.language||'th'){return language==='en'?headPosition:'หัวหน้างานขึ้นรูปโลหะและแม่พิมพ์'}
- function scopedHeads(){try{const people=JSON.parse(localStorage.getItem('ppms_v3_employees')||'[]');return window.PPMSOrganizationScope.employees(Array.isArray(people)?people:Object.values(people||{})).filter(e=>isHead(e.position))}catch{return []}}
+ const castingPosition='Die Casting Specialist',castingSections=[
+  ['Die-Casting Mold Maintenance Section','ช่างซ่อมแม่พิมพ์อลูมิเนียม'],
+  ['Die casting','Die casting Section','หลอมอลูมิเนียม'],
+  ['Polishing / Shot Blasting / X-Ray','คัดครีบ-พ่นทราย-X-Ray','คัดครีบ/พ่นทราย/X-Ray']
+ ];
+ function isCastingSpecialist(value){return /^die[\s-]*casting\s+specialist$/i.test(String(value||'').trim())}
+ function castingSectionIndex(section){const key=sectionKey(section);return castingSections.findIndex(names=>names.some(name=>sectionKey(name)===key))}
+ function castingOwns(section){return castingSectionIndex(section)>=0}
+ function scopedRoles(test){try{const people=JSON.parse(localStorage.getItem('ppms_v3_employees')||'[]');return window.PPMSOrganizationScope.employees(Array.isArray(people)?people:Object.values(people||{})).filter(e=>test(e.position))}catch{return []}}
+ const scopedHeads=()=>scopedRoles(isHead);
  function hasSpecialist(section,division='Production Division'){
-  const key=sectionKey(section).replace(/[-_]/g,'');return division==='Production Division'&&['cnc','diecasting','welding','stamping'].includes(key)&&!(key==='stamping'&&scopedHeads().length);
+  const key=sectionKey(section).replace(/[-_]/g,'');return division==='Production Division'&&['cnc','diecasting','welding','stamping'].includes(key)&&!(key==='stamping'&&scopedHeads().length)&&!(key==='diecasting'&&scopedRoles(isCastingSpecialist).length);
  }
  function specialistVacancyMarkup(){return '<div class="person specialist organization-position-vacancy" data-vacant-position="specialist"><div class="avatar">—</div><b>ว่าง</b><small>Specialist</small></div>'}
  function isSupervisor(value){return /^(?:sup\.?\s+production|production\s+(?:sup\.?|supervisor)|supervisor\s+production|หัวหน้างานฝ่ายผลิต)$/i.test(String(value||'').trim())}
@@ -21,15 +30,18 @@
   return {...source,positions:[...new Set([...positions,position])],positionMap:{...source.positionMap,'Production Division':[...new Set([...divisionPositions,position])]}};
  }
  function chartMarkup(sections,supervisors,options={}){
+  const hasCasting=Boolean(options.castingSpecialists),castingOwned=hasCasting?sections.filter(item=>castingOwns(item.title)).sort((a,b)=>castingSectionIndex(a.title)-castingSectionIndex(b.title)):[];
   const hasHead=Boolean(options.heads),owned=hasHead?sections.filter(item=>headOwns(item.title)):[];
   const direct=sections.filter(item=>!reportsToSupervisor(item.title)&&!owned.includes(item)),production=sections.filter(item=>reportsToSupervisor(item.title)||owned.includes(item));
   production.sort((a,b)=>sectionOrder.indexOf(sectionKey(a.title))-sectionOrder.indexOf(sectionKey(b.title)));
   owned.sort((a,b)=>headSections.findIndex(name=>sectionKey(name)===sectionKey(a.title))-headSections.findIndex(name=>sectionKey(name)===sectionKey(b.title)));
   const sectionClass=options.factory?'factory-org-sections':'division-sections',peopleClass=options.factory?'factory-people':'people';
+  const casting=hasCasting?'<section class="production-casting-branch" data-reports-to="Die Casting Specialist"><div class="production-casting-top"><h4>Die Casting Specialist</h4><div class="'+peopleClass+'">'+options.castingSpecialists+'</div><small>Die-Casting Mold Maintenance · Die Casting · Polishing / Shot Blasting / X-Ray</small></div><div class="'+sectionClass+' production-casting-sections">'+castingOwned.map(item=>item.html).join('')+'</div></section>':'';
+  const directContent='<div class="'+sectionClass+'">'+direct.filter(item=>!castingOwned.includes(item)).map(item=>item.html).join('')+'</div>'+casting;
   const head=hasHead?'<section class="production-head-branch" data-reports-to="Head of Forming &amp; Tooling"><div class="production-head-top"><h4>Head of Forming &amp; Tooling</h4><div class="'+peopleClass+'">'+options.heads+'</div><small>Bending · Stamping · Tapping · Tooling Maintenance</small></div><div class="'+sectionClass+' production-head-sections">'+owned.map(item=>item.html).join('')+'</div></section>':'';
   const remaining=production.filter(item=>!owned.includes(item)),content=hasHead?'<div class="production-supervised-content">'+head+(remaining.length?'<div class="'+sectionClass+' production-other-sections">'+remaining.map(item=>item.html).join('')+'</div>':'')+'</div>':'<div class="'+sectionClass+'">'+production.map(item=>item.html).join('')+'</div>';
-  return '<div class="production-reporting-tree'+(hasHead?' has-forming-tooling-head':'')+'">'+
-   (direct.length?'<section class="production-reporting-branch production-direct-sections" data-reports-to="Manager"><div class="production-branch-heading"><small>'+direct.length+' แผนก</small></div><div class="'+sectionClass+'">'+direct.map(item=>item.html).join('')+'</div></section>':'')+
+  return '<div class="production-reporting-tree'+(hasHead?' has-forming-tooling-head':'')+(hasCasting?' has-casting-specialist':'')+'">'+
+   ((direct.length||hasCasting)?'<section class="production-reporting-branch production-direct-sections" data-reports-to="Manager"><div class="production-branch-heading"><small>'+direct.length+' แผนก</small></div>'+directContent+'</section>':'')+
    '<section class="production-reporting-branch production-supervised-sections" data-reports-to="Supervisor Production"><div class="production-supervisor-top"><h4>Supervisor Production</h4><div class="'+peopleClass+'">'+(supervisors||'<div class="production-supervisor-empty">ยังไม่มีพนักงานในตำแหน่งนี้</div>')+'</div><small>ดูแลแผนกผลิต · '+production.length+' แผนก</small>'+(options.assign?'<button type="button" class="secondary compact no-print" data-assign-production-supervisor>กำหนดพนักงาน</button>':'')+'</div>'+content+'</section></div>';
  }
  function headJD(scope){
@@ -41,6 +53,15 @@
    ['พัฒนาหัวหน้าทีมและพนักงานทั้ง 4 แผนก ติดตาม KPI และรายงานผลต่อผู้บังคับบัญชาตามผังองค์กร','Develop the four section teams, monitor KPIs, and report to the supervisor defined in the organization chart.']
   ];
   return {...scope,employeeId:'',employeeName:'',documentNo:'',revision:'DRAFT',effectiveDate:'',reportsTo:'หัวหน้างานฝ่ายผลิต / Supervisor Production',jobPurpose:'บริหารงานขึ้นรูปโลหะและแม่พิมพ์ ครอบคลุม Bending, Stamping, Tapping และ Tooling Maintenance\nLead forming and tooling across Bending, Stamping, Tapping, and Tooling Maintenance.',responsibilities:duties.map((item,index)=>(index+1)+'. '+item.join('\n   ')).join('\n'),qualifications:'มีความรู้กระบวนการพับ ปั๊ม ต๊าป การซ่อมบำรุงแม่พิมพ์ และการบริหารทีม\nKnowledge of bending, stamping, tapping, tooling maintenance, and team leadership.',documentUrl:'',status:'draft',templateSource:'PPMS Forming & Tooling Head V897',templateVersion:1,version:1};
+ }
+ function castingJD(scope){
+  const duties=[
+   ['กำกับดูแล Die-Casting Mold Maintenance, Die Casting และ Polishing / Shot Blasting / X-Ray ให้ได้ตามเป้าหมายคุณภาพ ผลผลิต และความปลอดภัย','Oversee Die-Casting Mold Maintenance, Die Casting, and Polishing / Shot Blasting / X-Ray against quality, output, and safety targets.'],
+   ['ประสานการเตรียมและซ่อมแม่พิมพ์ พารามิเตอร์หล่อ และการตกแต่งผิวกับหัวหน้าทีมทั้ง 3 แผนก','Coordinate die readiness and repairs, casting parameters, and finishing with the three section leaders.'],
+   ['วิเคราะห์ข้อบกพร่องจากการหล่อ ผิวงาน และผล X-Ray ร่วมกับคุณภาพ พร้อมยืนยันการแก้ไขก่อนปล่อยผลิต','Analyze casting, surface, and X-Ray defects with Quality and validate corrective actions before production release.'],
+   ['วางแผนทรัพยากร ติดตาม KPI พัฒนาทักษะพนักงาน และรายงานปัญหาต่อผู้จัดการฝ่ายผลิต','Plan resources, monitor KPIs, develop staff skills, and report issues to the Production Manager.']
+  ];
+  return {...scope,employeeId:'',employeeName:'',documentNo:'',revision:'DRAFT',effectiveDate:'',reportsTo:'ผู้จัดการฝ่ายผลิต / Production Manager',jobPurpose:'ดูแลกระบวนการแม่พิมพ์ หล่ออลูมิเนียม และตกแต่ง/ตรวจ X-Ray ครอบคลุมทั้ง 3 แผนก\nOversee die maintenance, die casting, and finishing/X-Ray across the three sections.',responsibilities:duties.map((item,index)=>(index+1)+'. '+item.join('\n   ')).join('\n'),qualifications:'มีความรู้ด้านแม่พิมพ์หล่ออลูมิเนียม กระบวนการหล่อ การตกแต่งผิว และการตรวจ X-Ray\nKnowledge of die-casting molds, casting processes, surface finishing, and X-Ray inspection.',documentUrl:'',status:'draft',templateSource:'PPMS Die Casting Specialist V898',templateVersion:1,version:1};
  }
  function supervisorJD(scope){
   const headMode=scopedHeads().length>0;
@@ -58,5 +79,5 @@
   }
   return {...scope,employeeId:'',employeeName:'',documentNo:'',revision:'DRAFT',effectiveDate:'',reportsTo:'ผู้จัดการฝ่ายผลิต / Production Manager',jobPurpose:headMode?'กำกับดูแลการผลิตของ 8 แผนกผ่าน Head และหัวหน้าแผนก\nSupervise the eight production sections through the Head and section leaders.':'กำกับดูแลการผลิตของ 7 แผนกให้เป็นไปตามแผน คุณภาพ การส่งมอบ และความปลอดภัย\nSupervise the seven production sections against production, quality, delivery, and safety targets.',responsibilities:duties.map((item,index)=>(index+1)+'. '+item.join('\n   ')).join('\n'),qualifications:'มีความรู้กระบวนการผลิต การวางแผนกำลังคน การวิเคราะห์ KPI และการบริหารทีม\nKnowledge of manufacturing processes, manpower planning, KPI analysis, and team supervision.',documentUrl:'',status:'draft',templateSource:'PPMS Supervisor Production V862',templateVersion:5,version:1};
  }
- window.PPMSProductionHierarchy={position,headPosition,headSections,isHead,headOwns,headTitle,headJD,supervisorSection,sectionKey,hasSpecialist,specialistVacancyMarkup,isSupervisor,reportsToSupervisor,withPosition,chartMarkup,supervisorJD};
+ window.PPMSProductionHierarchy={position,castingPosition,castingSections,isCastingSpecialist,castingOwns,castingJD,headPosition,headSections,isHead,headOwns,headTitle,headJD,supervisorSection,sectionKey,hasSpecialist,specialistVacancyMarkup,isSupervisor,reportsToSupervisor,withPosition,chartMarkup,supervisorJD};
 })();

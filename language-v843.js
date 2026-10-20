@@ -15,6 +15,7 @@
 ชื่อ Section ถูกแก้ไขจากเครื่องอื่น กรุณาเปิดรายการใหม่|Another device renamed this Section. Reopen the form.
 รายชื่อพนักงานและเครื่องจักรที่จัดไว้จะอยู่ใน Section เดิม|Employees and machine assignments remain in this Section
 หัวหน้างานขึ้นรูปโลหะและแม่พิมพ์|Head of Forming & Tooling
+ผู้เชี่ยวชาญงานหล่ออลูมิเนียม|Die Casting Specialist
 ผังกำลังคน|Manpower Planning
 ผังกำลังคนแยก Section|Section Manpower Planning
 ยกเลิก|Cancel

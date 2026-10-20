@@ -280,6 +280,7 @@
  }
 
  function draft(scope){
+  if(window.PPMSProductionHierarchy?.isCastingSpecialist(scope.position))return window.PPMSProductionHierarchy.castingJD(scope);
   if(window.PPMSProductionHierarchy?.isHead(scope.position))return window.PPMSProductionHierarchy.headJD(scope);
   if(window.PPMSProductionHierarchy?.isSupervisor(scope.position))return window.PPMSProductionHierarchy.supervisorJD(scope);
   const key=role(scope.position),process=sectionProfile(scope),profile=roles[key],specific=sectionDuties(scope,key);
