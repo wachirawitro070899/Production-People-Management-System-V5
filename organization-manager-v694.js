@@ -8,7 +8,7 @@ const read=(k,d)=>{try{return JSON.parse(localStorage.getItem(k))||JSON.parse(JS
 const esc=x=>String(x||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const SECTION_OUTBOX='ppms_organization_section_outbox_v872',POSITION_OUTBOX='ppms_organization_reporting_outbox_v870';
 const sectionQueue=()=>{const value=read(SECTION_OUTBOX,[]);return Array.isArray(value)?value.filter(job=>job&&job.id&&typeof job.name==='string'&&typeof job.division==='string'&&typeof job.plant==='string'):[]};
-let sectionJobs=sectionQueue(),sectionSyncing=false,sectionSyncTimer=null,sectionSyncFailures=0,sectionSyncNotice='';
+let sectionJobs=sectionQueue(),sectionSyncing=false,sectionSyncTimer=null,sectionSyncFailures=0,sectionSyncNotice='',sectionDeleteRunning=false;
 let master=read(MK,DEF),emap=read(EK,{});for(const k of Object.keys(DEF))if(!Array.isArray(master[k]))master[k]=[...DEF[k]];
 if(!master.sectionMap){master.sectionMap={};master.sectionMap['Production Division::โรง 1']=[...master.sections];for(const p of master.plants.slice(1))master.sectionMap['Production Division::'+p]=[];for(const d of master.divisions.filter(x=>x!=='Production Division'))master.sectionMap[d+'::CENTRAL']=[];localStorage.setItem(MK,JSON.stringify(master))}
 if(!master.positionMap){master.positionMap={};for(const d of master.divisions)master.positionMap[d]=d==='Production Division'?[...master.positions]:[];localStorage.setItem(MK,JSON.stringify(master))}
@@ -42,12 +42,13 @@ function sectionSyncStatus(){
  if(!node){node=document.createElement('span');node.dataset.sectionSyncStatus='1';node.className='section-sync-status no-print';node.setAttribute('role','status');node.style.cssText='flex-basis:100%;font-size:13px;color:#164d84';bar.append(node)}
  if(node.dataset.sectionSyncText!==text){node.dataset.sectionSyncText=text;node.textContent=text}
 }
-async function sectionMasterRequest(options={}){
+async function sectionCloudRequest(path,options={}){
  const base=String(window.PPMS_FIREBASE_CONFIG?.databaseURL||'').replace(/\/$/,'');if(!base)throw Error('ยังไม่ได้เชื่อมต่อฐานข้อมูล');
  const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),8000);
- try{const response=await fetch(base+'/settings/organizationMaster.json',{...options,cache:'no-store',signal:controller.signal});if(!response.ok&&response.status!==412)throw Error('ฐานข้อมูลไม่ยืนยันการบันทึก ('+response.status+')');return {status:response.status,etag:response.headers.get('etag'),value:await response.json()}}
+ try{const response=await fetch(base+'/'+path+'.json',{...options,cache:'no-store',signal:controller.signal});if(!response.ok&&response.status!==412)throw Error('ฐานข้อมูลไม่ยืนยันการบันทึก ('+response.status+')');return {status:response.status,etag:response.headers.get('etag'),value:await response.json()}}
  finally{clearTimeout(timer)}
 }
+async function sectionMasterRequest(options={}){return sectionCloudRequest('settings/organizationMaster',options)}
 async function commitSection(job){
  for(let attempt=0;attempt<5;attempt++){
   const existing=await sectionMasterRequest({headers:{'X-Firebase-ETag':'true'}}),source=existing.value||master,added=withNewSection(source,job.division,job.plant,job.name);
@@ -62,10 +63,10 @@ async function commitSection(job){
  throw Error('มีการแก้ไขพร้อมกัน ระบบจะลองซิงก์อีกครั้ง');
 }
 async function syncSections(){
- if(sectionSyncing||navigator.onLine===false||!sectionAdmin()||!sectionJobs.length)return;
+ if(sectionSyncing||sectionDeleteRunning||navigator.onLine===false||!sectionAdmin()||!sectionJobs.length)return;
  clearTimeout(sectionSyncTimer);sectionSyncTimer=null;sectionSyncing=true;
  try{
-  while(sectionJobs.length&&navigator.onLine!==false&&sectionAdmin()){
+  while(sectionJobs.length&&!sectionDeleteRunning&&navigator.onLine!==false&&sectionAdmin()){
    const job=sectionJobs[0];
    try{
     const confirmed=await commitSection(job),remaining=sectionQueue().filter(value=>value.id!==job.id);
@@ -140,7 +141,7 @@ function renderDivisionChart(select,detail){
  const workers=members.filter(e=>!managers.includes(e)&&!supervisors.includes(e));
  const names=[...new Set([...sectionsFor(division,plant),...workers.map(e=>String(e.section||'')).filter(Boolean)])];
  const legacySorting=workers.some(e=>e.section==='Sorting Section'),canonical=value=>hierarchy?hierarchy.sectionKey(value):value;
- const sections=names.filter((name,index)=>!(legacySorting&&/^sorting\s*[12]$/i.test(name))&&names.findIndex(value=>canonical(value)===canonical(name))===index).flatMap(section=>section==='Sorting Section'?[{section,title:'Sorting 1',sortingGroup:'Sorting 1'},{section,title:'Sorting 2',sortingGroup:'Sorting 2'}]:[{section,title:section,sortingGroup:''}]);
+ const sections=names.filter((name,index)=>!(legacySorting&&/^sorting\s*[12]$/i.test(name))&&names.findIndex(value=>canonical(value)===canonical(name))===index).flatMap(section=>section==='Sorting Section'?[{section,title:'Sorting 1',sortingGroup:'Sorting 1'},{section,title:'Sorting 2',sortingGroup:'Sorting 2'}]:[{section,title:section,sortingGroup:''}]).filter(item=>!(master.removedSections?.[sectionKey(division,plant)]||[]).some(name=>canonical(name)===canonical(item.title))||workers.some(e=>canonical(e.section)===canonical(item.section)&&(!item.sortingGroup||e.sortingGroup===item.sortingGroup)));
  const front=['Engineering Support','Support Production','Machine Maintenance','Tooling Maintenance'];
  sections.sort((a,b)=>{const rank=value=>{const index=front.indexOf(value.replace(/\s+Section$/i,''));return index<0?front.length:index};return rank(a.title)-rank(b.title)});
  const chart=sections.map(item=>{
@@ -201,10 +202,14 @@ function sectionControls(){
  sectionSyncStatus();
 }
 
+function sectionIdentity(value){return window.PPMSOrganizationScope?.sectionKey(value)||sectionName(value).toLowerCase().replace(/^แผนก\s*/,'').replace(/\s+section$/i,'')}
 function sectionMembers(people,organization,division,plant,name,deleted=[]){
- const gone=new Set(deleted.map(String));
+ const gone=new Set(deleted.map(String)),target=sectionIdentity(name);
  return people.filter(e=>{
-  if(!e||e.id==null||gone.has(String(e.id))||e.section!==name)return false;
+  if(!e||e.id==null||gone.has(String(e.id)))return false;
+  const actual=sectionIdentity(e.section),group=sectionIdentity(e.sortingGroup);
+  const matches=actual===target||(actual==='sorting'&&['sorting1','sorting2'].includes(target)&&group===target)||(target==='sorting'&&['sorting1','sorting2'].includes(actual));
+  if(!matches)return false;
   const org=organization[String(e.id)]||{};
   return (org.division||e.organizationDivision||'Production Division')===division&&
    (division!=='Production Division'||(org.plant||e.organizationPlant||master.plants[0])===plant);
@@ -212,33 +217,50 @@ function sectionMembers(people,organization,division,plant,name,deleted=[]){
 }
 function withoutSection(source,division,plant,name){
  if(!source)return undefined;
- const next=JSON.parse(JSON.stringify(source)),key=sectionKey(division,plant),values=next.sectionMap?.[key]||[];
- if(!values.includes(name))return undefined;
- next.sectionMap[key]=values.filter(x=>x!==name);
- if(next.sectionPositions)delete next.sectionPositions[key+'::'+name];
- if(!Object.values(next.sectionMap).some(list=>Array.isArray(list)&&list.includes(name)))next.sections=(next.sections||[]).filter(x=>x!==name);
- next.removedSections||={};next.removedSections[key]=[...new Set([...(next.removedSections[key]||[]),name])];
+ const next=JSON.parse(JSON.stringify(source)),key=sectionKey(division,plant),values=next.sectionMap?.[key]||[],identity=sectionIdentity(name);
+ const aliases=values.filter(value=>sectionIdentity(value)===identity);
+ if(!aliases.length)return (next.removedSections?.[key]||[]).some(value=>sectionIdentity(value)===identity)?source:undefined;
+ next.sectionMap[key]=values.filter(value=>sectionIdentity(value)!==identity);
+ for(const position of Object.keys(next.sectionPositions||{}))if(position.startsWith(key+'::')&&sectionIdentity(position.slice(key.length+2))===identity)delete next.sectionPositions[position];
+ if(!Object.values(next.sectionMap).some(list=>Array.isArray(list)&&list.some(value=>sectionIdentity(value)===identity)))next.sections=(next.sections||[]).filter(value=>sectionIdentity(value)!==identity);
+ next.removedSections||={};next.removedSections[key]=[...new Set([...(next.removedSections[key]||[]),...aliases,name])];
  next._updatedAt=Date.now();return next;
+}
+async function sectionDeletionMembers(division,plant,name){
+ const snapshots=await Promise.all(['ppms/employees','employeeOrganization','ppms/deletedEmployeeIds'].map(path=>sectionCloudRequest(path)));
+ const people=Object.values(snapshots[0].value||{}),organization=snapshots[1].value||{},deleted=Object.values(snapshots[2].value||{}).map(String);
+ // Only unsent employee saves supplement the server roster; stale local rows cannot block deletion.
+ const pending=Object.values(read('ppms_v3_pending_employee_saves',{})).filter(job=>job?.data&&!job.patchFields).map(job=>job.data);
+ const members=[...sectionMembers(people,organization,division,plant,name,deleted),...sectionMembers(pending,emap,division,plant,name,deleted)];
+ return [...new Map(members.map(person=>[String(person.id),person])).values()];
 }
 async function deleteSection(division,plant,name,button){
  if(!sectionAdmin())return;
- const database=db();if(!database||navigator.onLine===false){alert('กรุณาเชื่อมต่อฐานข้อมูลก่อนลบ Section');return}
- button.disabled=true;
+ if(navigator.onLine===false){alert('กรุณาเชื่อมต่ออินเทอร์เน็ตก่อนลบ Section');return}
+ if(sectionSyncing||sectionDeleteRunning){alert('กำลังซิงก์แผนก กรุณารอสักครู่แล้วลองลบอีกครั้ง');return}
+ sectionDeleteRunning=true;const label=button.textContent;button.disabled=true;button.textContent='กำลังตรวจสอบ Section...';
  try{
-  const snapshots=await Promise.all(['ppms/employees','employeeOrganization','ppms/deletedEmployeeIds'].map(path=>database.ref(path).once('value')));
-  const people=Object.values(snapshots[0].val()||{}),organization=snapshots[1].val()||{},deleted=Object.values(snapshots[2].val()||{});
-  const count=sectionMembers(people,organization,division,plant,name,deleted).length+
-   sectionMembers(chartPeople(),emap,division,plant,name,read('ppms_v3_deleted_employee_ids',[])).length;
-  if(count){alert('Section นี้ยังมีพนักงาน กรุณาย้ายพนักงานไป Section ที่ถูกต้องก่อนลบ');return}
+  let members=await sectionDeletionMembers(division,plant,name);
+  if(members.length){alert('Section นี้ยังมีพนักงาน '+members.length+' คน กรุณาย้ายพนักงานไป Section ที่ถูกต้องก่อนลบ');return}
   if(!confirm('ลบ Section '+name+' ใน '+division+' หรือไม่?'))return;
-  const result=await database.ref('settings/organizationMaster').transaction(current=>withoutSection(current,division,plant,name),undefined,false);
-  if(!result.committed)throw Error('ไม่พบ Section ในรายการล่าสุด กรุณาเปิดหน้าใหม่');
-  master=result.snapshot.val();localStorage.setItem(MK,JSON.stringify(master));
-  document.getElementById('deleteSectionDialog')?.remove();
-  enhance();redrawLiveEmployeeChart();window.dispatchEvent(new Event('ppms-organization-changed'));
-  alert('ลบ Section เรียบร้อยแล้ว');
- }catch(error){alert('ลบ Section ไม่สำเร็จ: '+error.message)}
- finally{button.disabled=false}
+  button.textContent='กำลังลบ Section...';let confirmed=null;
+  for(let attempt=0;attempt<5;attempt++){
+   const existing=await sectionMasterRequest({headers:{'X-Firebase-ETag':'true'}});if(!existing.etag)throw Error('ฐานข้อมูลยังไม่ยืนยันเวอร์ชัน กรุณาลองใหม่');
+   let source=existing.value;const pending=sectionQueue().some(job=>job.division===division&&job.plant===plant&&sectionIdentity(job.name)===sectionIdentity(name));
+   if(pending&&source&&!source.sectionMap?.[sectionKey(division,plant)]?.some(value=>sectionIdentity(value)===sectionIdentity(name))){source=JSON.parse(JSON.stringify(source));source.sectionMap||={};const key=sectionKey(division,plant);source.sectionMap[key]=[...(source.sectionMap[key]||[]),name]}
+   const next=withoutSection(source,division,plant,name);if(!next)throw Error('ไม่พบ Section ในรายการล่าสุด กรุณาเปิดรายการใหม่');
+   members=await sectionDeletionMembers(division,plant,name);if(members.length)throw Error('Section นี้มีพนักงาน '+members.length+' คนแล้ว กรุณาย้ายพนักงานก่อนลบ');
+   const saved=await sectionMasterRequest({method:'PUT',headers:{'Content-Type':'application/json','if-match':existing.etag},body:JSON.stringify(next)});
+   if(saved.status===412)continue;
+   if(!saved.value||!saved.value.removedSections?.[sectionKey(division,plant)]?.some(value=>sectionIdentity(value)===sectionIdentity(name))||saved.value.sectionMap?.[sectionKey(division,plant)]?.some(value=>sectionIdentity(value)===sectionIdentity(name)))throw Error('ฐานข้อมูลยังไม่ยืนยันการลบ กรุณาลองใหม่');
+   confirmed=saved.value;break;
+  }
+  if(!confirmed)throw Error('มีการแก้ไขแผนกพร้อมกัน กรุณาลองลบอีกครั้ง');
+  const remaining=sectionQueue().filter(job=>!(job.division===division&&job.plant===plant&&sectionIdentity(job.name)===sectionIdentity(name)));
+  localStorage.setItem(SECTION_OUTBOX,JSON.stringify(remaining));sectionJobs=remaining;sectionSyncNotice='ลบ Section และซิงก์เรียบร้อยแล้ว';
+  document.getElementById('deleteSectionDialog')?.remove();applyOrganizationMaster(confirmed);alert('ลบ Section เรียบร้อยแล้ว');
+ }catch(error){alert('ลบ Section ไม่สำเร็จ: '+(error.name==='AbortError'?'การเชื่อมต่อหมดเวลา กรุณาลองใหม่':error.message))}
+ finally{sectionDeleteRunning=false;button.disabled=false;button.textContent=label;void syncSections()}
 }
 function deleteSectionControls(){
  if(!sectionAdmin())return;
@@ -262,7 +284,7 @@ function openDeleteSectionPicker(){
  plant=division==='Production Division'?(document.getElementById('factoryPlantChart')?.value||sessionStorage.getItem('ppms_scope_plant')||master.plants[0]):'รวม';
  const names=sectionsFor(division,plant);if(!names.length){alert('ยังไม่มี Section');return}
  const dialog=document.createElement('div');dialog.id='deleteSectionDialog';dialog.className='org-config';
- dialog.innerHTML='<section style="max-width:580px" role="dialog" aria-modal="true"><h2>ลบ Section</h2><p>'+esc(division)+'</p><label>Section<select>'+names.map(name=>'<option value="'+esc(name)+'">'+esc(name)+'</option>').join('')+'</select></label><div class="actions"><button type="button" data-delete-confirm>ลบ Section</button><button type="button" class="secondary" data-delete-cancel>ยกเลิก</button></div></section>';
+ dialog.innerHTML='<section style="max-width:580px" role="dialog" aria-modal="true"><h2>ลบ Section</h2><p>'+esc(division)+'</p><p>ลบได้เฉพาะ Section ที่ไม่มีพนักงาน กรุณาย้ายพนักงานก่อนลบแผนกที่ยังมีคน</p><label>Section<select>'+names.map(name=>'<option value="'+esc(name)+'">'+esc(name)+'</option>').join('')+'</select></label><div class="actions"><button type="button" data-delete-confirm>ลบ Section</button><button type="button" class="secondary" data-delete-cancel>ยกเลิก</button></div></section>';
  document.body.append(dialog);dialog.querySelector('[data-delete-cancel]').onclick=()=>dialog.remove();
  dialog.querySelector('[data-delete-confirm]').onclick=e=>deleteSection(division,plant,dialog.querySelector('select').value,e.currentTarget);
 }
@@ -279,7 +301,7 @@ function withNewSection(source,division,plant,name){
  const key=sectionKey(division,plant),list=next.sectionMap[key]||[];
  const identity=value=>globalThis.PPMSOrganizationScope?.sectionKey(value)||sectionName(value).toLowerCase().replace(/^แผนก\s*/,'').replace(/\s+section$/i,'');
  if(list.some(x=>identity(x)===identity(name)))return undefined;
- next.sectionMap[key]=[...list,name];if(next.removedSections?.[key])next.removedSections[key]=next.removedSections[key].filter(x=>x!==name);if(!next.sections.includes(name))next.sections.push(name);
+ next.sectionMap[key]=[...list,name];if(next.removedSections?.[key])next.removedSections[key]=next.removedSections[key].filter(x=>identity(x)!==identity(name));if(!next.sections.includes(name))next.sections.push(name);
  next._updatedAt=Date.now();return next;
 }
 function openSectionForm(){

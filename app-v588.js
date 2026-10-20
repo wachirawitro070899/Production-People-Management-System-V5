@@ -1481,7 +1481,7 @@ function orgSectionDescriptors(){
    out.push({section,title:'Sorting 2',sortingGroup:'Sorting 2'});
   }else out.push({section,title:section,sortingGroup:''});
  });
- return out;
+ return out.filter(item=>!removed.some(name=>window.PPMSOrganizationScope.sectionKey(name)===window.PPMSOrganizationScope.sectionKey(item.title))||employees.some(e=>e.section===item.section&&(!item.sortingGroup||e.sortingGroup===item.sortingGroup)));
 }
 function orgEmployeesForDescriptor(d){const production=organizationScope().division==='Production Division';return employees.filter(e=>e.section===d.section&&rank(e.position)!=='manager'&&(!production||!window.PPMSProductionHierarchy?.isSupervisor(e.position))&&(!d.sortingGroup||String(e.sortingGroup||'')===d.sortingGroup))}
 function orgFixedLeadershipLevels(list){
@@ -1547,13 +1547,14 @@ function organizationEmploymentSummary(list){const counts=organizationEmployment
 function sectionChartSortingName(value){const match=String(value||'').trim().match(/^sorting\s*([12])$/i);return match?'Sorting '+match[1]:''}
 function sectionChartIsSorting(value){return /^sorting\s*(?:section|[12])$/i.test(String(value||'').trim())}
 function sectionChartSortingGroup(employee){return sectionChartSortingName(employee.section)||sectionChartSortingName(employee.sortingGroup)}
-function sectionChartOptions(values=sections){const out=[];for(const value of values){if(sectionChartIsSorting(value)){for(const group of ['Sorting Section','Sorting 1','Sorting 2'])if(!out.includes(group))out.push(group)}else if(!out.includes(value))out.push(value)}return out}
+function sectionChartSectionHidden(value){const scope=organizationScope(),removed=organizationMaster().removedSections?.[scope.division+'::'+scope.plant]||[];return removed.some(name=>window.PPMSOrganizationScope.sectionKey(name)===window.PPMSOrganizationScope.sectionKey(value))&&!organizationScopedEmployees(employees).some(e=>sectionChartMatches(e,value))}
+function sectionChartOptions(values=sections){const out=[],hidden=sectionChartSectionHidden;for(const value of values){if(sectionChartIsSorting(value)){for(const group of ['Sorting Section','Sorting 1','Sorting 2'])if(!out.includes(group)&&!hidden(group))out.push(group)}else if(!out.includes(value)&&!hidden(value))out.push(value)}return out}
 function sectionChartMatches(employee,selected){if(!sectionChartIsSorting(selected))return employee.section===selected;const group=sectionChartSortingName(selected);return sectionChartIsSorting(employee.section)&&(!group||sectionChartSortingGroup(employee)===group)}
 function sectionChartEmployees(selected,list=employees){return list.filter(e=>sectionChartMatches(e,selected)&&(organizationScope().division!=='Production Division'||!window.PPMSProductionHierarchy?.isSupervisor(e.position))).slice().sort(orgSeniorityCompare)}
 function sectionChartTeamPreferenceKey(section){const scope=organizationScope();return 'ppms_section_chart_team_view_v871::'+scope.division+'::'+scope.plant+'::'+section}
 function sectionChartLevels(list,section){return ['manager','engineer','supervisor','specialist','leader','technician','other','operator'].map(r=>{const members=list.filter(e=>rank(e.position)===r).sort(orgSeniorityCompare);if(r==='specialist'&&!members.length&&window.PPMSProductionHierarchy?.hasSpecialist(section,organizationScope().division))return `<div class="level level-specialist"><h4>Specialist</h4><div class="people">${window.PPMSProductionHierarchy.specialistVacancyMarkup()}</div></div>`;return members.length?`<div class="level level-${r}"><h4>${levelName(r)}</h4><div class="people">${members.map(sectionExamPerson).join('')}</div></div>`:''}).join('')}
 function sectionChartTeamMarkup(list,selected){
- const sorting=sectionChartIsSorting(selected),groups=sorting?(sectionChartSortingName(selected)?[sectionChartSortingName(selected)]:['Sorting 1','Sorting 2']):[''];
+ const sorting=sectionChartIsSorting(selected),groups=sorting?(sectionChartSortingName(selected)?[sectionChartSortingName(selected)]:['Sorting 1','Sorting 2']).filter(group=>!sectionChartSectionHidden(group)):[''];
  const boards=groups.map(group=>{
   const roster=group?list.filter(e=>sectionChartSortingGroup(e)===group):list,unassigned=roster.filter(e=>!sectionChartEmployeeTeam(e));
   const teams=SECTION_CHART_TEAMS.map(team=>{const members=roster.filter(e=>sectionChartEmployeeTeam(e)===team);return `<section class="section-chart-team panel hierarchy" data-section-chart-team="${team}" data-section-team-target="${team}" data-section-team-group="${esc(group)}"><div class="section-chart-team-heading"><h3>${team}</h3><span>${members.length} Employees</span></div>${sectionChartLevels(members)||'<div class="empty">ไม่มีพนักงานในทีมนี้</div>'}</section>`}).join('');
@@ -1565,7 +1566,7 @@ function sectionChartTeamMarkup(list,selected){
 function sectionChartCombinedMarkup(selected,list){
  if(selected==='Stamping Section')return '<div class="panel hierarchy stamping-role-source">'+sectionChartLevels(list,selected)+'</div>';
  if(sectionChartIsSorting(selected)){
-  const selectedGroup=sectionChartSortingName(selected),groups=selectedGroup?[selectedGroup]:['Sorting 1','Sorting 2'];
+  const selectedGroup=sectionChartSortingName(selected),groups=(selectedGroup?[selectedGroup]:['Sorting 1','Sorting 2']).filter(group=>!sectionChartSectionHidden(group));
   const charts=groups.map(group=>{const members=list.filter(e=>sectionChartSortingGroup(e)===group);return `<section class="sorting-team ${group==='Sorting 1'?'sorting-one':'sorting-two'}" data-sorting-group="${group}"><h3>${group}</h3>${sectionChartLevels(members)||'<div class="empty">ไม่มีข้อมูล</div>'}</section>`}).join('');
   const unassigned=list.filter(e=>!sectionChartSortingGroup(e));
   return `<div class="panel hierarchy sorting-split${selectedGroup?' sorting-single':''}">${charts}</div>`+(unassigned.length?`<section class="panel hierarchy sorting-unassigned" data-sorting-group=""><h3>ยังไม่กำหนดกลุ่ม Sorting</h3>${sectionChartLevels(unassigned)}<p class="modal-note no-print">แก้ไขได้ที่ Search Employee → แก้ไขข้อมูล / รูป → กลุ่ม Sorting</p></section>`:'');
