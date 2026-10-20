@@ -7,10 +7,20 @@
  function read(key,fallback){try{const raw=localStorage.getItem(key);if(cache.get(key)?.raw===raw)return cache.get(key).value;const value=JSON.parse(raw||'null')||fallback;cache.set(key,{raw,value});return value}catch{return fallback}}
  const master=()=>read(MASTER,defaults);
  const divisionName=value=>({'QC Division':'Quality Division','Quality Control Division':'Quality Division','WH Division':'Warehouse Division','จัดซื้อ Division':'Purchasing Division','การตลาด Division':'Marketing Division'}[value]||value);
+ const sectionAliases=new Map(Object.entries({'ปั๊ม':'stamping','ปั้ม':'stamping','เชื่อม':'welding','ซีเอ็นซี':'cnc','ต๊าป':'tapping','ต๊าปเกลียว':'tapping','taping':'tapping','พับ':'bending','สนับสนุนวิศวกรรม':'engineeringsupport','สนับสนุนการผลิต':'supportproduction','ซ่อมบำรุงเครื่องจักร':'machinemaintenance','ซ่อมบำรุงแม่พิมพ์':'toolingmaintenance','คัดแยก':'sorting','คัดงาน':'sorting','คัดแยก1':'sorting1','คัดงาน1':'sorting1','คัดแยก2':'sorting2','คัดงาน2':'sorting2'}).map(([name,key])=>[name.normalize('NFKC'),key]));
+ function sectionKey(value){
+  const plain=String(value||'').normalize('NFKC').trim().replace(/^(?:แผนก\s*|section\s+)/i,'').replace(/\s+section$/i,'').trim().toLowerCase().replace(/[๐-๙]/g,d=>String('๐๑๒๓๔๕๖๗๘๙'.indexOf(d))).replace(/[\s_-]+/g,'');
+
+  return sectionAliases.get(plain)||plain;
+ }
+ function uniqueSections(names,preferred=[]){
+  const labels=new Map();for(const name of preferred){const key=sectionKey(name);if(key&&!labels.has(key))labels.set(key,name)}
+  const seen=new Set(),out=[];for(const name of names){const key=sectionKey(name);if(!key||seen.has(key))continue;seen.add(key);out.push(labels.get(key)||name)}return out;
+ }
  function current(){const m=master(),valid=(m.divisions||defaults.divisions).map(divisionName),saved=divisionName(sessionStorage.getItem('ppms_scope_division')),division=valid.includes(saved)?saved:valid[0]||'Production Division',raw=sessionStorage.getItem('ppms_scope_plant'),plant=division==='Production Division'?(m.plants?.includes(raw)?raw:m.plants?.[0]||'โรง 1'):'รวม';return {division,plant}}
  function employeeScope(employee,m=master(),map=read(MAP,{})){const saved=map[String(employee?.id)]||{},division=divisionName(saved.division||employee?.organizationDivision||'Production Division'),raw=saved.plant||employee?.organizationPlant,plant=division==='Production Division'?(m.plants?.includes(raw)?raw:m.plants?.[0]||'โรง 1'):'รวม';return {division,plant}}
  function employees(list,scope=current()){const m=master(),map=read(MAP,{});return (Array.isArray(list)?list:[]).filter(employee=>{const x=employeeScope(employee,m,map);return x.division===scope.division&&x.plant===scope.plant})}
- function sections(list,scope=current(),fallback=[]){const m=master(),configured=m.sectionMap?.[scope.division+'::'+scope.plant],people=employees(list,scope),occupied=people.filter(e=>!(scope.division==='Production Division'&&window.PPMSProductionHierarchy?.isSupervisor(e.position))).map(e=>e.section).filter(Boolean);const names=Array.isArray(configured)?configured:(scope.division==='Production Division'?fallback:[]),removed=m.removedSections?.[scope.division+'::'+scope.plant]||[];return [...new Set([...names,...occupied])].filter(name=>(occupied.includes(name)||!removed.includes(name))&&!(scope.division==='Production Division'&&/^sorting\s*[12]$/i.test(name)&&occupied.includes('Sorting Section')))}
+ function sections(list,scope=current(),fallback=[]){const m=master(),configured=m.sectionMap?.[scope.division+'::'+scope.plant],people=employees(list,scope),occupied=people.filter(e=>!(scope.division==='Production Division'&&window.PPMSProductionHierarchy?.isSupervisor(e.position))).map(e=>e.section).filter(Boolean);const names=Array.isArray(configured)?configured:(scope.division==='Production Division'?fallback:[]),removed=m.removedSections?.[scope.division+'::'+scope.plant]||[];const occupiedKeys=new Set(occupied.map(sectionKey)),removedKeys=new Set(removed.map(sectionKey));return uniqueSections([...names,...occupied].filter(name=>occupiedKeys.has(sectionKey(name))||!removedKeys.has(sectionKey(name))),occupied).filter(name=>!(scope.division==='Production Division'&&['sorting1','sorting2'].includes(sectionKey(name))&&occupiedKeys.has('sorting')))}
  const preferenceKeys=['chartSec','viewSec','matrixSec','matrixSortingGroup','cardSection','cardEmp','examPlanSection','examCheckSection','examCheckSkill','examEmp','examHistorySection','examHistoryQuery','attendanceSection','attendanceKpiEmployee','shiftRosterSection'];
  function activate(next){const before=current(),m=master(),division=divisionName(next.division||before.division);if(!(m.divisions||defaults.divisions).map(divisionName).includes(division))return;const remembered=next.plant||(before.division==='Production Division'?before.plant:sessionStorage.getItem('ppms_scope_production_plant')),plant=division==='Production Division'?(m.plants?.includes(remembered)?remembered:m.plants?.[0]||'โรง 1'):'รวม';if(division===before.division&&plant===before.plant)return;
   let prefs={};try{prefs=JSON.parse(sessionStorage.getItem('ppms_scope_view_preferences')||'{}')||{}}catch{}if(typeof prefs!=='object'||Array.isArray(prefs))prefs={};prefs[before.division+'::'+before.plant]=Object.fromEntries(preferenceKeys.map(key=>[key,sessionStorage.getItem(key)]));sessionStorage.setItem('ppms_scope_view_preferences',JSON.stringify(prefs));
@@ -27,6 +37,6 @@
   const plant=item?.plant||item?.organizationPlant||(plants.length===1?plants[0]:m.plants?.[0])||'โรง 1';
   return owner===scope.division&&(scope.division!=='Production Division'||plant===scope.plant);
  }
- window.PPMSOrganizationScope={current,master,employeeScope,employees,sections,activate,title,applyTitles,contains};
+ window.PPMSOrganizationScope={current,master,employeeScope,employees,sectionKey,uniqueSections,sections,activate,title,applyTitles,contains};
  window.addEventListener('ppms-language-changed',applyTitles);
 })();

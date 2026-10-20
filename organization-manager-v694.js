@@ -277,7 +277,8 @@ function sectionName(value){return String(value||'').trim().replace(/\s+/g,' ')}
 function withNewSection(source,division,plant,name){
  const next=JSON.parse(JSON.stringify(source));next.sectionMap||={};next.sections||=[];
  const key=sectionKey(division,plant),list=next.sectionMap[key]||[];
- if(list.some(x=>sectionName(x).toLowerCase()===name.toLowerCase()))return undefined;
+ const identity=value=>globalThis.PPMSOrganizationScope?.sectionKey(value)||sectionName(value).toLowerCase().replace(/^แผนก\s*/,'').replace(/\s+section$/i,'');
+ if(list.some(x=>identity(x)===identity(name)))return undefined;
  next.sectionMap[key]=[...list,name];if(next.removedSections?.[key])next.removedSections[key]=next.removedSections[key].filter(x=>x!==name);if(!next.sections.includes(name))next.sections.push(name);
  next._updatedAt=Date.now();return next;
 }

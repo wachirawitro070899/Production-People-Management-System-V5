@@ -3,7 +3,7 @@
  'use strict';
  const position='Supervisor Production',supervisorSection='Production Division';
  const sectionOrder=['stamping','bending','tapping','welding','cnc','sorting1','sorting2'];
- const sectionKey=value=>String(value||'').trim().toLowerCase().replace(/\s+section$/,'').replace(/\s+/g,'').replace(/^taping$/,'tapping');
+ const sectionKey=value=>window.PPMSOrganizationScope?.sectionKey(value)||String(value||'').trim().toLowerCase().replace(/\s+section$/,'').replace(/\s+/g,'').replace(/^taping$/,'tapping');
  function hasSpecialist(section,division='Production Division'){return division==='Production Division'&&['cnc','diecasting','welding','stamping'].includes(sectionKey(section).replace(/[-_]/g,''))}
  function specialistVacancyMarkup(){return '<div class="person specialist organization-position-vacancy" data-vacant-position="specialist"><div class="avatar">—</div><b>ว่าง</b><small>Specialist</small></div>'}
  function isSupervisor(value){return /^(?:sup\.?\s+production|production\s+(?:sup\.?|supervisor)|supervisor\s+production|หัวหน้างานฝ่ายผลิต)$/i.test(String(value||'').trim())}
