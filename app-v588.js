@@ -1492,10 +1492,11 @@ function orgFixedLeadershipLevels(list){
  }).join('');
  return levels?`<div class="org-fixed-leadership">${levels}</div>`:'';
 }
-function orgDepartmentLevels(list){
+function orgDepartmentLevels(list,section){
  const order=['supervisor','specialist','leader','engineer','technician','other','operator'];
  return order.map(r=>{
   const group=list.filter(e=>rank(e.position)===r).sort(orgSeniorityCompare);
+  if(r==='specialist'&&!group.length&&window.PPMSProductionHierarchy?.hasSpecialist(section,organizationScope().division))return `<div class="level rank-level-specialist"><h4>Specialist</h4><div class="people">${window.PPMSProductionHierarchy.specialistVacancyMarkup()}</div></div>`;
   return group.length?`<div class="level rank-level-${r}"><h4>${levelName(r)}</h4><div class="people">${group.map(e=>person(e,true)).join('')}</div></div>`:'';
  }).join('')||'<div class="empty">ไม่มีข้อมูลพนักงาน</div>';
 }
@@ -1516,7 +1517,7 @@ function dashboard(historyPage=false){
  const supervisors=production&&hierarchy?employees.filter(e=>hierarchy.isSupervisor(e.position)).sort(orgSeniorityCompare):[];
  const sectionCards=orgSectionDescriptors().map(d=>{
   const list=orgEmployeesForDescriptor(d);
-  return {...d,html:`<section class="division-section ${d.sortingGroup?'division-sorting-split':''}" data-org-section="${esc(d.title)}"><div class="division-section-head"><h3>${esc(d.title)}</h3><small>${list.length} Employees</small></div>${orgDepartmentLevels(list)}</section>`};
+  return {...d,html:`<section class="division-section ${d.sortingGroup?'division-sorting-split':''}" data-org-section="${esc(d.title)}"><div class="division-section-head"><h3>${esc(d.title)}</h3><small>${list.length} Employees</small></div>${orgDepartmentLevels(list,d.section)}</section>`};
  });
  const chart=production&&hierarchy?hierarchy.chartMarkup(sectionCards,supervisors.map(e=>person(e,true)).join(''),{assign:isAdmin}):`<div class="division-sections">${sectionCards.map(item=>item.html).join('')}</div>`;
  const tree=!historyPage&&window.PPMSOrganizationEditor?.isTreeView(),organizationChart=tree?window.PPMSOrganizationEditor.chartMarkup(employees,e=>person(e,true)):managerTop+chart;
@@ -1550,7 +1551,7 @@ function sectionChartOptions(values=sections){const out=[];for(const value of va
 function sectionChartMatches(employee,selected){if(!sectionChartIsSorting(selected))return employee.section===selected;const group=sectionChartSortingName(selected);return sectionChartIsSorting(employee.section)&&(!group||sectionChartSortingGroup(employee)===group)}
 function sectionChartEmployees(selected,list=employees){return list.filter(e=>sectionChartMatches(e,selected)&&(organizationScope().division!=='Production Division'||!window.PPMSProductionHierarchy?.isSupervisor(e.position))).slice().sort(orgSeniorityCompare)}
 function sectionChartTeamPreferenceKey(section){const scope=organizationScope();return 'ppms_section_chart_team_view_v871::'+scope.division+'::'+scope.plant+'::'+section}
-function sectionChartLevels(list){return ['manager','engineer','supervisor','specialist','leader','technician','other','operator'].map(r=>{const members=list.filter(e=>rank(e.position)===r).sort(orgSeniorityCompare);return members.length?`<div class="level level-${r}"><h4>${levelName(r)}</h4><div class="people">${members.map(sectionExamPerson).join('')}</div></div>`:''}).join('')}
+function sectionChartLevels(list,section){return ['manager','engineer','supervisor','specialist','leader','technician','other','operator'].map(r=>{const members=list.filter(e=>rank(e.position)===r).sort(orgSeniorityCompare);if(r==='specialist'&&!members.length&&window.PPMSProductionHierarchy?.hasSpecialist(section,organizationScope().division))return `<div class="level level-specialist"><h4>Specialist</h4><div class="people">${window.PPMSProductionHierarchy.specialistVacancyMarkup()}</div></div>`;return members.length?`<div class="level level-${r}"><h4>${levelName(r)}</h4><div class="people">${members.map(sectionExamPerson).join('')}</div></div>`:''}).join('')}
 function sectionChartTeamMarkup(list,selected){
  const sorting=sectionChartIsSorting(selected),groups=sorting?(sectionChartSortingName(selected)?[sectionChartSortingName(selected)]:['Sorting 1','Sorting 2']):[''];
  const boards=groups.map(group=>{
@@ -1562,14 +1563,14 @@ function sectionChartTeamMarkup(list,selected){
  return '<section class="section-team-assignment no-print"><h3>จัดทีม A / ทีม B / ทีมลอยเช้า</h3><p class="section-team-instructions" data-section-team-status role="status">ลากพนักงานจากผังองค์กรด้านบนไปทีม A ทีม B หรือทีมลอยเช้า หรือแตะย้ายทีมแล้วเลือกทีมปลายทาง</p><p class="section-team-reference-note">รายชื่อในผังองค์กรจะยังอยู่ครบ และพิมพ์เฉพาะผังองค์กรด้านบน</p>'+note+boards+'</section>';
 }
 function sectionChartCombinedMarkup(selected,list){
- if(selected==='Stamping Section')return '<div class="panel hierarchy stamping-role-source">'+sectionChartLevels(list)+'</div>';
+ if(selected==='Stamping Section')return '<div class="panel hierarchy stamping-role-source">'+sectionChartLevels(list,selected)+'</div>';
  if(sectionChartIsSorting(selected)){
   const selectedGroup=sectionChartSortingName(selected),groups=selectedGroup?[selectedGroup]:['Sorting 1','Sorting 2'];
   const charts=groups.map(group=>{const members=list.filter(e=>sectionChartSortingGroup(e)===group);return `<section class="sorting-team ${group==='Sorting 1'?'sorting-one':'sorting-two'}" data-sorting-group="${group}"><h3>${group}</h3>${sectionChartLevels(members)||'<div class="empty">ไม่มีข้อมูล</div>'}</section>`}).join('');
   const unassigned=list.filter(e=>!sectionChartSortingGroup(e));
   return `<div class="panel hierarchy sorting-split${selectedGroup?' sorting-single':''}">${charts}</div>`+(unassigned.length?`<section class="panel hierarchy sorting-unassigned" data-sorting-group=""><h3>ยังไม่กำหนดกลุ่ม Sorting</h3>${sectionChartLevels(unassigned)}<p class="modal-note no-print">แก้ไขได้ที่ Search Employee → แก้ไขข้อมูล / รูป → กลุ่ม Sorting</p></section>`:'');
  }
- return '<div class="panel hierarchy">'+(sectionChartLevels(list)||'<div class="empty">ไม่มีข้อมูล</div>')+'</div>';
+ return '<div class="panel hierarchy">'+(sectionChartLevels(list,selected)||'<div class="empty">ไม่มีข้อมูล</div>')+'</div>';
 }
 function sectionView(chart=false){
  const selected=sessionStorage.getItem(chart?'chartSec':'viewSec')||sections[0],list=chart?sectionChartEmployees(selected):employees.filter(e=>e.section===selected).slice().sort(orgSeniorityCompare),mode=chart&&sessionStorage.getItem(sectionChartTeamPreferenceKey(selected))!=='combined'?'split':'combined';

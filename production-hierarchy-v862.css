@@ -21,3 +21,6 @@
 .factory-manager:has(+.production-reporting-tree):after{left:50%;right:auto;bottom:-24px;height:24px;border-top:0;border-left:2px solid #a9b8c8}
 @media(max-width:1000px){.production-reporting-tree{grid-template-columns:minmax(0,1fr);gap:34px}.production-reporting-branch>.division-sections,.production-reporting-branch>.factory-org-sections{grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr))}}
 @media print{.production-reporting-tree{grid-template-columns:minmax(0,4fr) minmax(0,7fr);gap:5mm}.production-reporting-branch>.division-sections{grid-template-columns:repeat(2,minmax(0,1fr));gap:3mm}.production-branch-heading,.production-supervisor-top{break-after:avoid-page}.production-supervisor-top .person{box-shadow:none}.production-reporting-tree,.production-supervisor-top h4{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
+
+/* Reserved Specialist positions are vacancies, not employee records. */
+.organization-position-vacancy{border:2px dashed #6f8eab!important;background:#f4f8fc!important;box-shadow:none!important;cursor:default!important}.organization-position-vacancy .avatar{background:#e2ebf3;color:#64748b}.organization-position-vacancy b{color:#52697f}
