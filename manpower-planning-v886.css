@@ -52,3 +52,9 @@
 #manpowerPlanningPage .mp-support-add button{font-size:11px;padding:7px 9px}
 @media(max-width:1800px){#manpowerPlanningPage .mp-org-branches{grid-template-columns:minmax(0,1fr)} }
 @media print{#manpowerPlanningPage .mp-org-branches{grid-template-columns:repeat(3,minmax(0,1fr))}}
+/* Leadership precedes operational branches without changing saved assignments. */
+#manpowerPlanningPage .mp-section-heads,#manpowerPlanningPage .mp-team-heads{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),380px));justify-content:center;gap:14px;margin:0 auto 22px;width:100%}
+#manpowerPlanningPage .mp-head-cards{border:2px solid #4979ab;border-radius:12px;background:#edf4fc;padding:12px;min-width:0}
+#manpowerPlanningPage .mp-head-cards>h5{margin:0 0 10px;font-size:15px;color:#173e68;text-align:center}
+#manpowerPlanningPage .mp-head-cards .mp-people{grid-template-columns:1fr}
+#manpowerPlanningPage .mp-section-heads:empty,#manpowerPlanningPage .mp-team-heads:empty{display:none}
