@@ -22,6 +22,19 @@
   return [...result,...all.filter(m=>!claimed.has(m.id))].sort((a,b)=>String(a.name||a.id).localeCompare(String(b.name||b.id),'th',{numeric:true}));
  }
  function validPoint(d,id){const p=workpoints(d).find(p=>p.id===id);if(!p)throw Error('ไม่พบเครื่องหรือกลุ่มเครื่อง กรุณาโหลดข้อมูลใหม่');return p}
+ function renamePoint(d,id,name,expectedName){
+  const point=validPoint(d,id),value=String(name||'').trim();
+  if(!value||value.length>100)throw Error('ระบุชื่อเครื่อง / จุดงาน 1–100 ตัวอักษร');
+  if((point.name||'')!==expectedName)throw Error('ชื่อถูกแก้ไขจากเครื่องอื่นแล้ว กรุณาโหลดข้อมูลล่าสุดก่อนแก้ไขอีกครั้ง');
+  const key=v=>String(v||'').normalize('NFKC').trim().replace(/\s+/g,' ').toLowerCase();
+  const others=[...machines(d),...Object.entries(d.manpowerGroups||{}).filter(([,g])=>g&&inScope(g)).map(([id,g])=>({...g,id}))];
+  if(others.some(m=>m.id!==id&&m.section===point.section&&key(m.name)===key(value)))throw Error('ชื่อนี้มีอยู่แล้วใน Section เดียวกัน กรุณาใช้ชื่ออื่น');
+  const record=point.isGroup?d.manpowerGroups[id]:d.machines[id];record.name=value;
+ }
+ function renameForm(m){
+  const draft=nameDrafts.get(m.id);
+  return `<details class="mp-name-settings no-print" ${draft?'open':''}><summary>แก้ไขชื่อ</summary><form data-mp-rename="${esc(m.id)}" data-previous-name="${esc(draft?.previousName??m.name??'')}"><label>ชื่อเครื่อง / จุดงาน / กลุ่มเครื่อง<input name="pointName" required maxlength="100" value="${esc(draft?.name??m.name??'')}" aria-label="ชื่อใหม่ของ ${esc(m.name||m.id)}"></label><button>บันทึกชื่อ</button><button type="button" class="secondary" data-mp-name-cancel>ยกเลิก</button></form></details>`;
+ }
  function saveGroup(d,id,sec,name,ids,required){
   const unique=[...new Set(ids)],all=machines(d),byId=new Map(all.map(m=>[m.id,m]));
   if(unique.length<2)throw Error('เลือกเครื่องอย่างน้อย 2 เครื่อง');
@@ -70,7 +83,7 @@
   for(const m of ms)for(const s of shifts){const need=target(m,s),list=assigned(m,s,people);if(need===null)unknown++;else{required+=need;shortage+=Math.max(0,need-list.length);excess+=Math.max(0,list.length-need)}for(const e of list){const id=String(e.id);placed.add(id);occurrences.set(id,(occurrences.get(id)||0)+1)}}
   return {required,unknown,shortage,excess,placed:placed.size,duplicates:[...occurrences].filter(([,n])=>n>1).map(([id])=>id),unassigned:people.filter(e=>!placed.has(String(e.id)))};
  }
- const drafts=new Map(),employeeOptions=new Map();let localTeamFilter='all';
+ const drafts=new Map(),nameDrafts=new Map(),employeeOptions=new Map();let localTeamFilter='all';
  const teamFilter=()=>window.PPMS_WORKPLACE_TEAMS?.filter()||localTeamFilter;
  const visiblePeople=people=>window.PPMS_WORKPLACE_TEAMS?.filterPeople(people)||people.filter(e=>teamFilter()==='all'||(teamFilter()==='none'?!employeeTeam(e):employeeTeam(e)===teamFilter()));
  let dragState=null,picked=null,pointer=null,ghost=null,suppressClickUntil=0;
@@ -173,7 +186,7 @@
  }
  function machineCard(m,people){
   const list=combinedPeople(m,people),visible=visiblePeople(list),need=combinedTarget(m),draft=drafts.get(m.id+'::total');
-  return `<article class="mp-machine${m.isGroup?' mp-machine-group':''}" tabindex="0" data-mp-drop="${esc(m.id)}" data-section="${esc(m.section)}"><h4>${esc(m.name||m.id)} <small>${esc(m.isGroup?'กลุ่มเครื่อง · '+m.members.length+' เครื่อง':m.kind==='support'?'Support':'เครื่อง / จุดงาน')}</small></h4>${m.isGroup?'<div class="mp-group-members">'+m.members.map(x=>'<span>'+esc(x.name||x.id)+'</span>').join('')+'</div>':''}<div class="mp-combined"><div class="mp-row"><p>ต้องใช้ <strong>${need??'—'}</strong> · จัดแล้ว <strong>${list.length}</strong> คน</p>${badge(need,list.length)}</div><div class="mp-people">${teamFilter()!=='all'?'<p class="mp-filter-count">แสดง '+visible.length+' คน · '+(teamFilter()==='none'?'ยังไม่ระบุทีม':'ทีม '+teamFilter())+'</p>':''}${visible.map(e=>person(e,m)).join('')||(list.length?'<p class="mp-drop-empty">ไม่มีพนักงานตรงกับทีมที่เลือก</p>':'<p class="mp-drop-empty">ลากพนักงานมาวางที่เครื่องนี้</p>')}</div><details class="mp-settings no-print"><summary>กำหนดอัตรา / เลือกพนักงาน</summary><form data-mp-target="${esc(m.id)}" data-shift="total" class="mp-target"><label>อัตรารวมที่ต้องใช้ (คน)<input name="required" type="number" min="0" max="999" step="1" value="${esc(draft?.required??need??'')}" placeholder="ยังไม่กำหนด"></label><label>เกณฑ์ / ปริมาณงาน<input name="basis" maxlength="300" value="${esc(draft?.basis??m.manpower?.basis??'')}" placeholder="เช่น จำนวนคนรวมทีม A และ B"></label><button>บันทึกอัตรา</button></form><form data-mp-assign="${esc(m.id)}" class="mp-assign"><label>พนักงานเข้าเครื่อง<select name="employee" required><option value="">เลือกชื่อ / รหัสพนักงาน</option></select></label><button>จัดคน / ย้ายมาเครื่องนี้</button></form></details>${m.isGroup?groupForm(m.section,m):''}</div>${m.manpower?.basis?'<p class="mp-muted">เกณฑ์: '+esc(m.manpower.basis)+'</p>':''}</article>`;
+  return `<article class="mp-machine${m.isGroup?' mp-machine-group':''}" tabindex="0" data-mp-drop="${esc(m.id)}" data-section="${esc(m.section)}"><h4>${esc(m.name||m.id)} <small>${esc(m.isGroup?'กลุ่มเครื่อง · '+m.members.length+' เครื่อง':m.kind==='support'?'Support':'เครื่อง / จุดงาน')}</small></h4>${renameForm(m)}${m.isGroup?'<div class="mp-group-members">'+m.members.map(x=>'<span>'+esc(x.name||x.id)+'</span>').join('')+'</div>':''}<div class="mp-combined"><div class="mp-row"><p>ต้องใช้ <strong>${need??'—'}</strong> · จัดแล้ว <strong>${list.length}</strong> คน</p>${badge(need,list.length)}</div><div class="mp-people">${teamFilter()!=='all'?'<p class="mp-filter-count">แสดง '+visible.length+' คน · '+(teamFilter()==='none'?'ยังไม่ระบุทีม':'ทีม '+teamFilter())+'</p>':''}${visible.map(e=>person(e,m)).join('')||(list.length?'<p class="mp-drop-empty">ไม่มีพนักงานตรงกับทีมที่เลือก</p>':'<p class="mp-drop-empty">ลากพนักงานมาวางที่เครื่องนี้</p>')}</div><details class="mp-settings no-print"><summary>กำหนดอัตรา / เลือกพนักงาน</summary><form data-mp-target="${esc(m.id)}" data-shift="total" class="mp-target"><label>อัตรารวมที่ต้องใช้ (คน)<input name="required" type="number" min="0" max="999" step="1" value="${esc(draft?.required??need??'')}" placeholder="ยังไม่กำหนด"></label><label>เกณฑ์ / ปริมาณงาน<input name="basis" maxlength="300" value="${esc(draft?.basis??m.manpower?.basis??'')}" placeholder="เช่น จำนวนคนรวมทีม A และ B"></label><button>บันทึกอัตรา</button></form><form data-mp-assign="${esc(m.id)}" class="mp-assign"><label>พนักงานเข้าเครื่อง<select name="employee" required><option value="">เลือกชื่อ / รหัสพนักงาน</option></select></label><button>จัดคน / ย้ายมาเครื่องนี้</button></form></details>${m.isGroup?groupForm(m.section,m):''}</div>${m.manpower?.basis?'<p class="mp-muted">เกณฑ์: '+esc(m.manpower.basis)+'</p>':''}</article>`;
  }
  function drawSafe(){if(dragState||pointer||root?.contains(document.activeElement)&&document.activeElement.matches('input,select,textarea')){refreshPending=true;return}draw()}
  function lock(){
@@ -241,9 +254,10 @@
   const next=document.getElementById('manpowerPlanningPage');if(root===next)return;clearInterval(timer);endPointer();dragState=null;picked=null;root=next;generation++;if(!root)return;
   ready=false;try{data=normalize(JSON.parse(localStorage.getItem(CACHE)||'null'))}catch{data=normalize(null)}message='กำลังโหลดข้อมูลกลาง...';
   root.addEventListener('focusin',populateEmployeeSelect);root.addEventListener('pointerdown',populateEmployeeSelect,true);root.addEventListener('mousedown',populateEmployeeSelect,true);
-  root.addEventListener('input',e=>{const f=e.target.closest('[data-mp-target]');if(f)drafts.set(f.dataset.mpTarget+'::'+f.dataset.shift,{required:f.elements.required.value,basis:f.elements.basis.value})});
+  root.addEventListener('input',e=>{const rename=e.target.closest('[data-mp-rename]');if(rename)nameDrafts.set(rename.dataset.mpRename,{name:rename.elements.pointName.value,previousName:rename.dataset.previousName});const f=e.target.closest('[data-mp-target]');if(f)drafts.set(f.dataset.mpTarget+'::'+f.dataset.shift,{required:f.elements.required.value,basis:f.elements.basis.value})});
   root.addEventListener('submit',async e=>{
    const f=e.target;if(!f.matches('form'))return;e.preventDefault();if(busy)return;
+   if(f.hasAttribute('data-mp-rename')){const id=f.dataset.mpRename,name=f.elements.pointName.value,previousName=f.dataset.previousName;nameDrafts.set(id,{name,previousName});if(await save(d=>renamePoint(d,id,name,previousName))){nameDrafts.delete(id);draw()}return}
    if(f.hasAttribute('data-mp-target')){const raw=f.elements.required.value,n=raw===''?null:Number(raw),basis=f.elements.basis.value,id=f.dataset.mpTarget;if(await save(d=>setPointTotal(d,id,n,basis))){drafts.delete(id+'::total');draw()}}
    if(f.hasAttribute('data-mp-assign')){const id=f.dataset.mpAssign,employee=f.elements.employee.value;if(employee)await save(d=>moveToPoint(d,id,employee))}
    if(f.hasAttribute('data-mp-group')){const id=f.dataset.mpGroup,sec=f.dataset.section,name=f.elements.groupName.value,ids=[...f.querySelectorAll('[name="machineIds"]:checked')].map(el=>el.value),raw=f.elements.required.value,required=raw===''?null:Number(raw);await save(d=>saveGroup(d,id,sec,name,ids,required))}
@@ -252,6 +266,7 @@
   bindMoving();
   root.addEventListener('click',async e=>{
    if(Date.now()<suppressClickUntil)return;
+   const cancel=e.target.closest('[data-mp-name-cancel]');if(cancel&&!busy){const form=cancel.closest('form');nameDrafts.delete(form.dataset.mpRename);const latest=workpoints().find(m=>m.id===form.dataset.mpRename)?.name||'';form.elements.pointName.value=latest;form.dataset.previousName=latest;form.closest('details').open=false;return}
    const card=e.target.closest('[data-mp-person]');if(e.target.closest('[data-mp-pick]')||card&&!e.target.closest('button,select,input')){pickCard(card);return}
    const destination=dropTarget(e.target);if(picked&&destination&&!e.target.closest('button,input,select,textarea,summary')){await dropPerson(picked,destination);return}
    const dissolve=e.target.closest('[data-mp-dissolve]'),quick=e.target.closest('[data-mp-small-group]');if(dissolve){const id=dissolve.dataset.mpDissolve;await save(d=>dissolveGroup(d,id));return}if(quick){const sec=quick.dataset.mpSmallGroup,ids=smallMachineIds(sec);await save(d=>saveGroup(d,'',sec,'เครื่องเล็ก 1–6',ids,3));return}
@@ -262,7 +277,7 @@
  window.addEventListener('ppms-employees-changed',drawSafe);window.addEventListener('ppms-organization-scope-changed',()=>{endPointer();dragState=null;picked=null;drawSafe()});
  window.addEventListener('storage',e=>{if(e.key===CACHE)void load()});
  document.addEventListener('click',event=>{if(event.target.closest?.('#nav [data-page="manpower"]'))document.activeElement?.blur?.()},true);
- window.PPMS_MANPOWER={page:()=>'<section id="manpowerPlanningPage"></section>',mount,summary,setTarget,move,unassign,employeeTeam,combinedTarget,combinedPeople,combinedSummary,setTotal,moveCombined,unassignCombined,workpoints,saveGroup,dissolveGroup,moveToPoint,unassignPoint,setPointTotal};
+ window.PPMS_MANPOWER={page:()=>'<section id="manpowerPlanningPage"></section>',mount,summary,setTarget,move,unassign,employeeTeam,combinedTarget,combinedPeople,combinedSummary,setTotal,moveCombined,unassignCombined,workpoints,saveGroup,dissolveGroup,moveToPoint,unassignPoint,setPointTotal,renamePoint};
  // A late asset load can follow the main bundle's temporary loading page.
  document.querySelector('#nav [data-page="manpower"].active')?.click();
 })();
