@@ -7,7 +7,7 @@ const scripts=[...html.matchAll(/<script[^>]+src=["']([^"']+)["']/g)].map(m=>m[1
 const positions=['Manager','Production Engineer','Supervisor','Leader','Technician','Operator','Document Control','Production Planning','Store','Tooling Engineer','Welding Engineer','Assistant Leader'];
 const sections=['Engineering Support Section','Support Production Section','Machine Maintenance Section','Tooling Maintenance Section','Stamping Section','Welding Section','Sorting Section','CNC Section','Tapping Section','Bending Section'];
 const employees=sections.flatMap((section,s)=>positions.slice(0,8).map((position,i)=>({id:'TEST-'+s+'-'+i,name:'TEST EMPLOYEE '+s+' '+i,position,section,startDate:'2020-01-01',contractType:i%2?'Subcontractor':'Permanent',sortingGroup:i%2?'Sorting 1':'Sorting 2',skillLevels:{},currentSkillLevel:1})));
-async function setup(admin=true,entry='index.html'){
+async function setup(admin=true,entry='index.html',seed={}){
  const html=fs.readFileSync(entry,'utf8'),scripts=[...html.matchAll(/<script[^>]+src=["']([^"']+)["']/g)].map(m=>m[1].split('?')[0]).filter(p=>!/^https?:/.test(p));
  const errors=[],warnings=[],vc=new VirtualConsole();vc.on('jsdomError',e=>errors.push(e.message));vc.on('error',e=>errors.push(String(e)));vc.on('warn',e=>warnings.push(String(e)));
  const dom=new JSDOM(html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi,''),{url:'https://example.test/'+(entry==='index.html'?'':entry),runScripts:'outside-only',pretendToBeVisual:true,virtualConsole:vc,storageQuota:50*1024*1024});
@@ -17,6 +17,8 @@ async function setup(admin=true,entry='index.html'){
  w.localStorage.setItem('ppms_v3_employees',JSON.stringify(employees));
  w.localStorage.setItem('ppms_v768_admin_device_id','test-device');w.sessionStorage.setItem('ppms_device_lock_verified','test-device');
  if(admin){w.sessionStorage.setItem('ppms_admin','1');w.sessionStorage.setItem('ppms_admin_user','tester')}
+ for(const [key,value]of Object.entries(seed.session||{}))w.sessionStorage.setItem(key,value);
+ for(const [key,value]of Object.entries(seed.local||{}))w.localStorage.setItem(key,value);
  await wait(0);
  for(const script of scripts){try{w.eval(fs.readFileSync(script,'utf8')+'\n//# sourceURL='+script)}catch(e){errors.push(script+': '+e.stack)}}
  w.document.dispatchEvent(new w.Event('DOMContentLoaded'));
