@@ -151,7 +151,7 @@
  }
  async function workbook(model,photos){
   const book=new ExcelJS.Workbook();book.creator='Jinrong';book.created=new Date();
-  const chart=book.addWorksheet('Organization Chart',{views:[{showGridLines:false,zoomScale:75}],pageSetup:{paperSize:8,orientation:'landscape',fitToPage:true,fitToWidth:1,fitToHeight:0}});
+  const chart=book.addWorksheet('Organization Chart',{views:[{showGridLines:false,zoomScale:75}],pageSetup:{paperSize:model.manpowerRows?9:8,orientation:'landscape',fitToPage:true,fitToWidth:1,fitToHeight:model.manpowerRows?1:0}});
   chart.getColumn(1).width=25;chart.getCell('A1').value=model.title;chart.getCell('A1').font={name:'Tahoma',size:16,bold:true,color:{argb:'FF173C63'}};
   chart.getCell('A2').value='คลิกการ์ดหรือรูปเพื่อเปิดชีต JD ของพนักงาน · คลิกกล่องเพื่อย้าย · ดับเบิลคลิกข้อความเพื่อแก้ไข · คลิกขวา > Group > Ungroup เพื่อเปลี่ยนรูป';chart.getCell('A2').font={name:'Tahoma',size:10};
   // Establish the worksheet drawing relationship; replace the seed with native shapes below.
