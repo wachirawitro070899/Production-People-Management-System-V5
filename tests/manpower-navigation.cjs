@@ -14,7 +14,7 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
  let reads=0;w.PPMS_RUNTIME={factoryLayoutEmployees:()=>{reads++;return people},factoryLayoutIsAdmin:()=>true,organizationSections:()=>['Stamping Section']};w.PPMS_FIREBASE_CONFIG={databaseURL:'https://mock.test'};
  w.fetch=async()=>({ok:true,status:200,json:async()=>({machines})});
  w.document.querySelector('#nav').onclick=()=>{w.document.querySelector('#app').innerHTML=w.PPMS_MANPOWER.page();w.PPMS_MANPOWER.mount()};
- const started=Date.now();w.eval(fs.readFileSync('manpower-planning-v886.js','utf8'));await wait(30);
+ const started=Date.now();w.sessionStorage.setItem('ppms_manpower_view_v907','combined');w.eval(fs.readFileSync('manpower-planning-v886.js','utf8'));await wait(30);
  assert(w.document.querySelector('#manpowerPlanningPage'),'Late module load recovers an already-selected loading page');assert.equal(w.document.querySelectorAll('.mp-machine').length,36);
  assert(reads<=3,'Roster is read a bounded number of times, not per employee/machine');
  assert.equal(w.document.querySelectorAll('[data-mp-assign] option').length,36,'Unopened selectors only create placeholder options');

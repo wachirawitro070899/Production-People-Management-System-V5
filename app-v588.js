@@ -3039,6 +3039,7 @@ window.PPMS_RUNTIME={
  },
  workplaceEmployeeTeam:sectionChartEmployeeTeam,
  sectionChartTeamPending:id=>!!pendingEmployeeSaves[String(id)],
+ factoryLayoutSupportEmployees:()=>(organizationRenderMaster?.employees||employees).filter(e=>e&&e.id!=null&&!deletedEmployeeIds.has(String(e.id))&&/warehouse|คลัง|\bwh\b/i.test([e.section,e.position,employeeOrganization(e).division].join(' '))).map(e=>({...e})),
  factoryLayoutEmployees:()=>organizationScopedEmployees(organizationRenderMaster?.employees||employees).filter(e=>e&&e.id!=null&&!deletedEmployeeIds.has(String(e.id))).map(e=>({...e})),
  refreshOrganizationChart(immediate=false){if(current==='dashboard')immediate?renderFromUserControlChange():render()},
  openOrganizationEmployee:id=>openEmployeeEditor(String(id)),
