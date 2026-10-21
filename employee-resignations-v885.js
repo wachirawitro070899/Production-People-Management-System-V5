@@ -25,7 +25,8 @@
   const snapshot=JSON.parse(JSON.stringify({...employee,organizationDivision:scope.division||employee.organizationDivision,organizationPlant:scope.plant||employee.organizationPlant,
    employmentRecords,resignationEventId:eventId,resignedAt:now,resignationDate,resignationReason:String(metadata.resignationReason||''),resignationNote:String(metadata.resignationNote||''),
    recordedBy:sessionStorage.getItem('ppms_admin_user')||sessionStorage.getItem('ppms_leader_id')||'',employmentStatus:'resigned',archiveReason:'resigned'}));
-  cache[eventId]={employee:snapshot,pending:true};try{persist()}catch(error){delete cache[eventId];throw error}return snapshot;
+  const plan=window.PPMSPositionSlots?.planFor(employee);if(plan)snapshot._positionSlot=plan;
+  cache[eventId]={employee:snapshot,pending:true};try{persist()}catch(error){delete cache[eventId];throw error}if(plan)window.PPMSPositionSlots.apply(window.PPMSOrganizationScope.master());return snapshot;
  }
  function confirmed(employee){if(!employee?.id)return;const key=employee.resignationEventId;if(key){cache[key]={employee:decode(employee),pending:false};persist()}loadedAt=0;paint()}
  function rows(){

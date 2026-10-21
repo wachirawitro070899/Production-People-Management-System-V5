@@ -3,11 +3,11 @@ const {setup,employees}=require('./app-pages.cjs');
 const wait=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 (async()=>{
  const state=await setup(),{w,dom,errors}=state;const originalFetch=w.fetch;
- const db={employees:structuredClone(employees),deletedEmployeeIds:[],formerEmployees:{old:{id:'OLD',name:'OLD EMPLOYEE',section:'Engineering Support Section',startDate:'2010-01-01',resignedAt:'2025-01-01T00:00:00Z'}}};
+ const db={settings:{organizationMaster:JSON.parse(w.localStorage.getItem('ppms_organization_master_v1'))},employees:structuredClone(employees),deletedEmployeeIds:[],formerEmployees:{old:{id:'OLD',name:'OLD EMPLOYEE',section:'Engineering Support Section',startDate:'2010-01-01',resignedAt:'2025-01-01T00:00:00Z'}}};
  let offline=false;
  w.fetch=async(url,options={})=>{
-  const path=decodeURIComponent(new URL(url).pathname.replace(/^\/ppms\//,'').replace(/\.json$/,''));
-  if(!/^(employees|deletedEmployeeIds|formerEmployees|formerEmployeeHistory|ngHistoryArchive)(\/|$)/.test(path))return originalFetch(url,options);
+  const path=decodeURIComponent(new URL(url).pathname.replace(/^\/(?:ppms\/)?/,'').replace(/\.json$/,''));
+  if(!/^(settings\/organizationMaster|employees|deletedEmployeeIds|formerEmployees|formerEmployeeHistory|ngHistoryArchive)(\/|$)/.test(path))return originalFetch(url,options);
   if(offline)throw Error('Offline');
   const parts=path.split('/');let parent=db;for(const key of parts.slice(0,-1))parent=parent[key]||={};
   if(options.method==='PUT')parent[parts.at(-1)]=JSON.parse(options.body);
@@ -22,6 +22,7 @@ const wait=ms=>new Promise(resolve=>setTimeout(resolve,ms));
   form.dispatchEvent(new w.Event('submit',{bubbles:true,cancelable:true}));await wait(500);
   assert(!w.document.getElementById('resignationDialog'),'Confirmed submission closes the dialog');assert(!db.employees.some(e=>e.id===id));assert.equal(Object.values(db.formerEmployeeHistory).length,1);assert.equal(Object.values(db.formerEmployeeHistory)[0].resignationReason,'Personal reasons');
   assert(!JSON.parse(w.localStorage.getItem('ppms_v3_employees')).some(e=>e.id===id),'Active roster no longer includes the employee');
+  const retained=Object.values(db.settings.organizationMaster.positionVacancies||{}).find(t=>t.position===Object.values(db.formerEmployeeHistory)[0].position);assert(retained,'The position is retained as authorized staffing');assert(w.PPMSPositionSlots.plans().some(t=>t.id===retained.id&&t.count>0),'HR sees the vacancy after resignation');
   w.document.querySelector('#nav [data-page="resignations"]').click();await wait(250);
   assert(w.document.querySelector('#resignationHistory').textContent.includes(id));assert(w.document.querySelector('#resignationHistory').textContent.includes('OLD'),'Legacy resignation records remain visible');
   w.document.querySelector('[data-resignation-detail]').click();assert(w.document.querySelector('#resignationDialog').textContent.includes('Workflow test'));w.document.querySelector('[data-resignation-close]').click();

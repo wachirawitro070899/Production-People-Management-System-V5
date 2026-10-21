@@ -75,13 +75,13 @@
  function status(text,error=false,value=scope()){notice={text,error,key:scopeKey(value)};const node=document.querySelector('[data-org-structure-status]');if(node&&notice.key===scopeKey(scope())){node.textContent=text;node.classList.toggle('org-structure-error',error)}}
  const refresh=(immediate=false)=>window.PPMS_RUNTIME?.refreshOrganizationChart?.(immediate);
  function isTreeView(){const selected=sessionStorage.getItem(viewKey(scope()));return selected==='tree'||(!selected&&Object.keys(record(scope()).parents||{}).length>0)}
- function controlsMarkup(){return `<label>รูปแบบผัง<select id="organizationStructureView"><option value="departments" ${!isTreeView()?'selected':''}>ผังตามแผนก</option><option value="tree" ${isTreeView()?'selected':''}>ผังสายบังคับบัญชา</option></select></label>${admin()?`<label class="org-structure-switch"><input type="checkbox" id="organizationStructureEdit" ${editing()?'checked':''}>แก้โครงสร้างผัง</label><button type="button" class="secondary" data-org-add-position>เพิ่มตำแหน่ง</button>`:''}`}
+ function controlsMarkup(){return `<label>รูปแบบผัง<select id="organizationStructureView"><option value="departments" ${!isTreeView()?'selected':''}>ผังตามแผนก</option><option value="tree" ${isTreeView()?'selected':''}>ผังสายบังคับบัญชา</option></select></label>${admin()?`<label class="org-structure-switch"><input type="checkbox" id="organizationStructureEdit" ${editing()?'checked':''}>แก้โครงสร้างผัง</label><button type="button" class="secondary" data-org-add-slot>เพิ่มตำแหน่งว่าง</button><button type="button" class="secondary" data-org-add-position>เพิ่มชื่อตำแหน่ง / กำหนดพนักงาน</button>`:''}`}
  function chartMarkup(visible,person){
   const full=model(record(scope()),currentPeople()),shown=new Set(visible.map(e=>String(e.id))),children=new Map([['',[]]]);
   for(const e of visible){let parent=full.parents.get(String(e.id))||'',visited=new Set();while(parent&&!shown.has(parent)&&!visited.has(parent)){visited.add(parent);parent=full.parents.get(parent)||''}if(!shown.has(parent))parent='';if(!children.has(parent))children.set(parent,[]);children.get(parent).push(e)}
   for(const list of children.values())list.sort((a,b)=>priority(a.position)-priority(b.position)||seniority(a,b));
   const node=e=>`<article class="org-tree-node" data-org-node="${esc(e.id)}"><div class="org-tree-card">${person(e)}</div>${children.get(String(e.id))?.length?`<div class="org-tree-children">${children.get(String(e.id)).map(node).join('')}</div>`:''}</article>`;
-  return `<div class="organization-reporting-chart"><div class="org-tree-roots">${children.get('').map(node).join('')||'<div class="empty">ไม่มีข้อมูล</div>'}</div></div>`;
+  return `<div class="organization-reporting-chart"><div class="org-tree-roots">${children.get('').map(node).join('')||'<div class="empty">ไม่มีข้อมูล</div>'}</div>${window.PPMSPositionSlots?.vacancyMarkup(scope())||''}</div>`;
  }
  async function request(path,options={}){
   const base=String(window.PPMS_FIREBASE_CONFIG?.databaseURL||'').replace(/\/$/,'');if(!base)throw Error('ยังไม่ได้เชื่อมต่อฐานข้อมูล');

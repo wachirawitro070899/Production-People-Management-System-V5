@@ -23,10 +23,11 @@
  }
  function specialistVacancyMarkup(){return '<div class="person specialist organization-position-vacancy" data-vacant-position="specialist"><div class="avatar">—</div><b>ว่าง</b><small>Specialist</small></div>'}
  // Planned slots are organization settings, not employee records.
- const vacancyPositionKey=value=>/^(?:pe|production\s*engineer|วิศวกรการผลิต)$/i.test(String(value||'').trim())?'productionengineer':String(value||'').trim().toLowerCase();
+ const vacancyPositionKey=value=>window.PPMSPositionSlots?window.PPMSPositionSlots.positionKey(value):/^(?:pe|production\s*engineer|วิศวกรการผลิต)$/i.test(String(value||'').trim())?'productionengineer':String(value||'').trim().toLowerCase();
  function positionVacancies(section,scope=window.PPMSOrganizationScope?.current()){
   if(!section||!scope)return [];
   try{
+   if(window.PPMSPositionSlots)return window.PPMSPositionSlots.plans(scope).filter(t=>sectionKey(t.section)===sectionKey(section)&&t.count>0);
    const api=window.PPMSOrganizationScope,master=api.master(),targets=Object.values(master.positionVacancies||{}).filter(target=>target&&target.division===scope.division&&target.plant===scope.plant&&sectionKey(target.section)===sectionKey(section)&&Number.isInteger(target.required)&&target.required>0&&target.required<=100);
    if(!targets.length)return [];
    const raw=JSON.parse(localStorage.getItem('ppms_v3_employees')||'[]'),people=api.employees((Array.isArray(raw)?raw:Object.values(raw||{})).filter(Boolean),scope);
@@ -35,7 +36,7 @@
  }
  function positionVacancyMarkup(target){
   const esc=value=>String(value||'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char])),pe=vacancyPositionKey(target.position)==='productionengineer';
-  return Array.from({length:target.count},()=>'<div class="person '+(pe?'engineer':'other')+' organization-position-vacancy" data-vacant-position="'+esc(target.position)+'" data-position-vacancy-id="'+esc(target.id)+'"><div class="avatar">—</div><b>ว่าง</b><small>'+esc(target.position)+(pe?' (PE)':'')+'</small></div>').join('');
+  return Array.from({length:target.count},()=>'<div class="person '+(pe?'engineer':'other')+' organization-position-vacancy" data-vacant-position="'+esc(target.position)+'" data-position-vacancy-id="'+esc(target.id)+'"><div class="avatar">—</div><b>ว่าง</b><small>'+esc(target.position)+(pe?' (PE)':'')+'</small><small class="position-recruiting">รอสรรหา / HR</small></div>').join('');
  }
  function isSupervisor(value){return /^(?:sup\.?\s+production|production\s+(?:sup\.?|supervisor)|supervisor\s+production|หัวหน้างานฝ่ายผลิต)$/i.test(String(value||'').trim())}
  function reportsToSupervisor(section){return sectionOrder.includes(sectionKey(section))||sectionKey(section)==='sorting'}

@@ -2,12 +2,12 @@
 // realtime socket and the large attendance/master transaction.
 (()=>{'use strict';
 const running=new Map();
-async function request(path,options={}){
+async function request(path,options={},prefix='ppms/'){
  const base=String(window.PPMS_FIREBASE_CONFIG?.databaseURL||'').replace(/\/$/,'');
  if(!base)throw Error('ไม่พบการตั้งค่า Firebase');
  const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),20000);
  try{
-  const response=await fetch(base+'/ppms/'+path+'.json',{...options,signal:controller.signal,cache:'no-store'});
+  const response=await fetch(base+'/'+prefix+path+'.json',{...options,signal:controller.signal,cache:'no-store'});
   if(!response.ok&&response.status!==412)throw Error('Firebase ไม่ยืนยันการบันทึก ('+response.status+')');
   // Keep the deadline active until the body has also finished downloading.
   const value=await response.json();
@@ -15,13 +15,13 @@ async function request(path,options={}){
  }catch(error){if(error.name==='AbortError')throw Error('เชื่อมต่อ Firebase หมดเวลา • เก็บรายการรอลบไว้แล้ว');throw error}
  finally{clearTimeout(timer)}
 }
-async function change(path,update){
+async function change(path,update,prefix='ppms/'){
  for(let attempt=0;attempt<5;attempt++){
-  const read=await request(path,{headers:{'X-Firebase-ETag':'true'}});
+  const read=await request(path,{headers:{'X-Firebase-ETag':'true'}},prefix);
   if(!read.etag)throw Error('Firebase ไม่ส่งข้อมูลยืนยันเวอร์ชัน');
   const next=update(read.value);
   if(JSON.stringify(next)===JSON.stringify(read.value))return read.value;
-  const saved=await request(path,{method:'PUT',headers:{'Content-Type':'application/json','if-match':read.etag},body:JSON.stringify(next)});
+  const saved=await request(path,{method:'PUT',headers:{'Content-Type':'application/json','if-match':read.etag},body:JSON.stringify(next)},prefix);
   if(saved.status!==412)return saved.value;
  }
  throw Error('มีการแก้รายชื่อพร้อมกัน • ระบบจะส่งรายการรอลบซ้ำ');
@@ -40,12 +40,17 @@ async function remove(id,snapshot=null){
    resignationEventId:eventId,resignedAt:requested.resignedAt||now,resignationDate:requested.resignationDate||now.slice(0,10),
    resignationReason:requested.resignationReason||'',resignationNote:requested.resignationNote||'',recordedBy:requested.recordedBy||'',
    organizationDivision:requested.organizationDivision||leaving.organizationDivision||'Production Division',organizationPlant:requested.organizationPlant||leaving.organizationPlant||'โรง 1',
-   employmentRecords:requested.employmentRecords||{},employmentStatus:'resigned',archived:true,archiveReason:'resigned'};
+   employmentRecords:requested.employmentRecords||{},_positionSlot:requested._positionSlot||leaving._positionSlot||null,employmentStatus:'resigned',archived:true,archiveReason:'resigned'};
   const saved=await change('formerEmployeeHistory/'+encodeURIComponent(eventId),old=>remoteLeaving?archive:(old||archive));
   if(String(saved?.id)!==id)throw Error('ไม่สามารถยืนยันประวัติลาออกได้');
   await change('formerEmployees/'+key,old=>String(old?.resignedAt||'')>String(saved.resignedAt)?old:saved);
   snapshot=saved;
   if(Array.isArray(leaving.ngHistory)&&leaving.ngHistory.length)await change('ngHistoryArchive/'+ngKey,old=>({...leaving,...(old||{}),employmentStatus:'resigned',archived:true,archivedAt:old?.archivedAt||new Date().toISOString()}));
+ }
+ if(leaving&&window.PPMSPositionSlots){
+  const retained={...leaving,organizationDivision:snapshot?.organizationDivision||leaving.organizationDivision,organizationPlant:snapshot?.organizationPlant||leaving.organizationPlant,_positionSlot:snapshot?._positionSlot};
+  const master=await change('settings/organizationMaster',value=>{const next=window.PPMSPositionSlots.preserve(value||window.PPMSOrganizationScope.master(),retained,records(initial.value));return {...next,_updatedAt:Date.now()}},'');
+  window.PPMSPositionSlots.apply(master);
  }
  // Publish the tombstone first so other devices cannot merge a cached employee
  // back into the roster, even if the connection fails during the next step.

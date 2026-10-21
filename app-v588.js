@@ -1492,12 +1492,12 @@ function orgFixedLeadershipLevels(list){
  }).join('');
  return levels?`<div class="org-fixed-leadership">${levels}</div>`:'';
 }
-function orgDepartmentLevels(list,section){
- const vacancyAPI=window.PPMSProductionHierarchy,vacancies=typeof current!=='undefined'&&current==='ngDashboard'?[]:(vacancyAPI?.positionVacancies?.(section,organizationScope())||[]);
- const order=['head','supervisor','specialist','leader','engineer','technician','other','operator'];
+function orgDepartmentLevels(list,section,sortingGroup=''){
+ const vacancyAPI=window.PPMSProductionHierarchy,vacancies=typeof current!=='undefined'&&current==='ngDashboard'?[]:(vacancyAPI?.positionVacancies?.(sortingGroup||section,organizationScope())||[]);
+ const order=['manager','head','supervisor','specialist','leader','engineer','technician','other','operator'];
  return order.map(r=>{
   const group=list.filter(e=>rank(e.position)===r).sort(orgSeniorityCompare),slots=vacancies.filter(target=>rank(target.position)===r).map(target=>vacancyAPI.positionVacancyMarkup(target)).join('');
-  if(r==='specialist'&&!group.length&&window.PPMSProductionHierarchy?.hasSpecialist(section,organizationScope().division))return `<div class="level rank-level-specialist"><h4>Specialist</h4><div class="people">${window.PPMSProductionHierarchy.specialistVacancyMarkup()}</div></div>`;
+  if(r==='specialist'&&!group.length&&!slots&&window.PPMSProductionHierarchy?.hasSpecialist(section,organizationScope().division))return `<div class="level rank-level-specialist"><h4>Specialist</h4><div class="people">${window.PPMSProductionHierarchy.specialistVacancyMarkup()}</div></div>`;
   return group.length||slots?`<div class="level rank-level-${r}"><h4>${levelName(r)}</h4><div class="people">${group.map(e=>person(e,true)).join('')}${slots}</div></div>`:'';
  }).join('')||'<div class="empty">ไม่มีข้อมูลพนักงาน</div>';
 }
@@ -1518,7 +1518,7 @@ function dashboard(historyPage=false){
  const supervisors=production&&hierarchy?employees.filter(e=>hierarchy.isSupervisor(e.position)).sort(orgSeniorityCompare):[];
  const sectionCards=orgSectionDescriptors().map(d=>{
   const list=orgEmployeesForDescriptor(d).filter(e=>!production||(!hierarchy?.isHead(e.position)&&!hierarchy?.isCastingSpecialist(e.position)));
-  return {...d,html:`<section class="division-section ${d.sortingGroup?'division-sorting-split':''}" data-org-section="${esc(d.title)}"><div class="division-section-head"><h3>${esc(d.title)}</h3><small>${list.length} Employees</small></div>${orgDepartmentLevels(list,d.section)}</section>`};
+  return {...d,html:`<section class="division-section ${d.sortingGroup?'division-sorting-split':''}" data-org-section="${esc(d.title)}"><div class="division-section-head"><h3>${esc(d.title)}</h3><small>${list.length} Employees</small></div>${!historyPage&&isAdmin?`<button type="button" class="secondary position-slot-add no-print" data-org-add-slot data-section="${esc(d.sortingGroup||d.section)}">+ เพิ่มตำแหน่งว่าง</button>`:''}${orgDepartmentLevels(list,d.section,d.sortingGroup)}</section>`};
  });
  const chart=production&&hierarchy?hierarchy.chartMarkup(sectionCards,supervisors.map(e=>person(e,true)).join(''),{assign:isAdmin,heads:employees.filter(e=>hierarchy.isHead(e.position)).map(e=>person(e,true)).join(''),castingSpecialists:employees.filter(e=>hierarchy.isCastingSpecialist(e.position)).map(e=>person(e,true)).join('')}):`<div class="division-sections">${sectionCards.map(item=>item.html).join('')}</div>`;
  const tree=!historyPage&&window.PPMSOrganizationEditor?.isTreeView(),organizationChart=tree?window.PPMSOrganizationEditor.chartMarkup(employees,e=>person(e,true)):managerTop+chart;
@@ -1526,7 +1526,7 @@ function dashboard(historyPage=false){
  const positionCount=new Set(employees.map(e=>String(e.position||'').trim()).filter(Boolean)).size;
  const employment=organizationEmploymentCounts(employees);
  return head(historyPage?'ประวัติการขาดลามาสายและงานเสีย':window.PPMSOrganizationScope.title('en'),historyPage?`ยอดสะสมจากประวัติที่บันทึกถึงวันที่ ${esc(today)} · ลารวมลากิจและลาป่วย`:'โครงสร้างพนักงานตามตำแหน่งและแผนก',printBtn()+reportButtons())+
- (!historyPage?`<div class="panel no-print organization-chart-controls">${window.PPMSOrganizationEditor?.controlsMarkup()||''}</div>`:'')+`<div class="cards"><div class="card metric">พนักงานทั้งหมด<b>${employees.length}</b></div><div class="card metric">แผนก<b>${sectionCards.length}</b></div><div class="card metric">ตำแหน่ง<b>${positionCount}</b></div><div class="card metric">พนักงานใหม่เดือนนี้<b>${newThisMonth}</b></div>${!historyPage?`<div class="card metric">พนักงานประจำ<b data-employment-count="permanent">${employment.permanent}</b></div><div class="card metric">พนักงานซัพคอนแทรค<b data-employment-count="subcontractor">${employment.subcontractor}</b></div>`:''}</div>`+
+ (!historyPage?`<div class="panel no-print organization-chart-controls">${window.PPMSOrganizationEditor?.controlsMarkup()||''}</div>${window.PPMSPositionSlots?.summaryMarkup()||''}`:'')+`<div class="cards"><div class="card metric">พนักงานทั้งหมด<b>${employees.length}</b></div><div class="card metric">แผนก<b>${sectionCards.length}</b></div><div class="card metric">ตำแหน่ง<b>${positionCount}</b></div><div class="card metric">พนักงานใหม่เดือนนี้<b>${newThisMonth}</b></div>${!historyPage?`<div class="card metric">พนักงานประจำ<b data-employment-count="permanent">${employment.permanent}</b></div><div class="card metric">พนักงานซัพคอนแทรค<b data-employment-count="subcontractor">${employment.subcontractor}</b></div>`:''}</div>`+
  `<div class="division-org${historyPage?' employee-history-report':''}" ${!historyPage?`data-organization-mode="${tree?'tree':'departments'}"`:''}>${organizationChart}</div>`;
 }
 function ngDashboardPage(){
@@ -1555,7 +1555,7 @@ function sectionChartEmployees(selected,list=employees){return list.filter(e=>se
 function sectionChartTeamPreferenceKey(section){const scope=organizationScope();return 'ppms_section_chart_team_view_v871::'+scope.division+'::'+scope.plant+'::'+section}
 function sectionChartLevels(list,section){
  const vacancyAPI=window.PPMSProductionHierarchy,vacancies=vacancyAPI?.positionVacancies?.(section,organizationScope())||[];
- return ['manager','head','engineer','supervisor','specialist','leader','technician','other','operator'].map(r=>{const members=list.filter(e=>rank(e.position)===r).sort(orgSeniorityCompare),slots=vacancies.filter(target=>rank(target.position)===r).map(target=>vacancyAPI.positionVacancyMarkup(target)).join('');if(r==='specialist'&&!members.length&&vacancyAPI?.hasSpecialist(section,organizationScope().division))return `<div class="level level-specialist"><h4>Specialist</h4><div class="people">${vacancyAPI.specialistVacancyMarkup()}</div></div>`;return members.length||slots?`<div class="level level-${r}"><h4>${levelName(r)}</h4><div class="people">${members.map(sectionExamPerson).join('')}${slots}</div></div>`:''}).join('');
+ return ['manager','head','engineer','supervisor','specialist','leader','technician','other','operator'].map(r=>{const members=list.filter(e=>rank(e.position)===r).sort(orgSeniorityCompare),slots=vacancies.filter(target=>rank(target.position)===r).map(target=>vacancyAPI.positionVacancyMarkup(target)).join('');if(r==='specialist'&&!members.length&&!slots&&vacancyAPI?.hasSpecialist(section,organizationScope().division))return `<div class="level level-specialist"><h4>Specialist</h4><div class="people">${vacancyAPI.specialistVacancyMarkup()}</div></div>`;return members.length||slots?`<div class="level level-${r}"><h4>${levelName(r)}</h4><div class="people">${members.map(sectionExamPerson).join('')}${slots}</div></div>`:''}).join('');
 }
 function sectionChartTeamMarkup(list,selected){
  const sorting=sectionChartIsSorting(selected),groups=sorting?(sectionChartSortingName(selected)?[sectionChartSortingName(selected)]:['Sorting 1','Sorting 2']).filter(group=>!sectionChartSectionHidden(group)):[''];
@@ -1571,7 +1571,7 @@ function sectionChartCombinedMarkup(selected,list){
  if(selected==='Stamping Section')return '<div class="panel hierarchy stamping-role-source">'+sectionChartLevels(list,selected)+'</div>';
  if(sectionChartIsSorting(selected)){
   const selectedGroup=sectionChartSortingName(selected),groups=(selectedGroup?[selectedGroup]:['Sorting 1','Sorting 2']).filter(group=>!sectionChartSectionHidden(group));
-  const charts=groups.map(group=>{const members=list.filter(e=>sectionChartSortingGroup(e)===group);return `<section class="sorting-team ${group==='Sorting 1'?'sorting-one':'sorting-two'}" data-sorting-group="${group}"><h3>${group}</h3>${sectionChartLevels(members)||'<div class="empty">ไม่มีข้อมูล</div>'}</section>`}).join('');
+  const charts=groups.map(group=>{const members=list.filter(e=>sectionChartSortingGroup(e)===group);return `<section class="sorting-team ${group==='Sorting 1'?'sorting-one':'sorting-two'}" data-sorting-group="${group}"><h3>${group}</h3>${sectionChartLevels(members,group)||'<div class="empty">ไม่มีข้อมูล</div>'}</section>`}).join('');
   const unassigned=list.filter(e=>!sectionChartSortingGroup(e));
   return `<div class="panel hierarchy sorting-split${selectedGroup?' sorting-single':''}">${charts}</div>`+(unassigned.length?`<section class="panel hierarchy sorting-unassigned" data-sorting-group=""><h3>ยังไม่กำหนดกลุ่ม Sorting</h3>${sectionChartLevels(unassigned)}<p class="modal-note no-print">แก้ไขได้ที่ Search Employee → แก้ไขข้อมูล / รูป → กลุ่ม Sorting</p></section>`:'');
  }
