@@ -51,4 +51,9 @@ function setup(){
   await lost.slots.add('Operator','Stamping Section',1);lost.setLost();lost.online();await lost.slots.sync();assert.equal(JSON.parse(lost.w.localStorage.getItem(OUTBOX)).length,1);assert.equal(lost.db.settings.organizationMaster.positionVacancies[0].required,3);await lost.slots.sync();assert.equal(lost.db.settings.organizationMaster.positionVacancies[0].required,3,'A lost response cannot double the authorized headcount');assert.equal(JSON.parse(lost.w.localStorage.getItem(OUTBOX)).length,0);
   console.log('PASSED lost-response recovery without duplicate staffing slots.');
  }finally{lost.dom.window.close()}
+ const deleted=setup();try{
+  await deleted.slots.add('Operator','Stamping Section',1);const key='Production Division::โรง 1';deleted.db.settings.organizationMaster.removedSections={[key]:['Stamping Section']};deleted.db.settings.organizationMaster.sectionMap[key]=deleted.db.settings.organizationMaster.sectionMap[key].filter(s=>s!=='Stamping Section');
+  assert(!deleted.slots.replay(deleted.db.settings.organizationMaster).sectionMap[key].includes('Stamping Section'),'A pending staffing change cannot resurrect a deleted Section');deleted.online();await deleted.slots.sync();assert.equal(JSON.parse(deleted.w.localStorage.getItem(OUTBOX)).length,0);assert.equal(deleted.writes.length,0,'Stale staffing requests are discarded without overwriting a confirmed Section deletion');
+  console.log('PASSED deleted Section tombstones suppress and cancel stale position-slot requests.');
+ }finally{deleted.dom.window.close()}
 })().catch(error=>{console.error(error);process.exitCode=1});

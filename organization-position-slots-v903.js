@@ -30,7 +30,10 @@
   if(!next.sectionMap[key].some(s=>sectionKey(s)===sectionKey(plan.section)))next.sectionMap[key].push(plan.section);
   next.sectionPositions||={};const pkey=key+'::'+plan.section;next.sectionPositions[pkey]=[...new Set([...(next.sectionPositions[pkey]||[]),plan.position])];
  }
+ const sectionRemoved=(value,plan)=>(value?.removedSections?.[plan.division+'::'+plan.plant]||[]).some(name=>sectionKey(name)===sectionKey(plan.section));
+ function discardSection(division,plant,section){localStorage.setItem(OUTBOX,JSON.stringify(jobs().filter(j=>j.plan.division!==division||j.plan.plant!==plant||sectionKey(j.plan.section)!==sectionKey(section))))}
  function withPlan(value,plan,addition=0,jobId=''){
+  if(sectionRemoved(value,plan))return JSON.parse(JSON.stringify(value));
   const next=JSON.parse(JSON.stringify(value||api().master())),targets=records(next),matches=targets.filter(t=>same(t,plan)),target=matches[0]||{id:'slot_'+(jobId||newId()),division:plan.division,plant:plan.plant,section:plan.section,position:plan.position,required:0};
   const applied=Object.assign({},...matches.map(t=>t.slotChanges||{}));
   target.required=Math.max(plan.required||0,...matches.map(t=>Number(t.required)||0),0);
@@ -71,6 +74,7 @@
     const job=jobs()[0];let confirmed=null;
     for(let n=0;n<5;n++){
      const remote=await request({headers:{'X-Firebase-ETag':'true'}});if(!remote.etag)throw Error('ฐานข้อมูลยังไม่ยืนยันเวอร์ชัน');
+     if(sectionRemoved(remote.value,job.plan)){confirmed=remote.value;break}
      const next=withPlan(remote.value||api().master(),job.plan,job.amount,job.id);next._updatedAt=Date.now();
      const result=await request({method:'PUT',headers:{'Content-Type':'application/json','if-match':remote.etag},body:JSON.stringify(next)});if(result.status===412)continue;
      if(!records(result.value).some(t=>t.slotChanges?.[job.id]))throw Error('ฐานข้อมูลยังไม่ยืนยันอัตราตำแหน่ง');confirmed=result.value;break;
@@ -110,7 +114,7 @@
   document.body.append(host);const close=()=>host.remove();host.querySelector('[data-slot-close]').onclick=close;host.onkeydown=e=>{if(e.key==='Escape')close()};host.querySelector('input')?.focus();
   host.querySelector('form').onsubmit=async e=>{e.preventDefault();const f=e.target,button=f.querySelector('button');button.disabled=true;try{await add(f.elements.name.value,f.elements.section.value,f.elements.amount.value,captured);close()}catch(error){host.querySelector('[data-slot-status]').textContent=error.message;button.disabled=false}};
  }
- window.PPMSPositionSlots={positionKey,staffSection,occupied,planFor,preserve,withPlan,replay,apply,add,sync,plans,summaryMarkup,vacancyMarkup,openDialog,hasPending:()=>jobs().length>0||pendingExits().length>0};
+ window.PPMSPositionSlots={positionKey,staffSection,occupied,planFor,preserve,withPlan,replay,apply,add,sync,discardSection,plans,summaryMarkup,vacancyMarkup,openDialog,hasPending:()=>jobs().length>0||pendingExits().length>0};
  document.addEventListener('click',e=>{const b=e.target.closest?.('[data-org-add-slot]');if(!b)return;e.preventDefault();e.stopImmediatePropagation();openDialog(b.dataset.section||'')},true);
  window.addEventListener('online',()=>void sync());window.addEventListener('focus',()=>void sync());window.addEventListener('ppms-organization-scope-changed',()=>document.getElementById('positionSlotDialog')?.remove());
  window.addEventListener('storage',e=>{if(e.key===OUTBOX){apply(api().master());void sync()}});

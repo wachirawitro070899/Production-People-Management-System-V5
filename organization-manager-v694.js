@@ -217,15 +217,22 @@ function sectionMembers(people,organization,division,plant,name,deleted=[]){
    (division!=='Production Division'||(org.plant||e.organizationPlant||master.plants[0])===plant);
  });
 }
+function managedSectionNames(division,plant){
+ const key=sectionKey(division,plant),gone=Object.values(read('ppms_v3_deleted_employee_ids',[])).map(String),people=chartPeople().filter(e=>!gone.includes(String(e.id))&&e.employmentStatus!=='resigned'),scoped=people.filter(e=>{const x=window.PPMSOrganizationScope.employeeScope(e);return x.division===division&&x.plant===plant});
+ const positions=Object.keys(master.sectionPositions||{}).filter(value=>value.startsWith(key+'::')).map(value=>value.slice(key.length+2)),vacancies=Object.values(master.positionVacancies||{}).filter(t=>t&&t.division===division&&t.plant===plant).map(t=>t.section),labels=(master.sectionLabels?.[key]||[]).map(t=>t.section);
+ const names=[...sectionsFor(division,plant),...scoped.map(e=>e.section),...positions,...vacancies,...labels].filter(Boolean).flatMap(value=>sectionIdentity(value)==='sorting'?['Sorting 1','Sorting 2']:value),removed=master.removedSections?.[key]||[];
+ return names.filter((name,index)=>names.findIndex(value=>sectionIdentity(value)===sectionIdentity(name))===index&&(!removed.some(value=>sectionIdentity(value)===sectionIdentity(name))||sectionMembers(scoped,emap,division,plant,name,gone).length));
+}
 function withoutSection(source,division,plant,name){
  if(!source)return undefined;
  const next=JSON.parse(JSON.stringify(source)),key=sectionKey(division,plant),values=next.sectionMap?.[key]||[],identity=sectionIdentity(name);
  const aliases=values.filter(value=>sectionIdentity(value)===identity);
- if(!aliases.length)return (next.removedSections?.[key]||[]).some(value=>sectionIdentity(value)===identity)?source:undefined;
+ next.sectionMap||={};
  next.sectionMap[key]=values.filter(value=>sectionIdentity(value)!==identity);
  if(Array.isArray(next.sectionLabels?.[key]))next.sectionLabels[key]=next.sectionLabels[key].filter(item=>sectionIdentity(item.section)!==identity);
  for(const position of Object.keys(next.sectionPositions||{}))if(position.startsWith(key+'::')&&sectionIdentity(position.slice(key.length+2))===identity)delete next.sectionPositions[position];
  if(!Object.values(next.sectionMap).some(list=>Array.isArray(list)&&list.some(value=>sectionIdentity(value)===identity)))next.sections=(next.sections||[]).filter(value=>sectionIdentity(value)!==identity);
+ if(next.positionVacancies)next.positionVacancies=Object.values(next.positionVacancies).filter(t=>!t||t.division!==division||t.plant!==plant||sectionIdentity(t.section)!==identity);
  next.removedSections||={};next.removedSections[key]=[...new Set([...(next.removedSections[key]||[]),...aliases,name])];
  next._updatedAt=Date.now();return next;
 }
@@ -261,14 +268,17 @@ async function deleteSection(division,plant,name,button){
   if(!confirmed)throw Error('มีการแก้ไขแผนกพร้อมกัน กรุณาลองลบอีกครั้ง');
   const remaining=sectionQueue().filter(job=>!(job.division===division&&job.plant===plant&&sectionIdentity(job.name)===sectionIdentity(name)));
   localStorage.setItem(SECTION_OUTBOX,JSON.stringify(remaining));sectionJobs=remaining;sectionSyncNotice='ลบ Section และซิงก์เรียบร้อยแล้ว';
-  document.getElementById('deleteSectionDialog')?.remove();applyOrganizationMaster(confirmed);alert('ลบ Section เรียบร้อยแล้ว');
+  window.PPMSPositionSlots?.discardSection?.(division,plant,name);document.getElementById('deleteSectionDialog')?.remove();applyOrganizationMaster(confirmed);alert('ลบ Section เรียบร้อยแล้ว');
  }catch(error){alert('ลบ Section ไม่สำเร็จ: '+(error.name==='AbortError'?'การเชื่อมต่อหมดเวลา กรุณาลองใหม่':error.message))}
  finally{sectionDeleteRunning=false;button.disabled=false;button.textContent=label;void syncSections()}
 }
 function sectionDisplayName(name,division,plant,source=master){return window.PPMSOrganizationScope?.sectionLabel(name,{division,plant},source)||name}
 function renamedSection(source,division,plant,section,name,expectedName){
- const key=sectionKey(division,plant),names=source?.sectionMap?.[key]||[],identity=sectionIdentity(section);
- if(!names.some(value=>sectionIdentity(value)===identity))throw Error('ไม่พบ Section ในรายการล่าสุด กรุณาเปิดรายการใหม่');
+ const key=sectionKey(division,plant),identity=sectionIdentity(section);let names=source?.sectionMap?.[key]||[];
+ if(!names.some(value=>sectionIdentity(value)===identity)){
+  if(!source||!managedSectionNames(division,plant).some(value=>sectionIdentity(value)===identity))throw Error('ไม่พบ Section ในรายการล่าสุด กรุณาเปิดรายการใหม่');
+  source=JSON.parse(JSON.stringify(source));source.sectionMap||={};source.sectionMap[key]=names=[...names,section];
+ }
  if(names.some(value=>sectionIdentity(value)!==identity&&[value,sectionDisplayName(value,division,plant,source)].some(label=>sectionIdentity(label)===sectionIdentity(name))))throw Error('มีชื่อ Section นี้แล้วใน Division / โรงงานที่เลือก');
  const current=sectionDisplayName(section,division,plant,source);if(current===name)return source;
  if(expectedName!==undefined&&current!==expectedName)throw Error('ชื่อ Section ถูกแก้ไขจากเครื่องอื่น กรุณาเปิดรายการใหม่');
@@ -299,8 +309,8 @@ async function renameSection(division,plant,section,name,expectedName){
 }
 function renameSectionControls(){
  if(!sectionAdmin())return;
- const scope=window.PPMSOrganizationScope?.current()||{division:master.divisions[0],plant:master.plants[0]},names=sectionsFor(scope.division,scope.plant);
- document.querySelectorAll('.division-section[data-org-section],.factory-org-section[data-org-section]').forEach(card=>{
+ const scope=window.PPMSOrganizationScope?.current()||{division:master.divisions[0],plant:master.plants[0]},names=managedSectionNames(scope.division,scope.plant);
+ document.querySelectorAll('.division-org:not(.employee-history-report) .division-section[data-org-section],.factory-org-section[data-org-section]').forEach(card=>{
   if(card.querySelector('[data-rename-section]'))return;
   const name=names.find(value=>sectionIdentity(value)===sectionIdentity(card.dataset.orgSection));if(!name)return;
   const button=document.createElement('button');button.type='button';button.className='secondary section-position-add no-print';button.dataset.renameSection=name;button.textContent='แก้ไขชื่อ Section';
@@ -312,10 +322,10 @@ function renameSectionControls(){
 }
 function openRenameSectionPicker(selected){
  if(!sectionAdmin())return;document.getElementById('renameSectionDialog')?.remove();
- const scope=window.PPMSOrganizationScope.current(),{division,plant}=scope,names=sectionsFor(division,plant);
+ const scope=window.PPMSOrganizationScope.current(),{division,plant}=scope,names=managedSectionNames(division,plant);
  if(!names.length){alert('ยังไม่มี Section');return}
  const dialog=document.createElement('div');dialog.id='renameSectionDialog';dialog.className='org-config';
- dialog.innerHTML='<section style="max-width:580px" role="dialog" aria-modal="true" aria-labelledby="renameSectionTitle"><h2 id="renameSectionTitle">แก้ไขชื่อ Section</h2><p>'+esc(division)+(division==='Production Division'?' · '+esc(plant):'')+'</p><form><label>Section<select name="section">'+names.map(name=>'<option value="'+esc(name)+'">'+esc(name)+'</option>').join('')+'</select></label><label>ชื่อ Section ใหม่<input name="name" maxlength="100" required autocomplete="off"></label><p>รายชื่อพนักงานและเครื่องจักรที่จัดไว้จะอยู่ใน Section เดิม</p><p role="status" data-rename-message></p><div class="actions"><button type="submit">บันทึกชื่อ Section</button><button type="button" class="secondary" data-rename-cancel>ยกเลิก</button></div></form></section>';
+ dialog.innerHTML='<section style="max-width:580px" role="dialog" aria-modal="true" aria-labelledby="renameSectionTitle"><h2 id="renameSectionTitle">แก้ไขชื่อ Section</h2><p>'+esc(division)+(division==='Production Division'?' · '+esc(plant):'')+'</p><form><label>Section<select name="section">'+names.map(name=>'<option value="'+esc(name)+'">'+esc(sectionDisplayName(name,division,plant))+'</option>').join('')+'</select></label><label>ชื่อ Section ใหม่<input name="name" maxlength="100" required autocomplete="off"></label><p>รายชื่อพนักงานและเครื่องจักรที่จัดไว้จะอยู่ใน Section เดิม</p><p role="status" data-rename-message></p><div class="actions"><button type="submit">บันทึกชื่อ Section</button><button type="button" class="secondary" data-rename-cancel>ยกเลิก</button></div></form></section>';
  document.body.append(dialog);const form=dialog.querySelector('form'),message=form.querySelector('[data-rename-message]');let expectedName='';
  const choose=()=>{expectedName=sectionDisplayName(form.elements.section.value,division,plant);form.elements.name.value=expectedName;message.textContent=''};
  if(selected&&names.includes(selected))form.elements.section.value=selected;choose();form.elements.section.onchange=choose;
@@ -330,33 +340,34 @@ function deleteSectionControls(){
  if(!sectionAdmin())return;renameSectionControls();
  const division=document.getElementById('factoryDivisionChart')?.value||document.getElementById('globalOrganizationDivision')?.value||sessionStorage.getItem('ppms_scope_division')||master.divisions[0],
  plant=division==='Production Division'?(document.getElementById('factoryPlantChart')?.value||sessionStorage.getItem('ppms_scope_plant')||master.plants[0]):'รวม';
- document.querySelectorAll('.factory-org-section').forEach(card=>{
+ const names=managedSectionNames(division,plant);
+ document.querySelectorAll('.division-org:not(.employee-history-report) .division-section[data-org-section],.factory-org-section[data-org-section]').forEach(card=>{
   if(card.querySelector('[data-delete-section]'))return;
-  const name=window.PPMSLanguage?.sourceText(card.querySelector('h4'))||card.querySelector('h4')?.textContent||'';
-  if(!sectionsFor(division,plant).includes(name))return;
-  const button=document.createElement('button');button.type='button';button.className='secondary section-position-add no-print';button.dataset.deleteSection=name;button.dataset.division=division;button.dataset.plant=plant;button.textContent='ลบ Section';card.querySelector('h4')?.after(button);
+  const identity=sectionIdentity(card.dataset.orgSection),name=names.find(value=>sectionIdentity(value)===identity);if(!name)return;
+  const button=document.createElement('button');button.type='button';button.className='secondary section-position-add no-print';button.dataset.deleteSection=name;button.dataset.division=division;button.dataset.plant=plant;button.textContent='ลบ Section';(card.querySelector('.division-section-head')||card.querySelector('h4'))?.after(button);
  });
  const bar=document.querySelector('.organization-scope-bar');
  if(bar&&!bar.querySelector('[data-delete-section-picker]')){
   const button=document.createElement('button');button.type='button';button.className='secondary no-print';button.dataset.deleteSectionPicker='1';button.textContent='ลบ Section';bar.append(button);
  }
 }
-function openDeleteSectionPicker(){
+function openDeleteSectionPicker(selected){
  if(!sectionAdmin())return;
  document.getElementById('deleteSectionDialog')?.remove();
  const division=document.getElementById('factoryDivisionChart')?.value||document.getElementById('globalOrganizationDivision')?.value||sessionStorage.getItem('ppms_scope_division')||master.divisions[0],
  plant=division==='Production Division'?(document.getElementById('factoryPlantChart')?.value||sessionStorage.getItem('ppms_scope_plant')||master.plants[0]):'รวม';
- const names=sectionsFor(division,plant);if(!names.length){alert('ยังไม่มี Section');return}
+ const names=managedSectionNames(division,plant);if(!names.length){alert('ยังไม่มี Section');return}
  const dialog=document.createElement('div');dialog.id='deleteSectionDialog';dialog.className='org-config';
- dialog.innerHTML='<section style="max-width:580px" role="dialog" aria-modal="true"><h2>ลบ Section</h2><p>'+esc(division)+'</p><p>ลบได้เฉพาะ Section ที่ไม่มีพนักงาน กรุณาย้ายพนักงานก่อนลบแผนกที่ยังมีคน</p><label>Section<select>'+names.map(name=>'<option value="'+esc(name)+'">'+esc(name)+'</option>').join('')+'</select></label><div class="actions"><button type="button" data-delete-confirm>ลบ Section</button><button type="button" class="secondary" data-delete-cancel>ยกเลิก</button></div></section>';
- document.body.append(dialog);dialog.querySelector('[data-delete-cancel]').onclick=()=>dialog.remove();
+ dialog.innerHTML='<section style="max-width:580px" role="dialog" aria-modal="true"><h2>ลบ Section</h2><p>'+esc(division)+'</p><p>ลบได้เฉพาะ Section ที่ไม่มีพนักงาน กรุณาย้ายพนักงานก่อนลบแผนกที่ยังมีคน</p><label>Section<select>'+names.map(name=>'<option value="'+esc(name)+'">'+esc(sectionDisplayName(name,division,plant))+'</option>').join('')+'</select></label><p role="status" data-delete-member-count></p><div class="actions"><button type="button" data-delete-confirm>ลบ Section</button><button type="button" class="secondary" data-delete-cancel>ยกเลิก</button></div></section>';
+ document.body.append(dialog);const select=dialog.querySelector('select');if(selected)select.value=selected;
+ const describe=()=>{const count=sectionMembers(chartPeople(),emap,division,plant,select.value,Object.values(read('ppms_v3_deleted_employee_ids',[])).map(String)).length;dialog.querySelector('[data-delete-member-count]').textContent=count?'Section นี้ยังมีพนักงาน '+count+' คน กรุณาย้ายพนักงานไป Section ที่ถูกต้องก่อนลบ':'ไม่มีพนักงานในสำเนาปัจจุบัน · ระบบจะตรวจข้อมูลล่าสุดก่อนลบ'};select.onchange=describe;describe();dialog.querySelector('[data-delete-cancel]').onclick=()=>dialog.remove();
  dialog.querySelector('[data-delete-confirm]').onclick=e=>deleteSection(division,plant,dialog.querySelector('select').value,e.currentTarget);
 }
 document.addEventListener('click',e=>{
  const button=e.target.closest('[data-delete-section],[data-delete-section-picker]');if(!button)return;
  e.preventDefault();e.stopImmediatePropagation();
  if(button.hasAttribute('data-delete-section-picker'))openDeleteSectionPicker();
- else deleteSection(button.dataset.division,button.dataset.plant,button.dataset.deleteSection,button);
+ else openDeleteSectionPicker(button.dataset.deleteSection);
 },true);
 
 function sectionName(value){return String(value||'').trim().replace(/\s+/g,' ')}
