@@ -13,3 +13,35 @@
 @media(max-width:1450px){.mp-org-branches{grid-template-columns:minmax(0,1fr)}}
 @media(max-width:760px){.mp-org-teams{grid-template-columns:minmax(0,1fr);gap:24px}.mp-org-team{padding:10px}.mp-org-team[data-org-team=""]{grid-column:auto}.mp-org-branches{grid-template-columns:minmax(0,1fr)}.mp-person-actions button{min-height:34px}.mp-toolbar label{max-width:100%}}
 @media print{.mp-org-teams{display:block}.mp-org-team{margin-bottom:20px;break-inside:auto}.mp-org-branches{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}.mp-machine{break-inside:avoid}.mp-org-team>h4{color:#153e6c!important;background:#e3edf8!important}.mp-duty-settings{display:none}}
+/* Compact people cards; reveal controls only when a card is opened. */
+#manpowerPlanningPage .mp-people{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,180px),1fr));gap:10px;min-height:0;align-items:start}
+#manpowerPlanningPage .mp-employee-card{display:block;padding:12px;border:1px solid #dce5ef;border-radius:10px;background:#fff;box-shadow:0 2px 6px #173e6808;min-width:0;cursor:pointer;align-self:start}
+#manpowerPlanningPage .mp-employee-card:hover{border-color:#86aace;box-shadow:0 3px 10px #173e6814}
+#manpowerPlanningPage .mp-employee-card:focus-visible{outline:3px solid #548cc8;outline-offset:2px}
+#manpowerPlanningPage .mp-card-face{display:flex;align-items:center;gap:9px;min-width:0}
+#manpowerPlanningPage .mp-card-face .mp-card-name{min-width:0;flex:1;overflow-wrap:anywhere}
+#manpowerPlanningPage .mp-card-face img,#manpowerPlanningPage .mp-card-face .mp-avatar{width:42px;height:42px}
+#manpowerPlanningPage .mp-card-face b{font-size:13px;line-height:1.5}
+#manpowerPlanningPage .mp-card-chevron{color:#6c849e;font-size:18px}
+#manpowerPlanningPage [aria-expanded=true]>.mp-card-face .mp-card-chevron{transform:rotate(180deg)}
+#manpowerPlanningPage .mp-card-machine{margin-top:10px;padding:5px 8px;border-radius:5px;background:#eef4fb;color:#285b8c;line-height:1.5}
+#manpowerPlanningPage .mp-card-detail{margin-top:10px;padding-top:10px;border-top:1px solid #e5edf5;cursor:default}
+#manpowerPlanningPage .mp-card-detail[hidden]{display:none!important}
+#manpowerPlanningPage .mp-employee-card .mp-person-actions{display:flex!important;flex:initial!important;flex-direction:row;flex-wrap:wrap;gap:6px;margin-top:10px;justify-content:start;min-width:0!important}
+#manpowerPlanningPage .mp-person-actions button{min-height:32px;border-radius:6px}
+#manpowerPlanningPage .mp-card-team{display:flex;align-items:center;font-size:12px;margin-top:8px}
+#manpowerPlanningPage .mp-work-card>h4{padding:11px 13px;font-size:15px}
+#manpowerPlanningPage .mp-card-count{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px;font-size:12px;flex-wrap:wrap}
+#manpowerPlanningPage .mp-card-count .mp-tag{font-size:11px;font-weight:normal}
+#manpowerPlanningPage .mp-work-card .mp-drop-empty{margin:0;padding:13px}
+#manpowerPlanningPage .mp-manage{border-top:1px solid #e8eef5;font-size:12px}
+#manpowerPlanningPage .mp-manage>summary{cursor:pointer;padding:9px 13px;color:#527493;background:#f8fafc}
+#manpowerPlanningPage .mp-manage-body{padding:0 12px 12px}
+#manpowerPlanningPage .mp-manage .mp-name-settings{padding:10px 0}
+#manpowerPlanningPage .mp-overview,#manpowerPlanningPage .mp-section-manage{border:1px solid #dce5ef;border-radius:8px;background:white;margin:12px 0;padding:10px 12px}
+#manpowerPlanningPage .mp-overview>summary,#manpowerPlanningPage .mp-section-manage>summary{cursor:pointer;font-size:13px;color:#315b85}
+#manpowerPlanningPage .mp-card-help{font-size:12px;color:#61758b;margin:10px 0}
+#manpowerPlanningPage .mp-org-points{grid-template-columns:repeat(auto-fit,minmax(min(100%,270px),1fr));gap:12px;align-items:start}
+#manpowerPlanningPage .mp-org-team{padding:12px}
+#manpowerPlanningPage .mp-org-team>h4{font-size:16px;padding:10px;margin-bottom:16px!important}
+@media print{#manpowerPlanningPage .mp-employee-card{box-shadow:none;break-inside:avoid}#manpowerPlanningPage .mp-card-chevron,#manpowerPlanningPage .mp-card-help{display:none}#manpowerPlanningPage .mp-overview:not([open]){display:none}}
