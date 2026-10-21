@@ -45,3 +45,10 @@
 #manpowerPlanningPage .mp-org-team{padding:12px}
 #manpowerPlanningPage .mp-org-team>h4{font-size:16px;padding:10px;margin-bottom:16px!important}
 @media print{#manpowerPlanningPage .mp-employee-card{box-shadow:none;break-inside:avoid}#manpowerPlanningPage .mp-card-chevron,#manpowerPlanningPage .mp-card-help{display:none}#manpowerPlanningPage .mp-overview:not([open]){display:none}}
+/* Separate production support from borrowed Warehouse staff in every Section. */
+#manpowerPlanningPage .mp-org-branches{grid-template-columns:minmax(0,1.3fr) minmax(0,1fr) minmax(0,1fr)}
+#manpowerPlanningPage .mp-org-lane:nth-child(3)>h5{background:#e4ebf9;color:#3d5a87}
+#manpowerPlanningPage .mp-support-add{display:flex;flex-wrap:wrap;gap:7px;margin-top:10px}
+#manpowerPlanningPage .mp-support-add button{font-size:11px;padding:7px 9px}
+@media(max-width:1800px){#manpowerPlanningPage .mp-org-branches{grid-template-columns:minmax(0,1fr)} }
+@media print{#manpowerPlanningPage .mp-org-branches{grid-template-columns:repeat(3,minmax(0,1fr))}}

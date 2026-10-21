@@ -49,13 +49,13 @@ const png='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAIAAAAlC+aJAAA
    if(i===0){assert(text.includes('=1+2'));assert(text.includes('PURPOSE'));assert(text.includes('JD-001 / 02'));assert(text.includes('2026-10-17'));assert(text.join('').includes('ทดสอบ'.repeat(500)),'Full long JD is preserved')}
    if(i===1)assert(text.some(t=>t.includes('No saved JD')));if(i===2)assert(text.some(t=>t.includes('Draft')));
    for(let j=0;j<3;j++)if(j!==i)assert(!text.some(t=>t.includes('Emp.ID: '+native.nodes[j].employee.id)),'No other employee JD shares this form');
-   const group=drawing.querySelector('grpSp cNvPr[id="'+(100+i*10)+'"]');assert(group.querySelector('hlinkClick'));if(i<2)assert(drawing.querySelector('cNvPr[name="Photo '+native.nodes[i].employee.id+'"] hlinkClick'));
+   const group=[...drawing.getElementsByTagNameNS('*','cNvPr')].find(node=>node.getAttribute('id')===String(100+i*10));assert(group);assert(group.getElementsByTagNameNS('*','hlinkClick').length);if(i<2){const photo=[...drawing.getElementsByTagNameNS('*','cNvPr')].find(node=>node.getAttribute('name')==='Photo '+native.nodes[i].employee.id);assert(photo);assert(photo.getElementsByTagNameNS('*','hlinkClick').length)}
   }
-  const rosterDrawing=new w.DOMParser().parseFromString(await zip.file('xl/drawings/drawing2.xml').async('string'),'application/xml');assert.equal(rosterDrawing.querySelectorAll('hlinkClick').length,2);
+  const rosterDrawing=new w.DOMParser().parseFromString(await zip.file('xl/drawings/drawing2.xml').async('string'),'application/xml');assert.equal(rosterDrawing.getElementsByTagNameNS('*','hlinkClick').length,2);
   const rosterRels=await zip.file('xl/drawings/_rels/drawing2.xml.rels').async('string');assert(rosterRels.includes('JD_001')&&rosterRels.includes('JD_002'));
   assert(!Object.keys(zip.files).some(name=>/comments|vmlDrawing|vbaProject/i.test(name)),'No comments, Notes, or macros remain');
   const chart=reopened.getWorksheet('Organization Chart');assert.equal(chart.getColumn(1).width,25,'Restore the original lightweight chart grid');
-  for(const link of drawing.querySelectorAll('hlinkClick'))assert(!link.getAttribute('tooltip').includes('ชี้ช่อง JD'),'Remove the JD hover preview');
+  for(const link of drawing.getElementsByTagNameNS('*','hlinkClick'))assert(!link.getAttribute('tooltip').includes('ชี้ช่อง JD'),'Remove the JD hover preview');
   for(const sheet of reopened.worksheets)sheet.eachRow(row=>row.eachCell(cell=>assert.equal(cell.note,undefined)));
   const out=path.join(os.tmpdir(),'ppms-native-organization-test.xlsx');fs.writeFileSync(out,bytes);
   assert.deepEqual(errors,[]);console.log('PASS actual Excel button routing; department/plant/Sorting scoping; deduplicated Section print copies; hierarchy parents; native grouped editable text/cards/photos/connectors; embedded images; text IDs; safe literal names; failed-photo labels; correct photo/card/roster JD links and return links; personal/position/plant JD selection; offline edits; admin permissions; long JD fields; no Notes or JD hover previews; distinct framed JD sheets with persistent employee identity; workbook reopen. Fixture:',out);
