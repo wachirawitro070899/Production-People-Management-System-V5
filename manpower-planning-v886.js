@@ -1,6 +1,7 @@
 /* Manpower targets and assignments share the existing factory-layout cloud document. */
 (()=>{
  'use strict';
+ let renderContext=null;
  const PATH='ppmsFactoryLayout/v1', CACHE='ppms_factory_layout_v1';
  const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
  const rt=()=>window.PPMS_RUNTIME, admin=()=>rt()?.factoryLayoutIsAdmin?.()===true;
@@ -10,9 +11,9 @@
  const label=s=>s==='night'?'กะดึก':'กะเช้า';
  const target=(m,s)=>Number.isInteger(m.manpower?.[s])&&m.manpower[s]>=0?m.manpower[s]:null;
  const roster=()=>{const gone=new Set((rt()?.factoryLayoutDeletedEmployeeIds?.()||[]).map(String));return (rt()?.factoryLayoutEmployees?.()||[]).filter(e=>e?.id!=null&&!gone.has(String(e.id)))};
- const supportRoster=()=>{const gone=new Set((rt()?.factoryLayoutDeletedEmployeeIds?.()||[]).map(String));return (rt()?.factoryLayoutSupportEmployees?.()||[]).filter(e=>e?.id!=null&&!gone.has(String(e.id)))};
- const allPeople=(own=roster())=>[...new Map([...own,...supportRoster()].map(e=>[String(e.id),e])).values()];
- const eligible=(e,m)=>e.section===m.section||(m.kind==='support'&&supportRoster().some(x=>String(x.id)===String(e.id)));
+ const supportRoster=()=>{if(renderContext)return renderContext.support;const gone=new Set((rt()?.factoryLayoutDeletedEmployeeIds?.()||[]).map(String));return (rt()?.factoryLayoutSupportEmployees?.()||[]).filter(e=>e?.id!=null&&!gone.has(String(e.id)))};
+ const allPeople=(own)=>{if(renderContext?.people)return renderContext.people;const people=[...new Map([...(own||roster()),...supportRoster()].map(e=>[String(e.id),e])).values()];if(renderContext){renderContext.people=people;renderContext.byId=new Map(people.map(e=>[String(e.id),e]));renderContext.order=new Map(people.map((e,i)=>[String(e.id),i]))}return people};
+ const eligible=(e,m)=>e.section===m.section||(m.kind==='support'&&(renderContext?renderContext.supportIds.has(String(e.id)):supportRoster().some(x=>String(x.id)===String(e.id))));
  const pointTeam=(e,m)=>m?.kind==='support'&&e.section!==m.section?(Object.values(m.assignments||{}).find(a=>String(a?.employeeId)===String(e.id))?.workplaceTeam??employeeTeam(e)):employeeTeam(e);
  const viewKey='ppms_manpower_view_v907';let orgView=sessionStorage.getItem(viewKey)!=='combined';
  const machines=(d=data)=>Object.entries(d.machines).filter(([,m])=>m&&inScope(m)).map(([id,m])=>({...m,id}));
@@ -87,7 +88,7 @@
   const byNumber=new Map();for(const m of availableGroupMachines(sec)){const match=String(m.name||'').match(/(?:^|[^0-9])([1-6])(?:[^0-9]|$)/);if(match&&!byNumber.has(Number(match[1])))byNumber.set(Number(match[1]),m.id)}
   return [1,2,3,4,5,6].every(n=>byNumber.has(n))?[1,2,3,4,5,6].map(n=>byNumber.get(n)):[];
  }
- function assigned(m,s,people=roster()) {const ids=new Set(Object.values(m.assignments||{}).filter(a=>shiftOf(a)===s).map(a=>String(a?.employeeId)));return people.filter(e=>eligible(e,m)&&ids.has(String(e.id)))}
+ function assigned(m,s,people=roster()) {const ids=new Set(Object.values(m.assignments||{}).filter(a=>shiftOf(a)===s).map(a=>String(a?.employeeId)));return people.filter(e=>ids.has(String(e.id))&&eligible(e,m))}
  function summary(ms,people,shifts) {
   let required=0,unknown=0,shortage=0,excess=0;const placed=new Set(), occurrences=new Map();
   for(const m of ms)for(const s of shifts){const need=target(m,s),list=assigned(m,s,people);if(need===null)unknown++;else{required+=need;shortage+=Math.max(0,need-list.length);excess+=Math.max(0,list.length-need)}for(const e of list){const id=String(e.id);placed.add(id);occurrences.set(id,(occurrences.get(id)||0)+1)}}
@@ -98,7 +99,7 @@
  const teamFilter=()=>window.PPMS_WORKPLACE_TEAMS?.filter()||localTeamFilter;
  const visiblePeople=people=>window.PPMS_WORKPLACE_TEAMS?.filterPeople(people)||people.filter(e=>teamFilter()==='all'||(teamFilter()==='none'?!employeeTeam(e):employeeTeam(e)===teamFilter()));
  let dragState=null,picked=null,pointer=null,ghost=null,suppressClickUntil=0;
- let data=normalize(null),root=null,section='',ready=false,busy=false,message='กำลังโหลดข้อมูล...',timer=null,loading=false,generation=0,refreshPending=false;
+ let data=normalize(null),root=null,section='',ready=false,busy=false,message='กำลังโหลดข้อมูล...',timer=null,loading=false,loadingGeneration=null,generation=0,refreshPending=false;
  const sectionNames=(people=roster(),ms=machines())=>[...new Set([...(rt()?.organizationSections?.()||[]),...people.map(e=>e.section),...ms.map(m=>m.section)].filter(Boolean))];
  function note(text){message=text;const n=root?.querySelector('[data-mp-status]');if(n)n.textContent=text}
  async function request(options={}){
@@ -108,10 +109,10 @@
  }
  function remember(){try{localStorage.setItem(CACHE,JSON.stringify(data))}catch{}}
  async function load(){
-  if(loading||busy||!root?.isConnected)return;loading=true;const token=generation;
-  try{const r=await request(),next=normalize(await r.json());if(token!==generation||busy)return;const changed=!ready||JSON.stringify(data)!==JSON.stringify(next);data=next;ready=true;remember();note('ข้อมูลกลางล่าสุด'+(data.updatedAt?' · '+new Date(data.updatedAt).toLocaleString('th-TH'):''));if(changed)drawSafe()}
+  if(loading&&loadingGeneration===generation||busy||!root?.isConnected)return;loading=true;const token=generation;loadingGeneration=token;
+  try{const r=await request(),next=normalize(await r.json());if(token!==generation||busy)return;const changed=!ready||JSON.stringify(data)!==JSON.stringify(next);data=next;ready=true;if(changed)remember();lock();note('ข้อมูลกลางล่าสุด'+(data.updatedAt?' · '+new Date(data.updatedAt).toLocaleString('th-TH'):''));if(changed)drawSafe()}
   catch(e){if(token===generation){ready=false;note('โหลดข้อมูลไม่สำเร็จ · แสดงสำเนาที่เคยเปิด กรุณากดโหลดใหม่ก่อนแก้ไข');drawSafe()}}
-  finally{loading=false}
+  finally{if(loadingGeneration===token)loading=false}
  }
  async function save(change){
   if(busy)return false;if(!admin()||!ready){note('กรุณา Login Admin และโหลดข้อมูลกลางให้สำเร็จก่อนบันทึก');return false}
@@ -148,7 +149,11 @@
   const day=target(m,'day'),night=target(m,'night');return day!==null&&night!==null?day+night:null;
  }
  function combinedPeople(m,people=allPeople()){
-  const ids=new Set(Object.values(m.assignments||{}).map(a=>String(a?.employeeId)));return people.filter(e=>eligible(e,m)&&ids.has(String(e.id)));
+  if(renderContext&&people===renderContext.people){
+   if(renderContext.points.has(m))return renderContext.points.get(m);
+   const ids=new Set(Object.values(m.assignments||{}).map(a=>String(a?.employeeId))),list=[...ids].map(id=>renderContext.byId.get(id)).filter(e=>e&&eligible(e,m)).sort((a,b)=>renderContext.order.get(String(a.id))-renderContext.order.get(String(b.id)));renderContext.points.set(m,list);return list;
+  }
+  const ids=new Set(Object.values(m.assignments||{}).map(a=>String(a?.employeeId)));return people.filter(e=>ids.has(String(e.id))&&eligible(e,m));
  }
  function combinedSummary(ms,people){
   let required=0,unknown=0,shortage=0,excess=0;const placed=new Set(),occurrences=new Map();
@@ -213,13 +218,18 @@
   root?.querySelectorAll('[data-mp-person]').forEach(el=>el.draggable=admin()&&ready&&!busy);
  }
  function draw(){
+  if(!root?.isConnected)return;
+  const previous=renderContext;renderContext=null;
+  try{const support=supportRoster();renderContext={support,supportIds:new Set(support.map(e=>String(e.id))),points:new Map()};drawContent()}finally{renderContext=previous}
+ }
+ function drawContent(){
   if(!root?.isConnected)return;refreshPending=false;const own=roster(),people=allPeople(own),ms=workpoints(),names=sectionNames(own,ms);if(section&&!names.includes(section))section='';
   const chosen=section?[section]:names;prepareEmployeeOptions(own,ms);
   root.innerHTML=`<div class="page-head"><div><h2>ผังองค์กรกำลังคน</h2><p>ลากพนักงานระหว่างเครื่องได้ทันที · แสดงทีม A / B หลังชื่อ</p></div></div><div class="mp-toolbar no-print"><label>Section<select id="mpSection"><option value="">ทุก Section</option>${names.map(s=>`<option value="${esc(s)}" ${s===section?'selected':''}>${esc(s)}</option>`).join('')}</select></label><label>ทีม<select id="mpTeam">${window.PPMS_WORKPLACE_TEAMS?.options()||'<option value="all">รวมทีม</option><option value="A">ทีม A</option><option value="B">ทีม B</option><option value="none">ยังไม่ระบุทีม</option>'}</select></label><label>รูปแบบ<select id="mpView"><option value="org">ผังองค์กร A/B</option><option value="combined">รวมทุกทีมตามจุดงาน</option></select></label><button id="mpReload" class="secondary">โหลดข้อมูลล่าสุด</button><button id="mpPrint" class="secondary">พิมพ์ผังกำลังคน</button><button id="mpExport" class="secondary">ส่งออก CSV</button><button id="mpLayout" class="secondary">เปิด Layout โรงงาน</button></div><p class="mp-status" role="status" data-mp-status>${esc(message)}</p><p class="mp-card-help">กดการ์ดเพื่อดู JD / ย้าย / แก้ไขข้อมูล · ลากการ์ดเพื่อเปลี่ยนจุดงาน</p><details class="mp-overview"><summary>ดูสรุปอัตรากำลัง</summary><div class="mp-scroll"><table class="mp-summary"><caption>สรุปอัตรากำลังรวม</caption><thead><tr><th>Section</th><th>คนใน Section</th><th>WH สนับสนุน</th><th>ต้องใช้</th><th>จัดแล้ว<br>คนไม่ซ้ำ</th><th>ขาดที่จุดงาน</th><th>เกินที่จุดงาน</th><th>ทบทวนกำลังคนทั้ง Section</th></tr></thead><tbody>${chosen.map(s=>{
-   const p=own.filter(e=>e.section===s),m=ms.filter(m=>m.section===s),a=combinedSummary(m,people),borrowed=people.filter(e=>e.section!==s&&m.some(x=>combinedPeople(x,people).some(x=>String(x.id)===String(e.id)))),review=!m.length||a.unknown?'กำหนดอัตรารวมให้ครบ':a.duplicates.length?'ตรวจคนประจำหลายเครื่อง':a.required>p.length+borrowed.length?'พิจารณาเพิ่ม '+(a.required-p.length-borrowed.length)+' คน':a.required<p.length+borrowed.length?'ทบทวนย้าย / ลดอัตรา '+(p.length+borrowed.length-a.required)+' คน':'จำนวนรวมสมดุล';
+   const p=own.filter(e=>e.section===s),m=ms.filter(m=>m.section===s),a=combinedSummary(m,people),borrowed=[...new Map(m.flatMap(x=>combinedPeople(x,people)).filter(e=>e.section!==s).map(e=>[String(e.id),e])).values()],review=!m.length||a.unknown?'กำหนดอัตรารวมให้ครบ':a.duplicates.length?'ตรวจคนประจำหลายเครื่อง':a.required>p.length+borrowed.length?'พิจารณาเพิ่ม '+(a.required-p.length-borrowed.length)+' คน':a.required<p.length+borrowed.length?'ทบทวนย้าย / ลดอัตรา '+(p.length+borrowed.length-a.required)+' คน':'จำนวนรวมสมดุล';
    return `<tr><th><button class="secondary" data-mp-section="${esc(s)}">${esc(s)}</button></th><td>${p.length}</td><td>${borrowed.length}</td><td>${!m.length?'—':a.required+(a.unknown?' + ?':'')}</td><td>${a.placed}</td><td class="mp-red">${a.shortage}</td><td class="mp-amber">${a.excess}</td><td>${esc(review)}${a.unknown?'<small>ยังไม่กำหนด '+a.unknown+' จุดงาน</small>':''}</td></tr>`
   }).join('')}</tbody></table></div><p class="mp-muted">อัตราว่าง = ยังไม่ประเมิน · 0 = ไม่ใช้คน · กลุ่มเครื่องคิดอัตรากำลังร่วมกันเพียงครั้งเดียว · ทบทวนภาระงาน ทักษะ และคนทดแทนก่อนเพิ่มหรือลดคน</p></details><div class="mp-sections">${chosen.map(s=>{
-   const p=own.filter(e=>e.section===s),m=ms.filter(m=>m.section===s),a=combinedSummary(m,people),borrowed=people.filter(e=>e.section!==s&&m.some(x=>combinedPeople(x,people).some(x=>String(x.id)===String(e.id))));
+   const p=own.filter(e=>e.section===s),m=ms.filter(m=>m.section===s),a=combinedSummary(m,people),borrowed=[...new Map(m.flatMap(x=>combinedPeople(x,people)).filter(e=>e.section!==s).map(e=>[String(e.id),e])).values()];
    return `<section class="mp-section"><header class="mp-section-head"><div><h3>${esc(s)}</h3><p>พนักงานในสังกัด ${p.length} คน · WH สนับสนุน ${borrowed.length} คน · ยังไม่ประจำเครื่อง ${a.unassigned.filter(e=>e.section===s).length} คน</p></div></header>${a.duplicates.length?'<p class="mp-alert">พบคนประจำหลายเครื่อง '+a.duplicates.map(esc).join(', ')+' — ลากไปเครื่องที่รับผิดชอบเพื่อรวมรายการ</p>':''}<div class="mp-section-actions no-print"><button type="button" data-mp-new-person="${esc(s)}">เพิ่มพนักงานใน Section นี้</button></div><details class="mp-section-manage no-print"><summary>เพิ่ม / รวมจุดงาน</summary><div class="mp-group-tools">${smallMachineIds(s).length?'<button type="button" data-mp-small-group="'+esc(s)+'">รวมเครื่อง 1–6 · ใช้ 3 คน</button>':''}${groupForm(s)}</div></details><div class="mp-branch"></div>${orgView?organizationTree(m,people):'<div class="mp-grid">'+(m.map(x=>machineCard(x,people)).join('')||'<p class="mp-empty">ยังไม่มีเครื่องหรือจุดงาน เพิ่มด้านล่าง</p>')+'</div>'}<section class="mp-pool" tabindex="0" data-mp-pool data-section="${esc(s)}"><h4>ยังไม่ประจำเครื่อง (${visiblePeople(a.unassigned.filter(e=>e.section===s)).length}${teamFilter()!=='all'?' / รวม '+a.unassigned.filter(e=>e.section===s).length:''} คน)</h4><p class="mp-muted">ลากชื่อไปวางบนเครื่อง หรือลากกลับมาพักไว้ที่นี่</p><div>${visiblePeople(a.unassigned.filter(e=>e.section===s)).map(e=>person(e)).join('')||(a.unassigned.filter(e=>e.section===s).length?'<p class="mp-drop-empty">ไม่มีพนักงานตรงกับทีมที่เลือก</p>':'<p class="mp-drop-empty">จัดครบแล้ว · ลากคนกลับมาพักไว้ที่นี่ได้</p>')}</div></section><details class="mp-section-manage no-print"><summary>เพิ่มจุดงาน / Support</summary><form class="mp-add" data-mp-add="${esc(s)}"><label>เพิ่มเครื่อง / จุดงาน<input name="name" required maxlength="100" placeholder="เช่น CNC-01 / หัวหน้า / ช่างซ่อม"></label><label>ประเภท<select name="kind"><option value="workstation">M/C · OP</option><option value="support">Support · WH</option></select></label><label>หน้าที่<input name="duty" maxlength="1000" placeholder="หน้าที่ที่ต้องการให้รับผิดชอบ"></label><button>เพิ่มจุดงาน</button></form></details></section>`
   }).join('')}</div>${!chosen.length?'<p class="mp-empty">ยังไม่มี Section ใน Division ที่เลือก กรุณาเพิ่ม Section หรือพนักงานในหน้าผังโรงงาน</p>':''}`;
   root.querySelector('#mpView').value=orgView?'org':'combined';root.querySelector('#mpView').onchange=e=>{orgView=e.target.value==='org';sessionStorage.setItem(viewKey,orgView?'org':'combined');draw()};root.querySelector('#mpTeam').value=teamFilter();root.querySelector('#mpTeam').onchange=e=>{localTeamFilter=e.target.value;picked=null;if(window.PPMS_WORKPLACE_TEAMS)window.PPMS_WORKPLACE_TEAMS.setFilter(localTeamFilter);else draw()};
