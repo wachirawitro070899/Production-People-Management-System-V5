@@ -1,10 +1,10 @@
 const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
 const app=fs.readFileSync('app-v588.js','utf8'),leader=fs.readFileSync('leader-shift-v603.js','utf8');
-const start=app.indexOf(' employeePhotoData:imageToData,'),end=app.indexOf(' factoryLayoutEmployees:',start);
+const start=app.indexOf(' employeePhotoData:imageToData,'),end=app.indexOf(' async assignSectionChartTeam(',start);
 let allowed=true,calls=0,queued=[],events=0;
-const boss={id:'L',section:'Stamping Section'},people=[{id:'1',section:'Stamping Section',name:'ONE',photoUrl:'legacy'},{id:'2',section:'Welding Section',name:'TWO'}];
+const boss={id:'L',position:'Leader',section:'Stamping Section'},people=[{id:'1',section:'Stamping Section',name:'ONE',photoUrl:'legacy'},{id:'2',section:'Welding Section',name:'TWO'}];
 const ctx={imageToData:async file=>{assert.equal(file.type,'image/png');return 'data:image/jpeg;base64,COMPRESSED'},leaderEmployee:()=>boss,isLeaderMode:()=>allowed,organizationRenderMaster:null,employees:structuredClone(people),queueEmployeeSave:(...args)=>queued.push(args),deletedEmployeeIds:new Set(['new']),persistDeletedIds(){},persistCloudToLocal(){},window:{dispatchEvent(){events++}},Event:class{},syncEmployeeCloudNow:async(...args)=>{calls++;return args}};
-vm.createContext(ctx);vm.runInContext('this.runtime={'+app.slice(start,end)+'};',ctx);
+vm.createContext(ctx);vm.runInContext(fs.readFileSync('section-access-v916.js','utf8'),ctx);vm.runInContext('this.runtime={'+app.slice(start,end)+'};',ctx);
 (async()=>{
  await assert.rejects(ctx.runtime.updateLeaderEmployeePhoto('2',{type:'image/png'}),/Section/);assert.equal(calls,0);
  allowed=false;await assert.rejects(ctx.runtime.addLeaderEmployee({id:'new'}),/Leader/);allowed=true;
