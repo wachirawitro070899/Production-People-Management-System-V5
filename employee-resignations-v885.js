@@ -9,7 +9,7 @@
  const read=()=>{try{return JSON.parse(localStorage.getItem(KEY)||'{}')||{}}catch{return {}}};
  let cache=read(),remote=[],loading=false,error='',loadedAt=0,query='',section='',year='';
  if(window.ppmsErrorGuard?.ready)window.ppmsErrorGuard.ready.then(()=>{cache={...read(),...cache};paint()});
- const persist=()=>localStorage.setItem(KEY,JSON.stringify(cache));
+ const persist=()=>{localStorage.setItem(KEY,JSON.stringify(cache));window.dispatchEvent(new Event('ppms-resignation-history-changed'))};
  const decode=value=>{if(Array.isArray(value))return value.map(decode);if(!value||typeof value!=='object')return value;return Object.fromEntries(Object.entries(value).map(([key,v])=>{try{if(key.startsWith('__ppmskey__'))key=decodeURIComponent(key.slice(11))}catch{}return[key,decode(v)]}))};
  const name=e=>t(e.thaiName||e.nameTh||e.name,e.englishName||e.nameEn||e.name||e.thaiName)||e.id;
  const date=value=>/^\d{4}-\d{2}-\d{2}/.test(value||'')?String(value).slice(0,10):'—';
@@ -42,7 +42,7 @@
   try{const response=await fetch(base+'/ppms/'+path+'.json',{signal:controller.signal,cache:'no-store'});if(!response.ok)throw Error('HTTP '+response.status);return decode(await response.json())}finally{clearTimeout(timer)}
  }
  async function refresh(){
-  if(!admin()||loading)return;loading=true;error='';paint();
+  if((!admin()&&!window.PPMS_RUNTIME?.monthReportContext?.().allowed)||loading)return;loading=true;error='';paint();
   try{const pending=Object.values(cache).some(row=>row.pending),values=await Promise.all([request('formerEmployees'),request('formerEmployeeHistory'),...(pending?[request('deletedEmployeeIds'),request('employees')]:[])]);remote=values.slice(0,2).flatMap(v=>Object.values(v||{})).filter(e=>e?.id!=null);
    if(pending){const deleted=new Set(Object.values(values[2]||{}).map(String)),active=new Set(Object.values(values[3]||{}).filter(Boolean).map(e=>String(e.id)));for(const e of remote)if(e.resignationEventId&&cache[e.resignationEventId]?.pending&&deleted.has(String(e.id))&&!active.has(String(e.id)))cache[e.resignationEventId]={employee:e,pending:false}}
 
@@ -86,5 +86,5 @@
  window.addEventListener('ppms-language-changed',()=>{const root=document.getElementById('resignationHistory');if(root){root.outerHTML=page();mount()}});
  window.addEventListener('online',()=>{if(document.getElementById('resignationHistory'))void refresh()});
  const style=document.createElement('style');style.textContent='.resignation-filters{display:flex;gap:10px;flex-wrap:wrap}.resignation-filters input{flex:1;min-width:180px}.resignation-overlay{position:fixed;inset:0;background:#0f172a88;z-index:15000;display:flex;align-items:center;justify-content:center;padding:18px}.resignation-dialog{background:white;border-radius:14px;padding:24px;width:680px;max-width:100%;max-height:90vh;overflow:auto;box-shadow:0 16px 60px #0004}.resignation-dialog label{display:grid;gap:5px;margin:14px 0}.resignation-identity{border:2px solid #164d84;border-radius:10px;padding:14px;display:flex;gap:14px;align-items:center}.resignation-details{display:grid;grid-template-columns:minmax(110px,1fr) 2fr;gap:10px}.resignation-details dt{font-weight:bold}.resignation-details dd{margin:0;white-space:pre-wrap;overflow-wrap:anywhere}#resignationHistory td{vertical-align:middle}';document.head.append(style);
- window.PPMSResignations={capture,confirmed,page,mount,refresh,rows,records:()=>Object.fromEntries(Object.entries(cache).map(([key,row])=>[key,row.employee])),pending:id=>Object.values(cache).find(row=>String(row.employee.id)===String(id)&&row.pending)?.employee||null};
+ window.PPMSResignations={reportState:()=>({records:Object.values(cache).map(row=>({...row.employee,_pending:!!row.pending})),loading,error,loadedAt}),capture,confirmed,page,mount,refresh,rows,records:()=>Object.fromEntries(Object.entries(cache).map(([key,row])=>[key,row.employee])),pending:id=>Object.values(cache).find(row=>String(row.employee.id)===String(id)&&row.pending)?.employee||null};
 })();
