@@ -38,5 +38,5 @@
  document.addEventListener('click',event=>{const button=event.target.closest?.('[data-month-training-add],[data-month-training-edit],[data-training-close]');if(!button)return;if(button.hasAttribute('data-training-close'))close();else openForm(button.dataset.monthTrainingEdit||'',button.dataset.section||'')});
  function mount(){if(!loadedAt||Date.now()-loadedAt>30000)void refresh()}
  const style=document.createElement('style');style.textContent='.month-learning{margin-top:18px}.month-learning details{margin:14px 0}.month-learning summary{cursor:pointer;font-weight:bold;padding:10px;background:#edf4fb}.training-participant{display:flex!important;align-items:center;gap:8px!important}.training-participant input{width:auto}#monthTrainingDialog fieldset{max-height:240px;overflow:auto}';document.head.append(style);
- window.PPMSMonthDevelopment={model:learningModel,markup,refresh,mount,writable};
+ window.PPMSMonthDevelopment={model:learningModel,markup,refresh,mount,writable,reportState:()=>({loading,loadedAt,error})};
 })();
