@@ -53,3 +53,6 @@ Attendance GPS check-in radius can be configured by Admin from 50-500 meters.
 - Reports print in isolated A4 documents, with employee IDs and page numbers; use Save as PDF in the print dialog. Reports are read-only and remain restricted to Admin and the selected organization scope.
 - Browser regression: `node tests/individual-exam-reports.cjs` with `PLAYWRIGHT_MODULE` pointing to Playwright. Optional `PPMS_QA_DIR` writes test PDFs for visual checks.
 - Examination History supports All / Regular / Subcontract filters using current employee contract types, combined with the existing Section, quarter and search filters. Both history print buttons print exactly that selection in an isolated A4 report. Unknown types stay in All and are counted explicitly. Employee summary choices follow the selected contract type; Clear Filters resets the contract selection as well.
+
+### Batch exam reports (v921)
+Examination History includes one A4 print/PDF command for all visible employees: individual summaries, selected exam evidence, or both. Respects current employment, Section, quarter and search filters. Summaries are deduplicated per employee and include full history; evidence uses only selected attempts and saved snapshots. Each report starts on a new page in a single print dialog.
