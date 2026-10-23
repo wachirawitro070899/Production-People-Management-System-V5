@@ -45,3 +45,11 @@ Attendance GPS check-in radius can be configured by Admin from 50-500 meters.
 - Questions and choices stay together on a page. Level 5 includes ten written questions with answer space, except the existing conversion exam, which remains multiple choice only.
 - Paper exports do not save online exam results or change skills. If PDF libraries are unavailable, the button opens the browser print dialog for Save as PDF.
 - Browser verification: `node tests/exam-paper.cjs`, using the same `PLAYWRIGHT_MODULE` and optional `PPMS_PDF_TEST_MODULES` paths as the Month Report tests.
+
+## V920 Individual examination evidence and employee summaries
+- Examination History has an A4 evidence button for each attempt and individual summary buttons. A selector also covers employees without exam history; employee cards offer the same summary print action.
+- Evidence uses the saved questions, choices, submitted answers and written responses from that attempt. Legacy records clearly identify missing original questions and preserve available answer indices without consulting the current question bank.
+- Summary reports contain an overview, all recorded attempts, approval/forced-exit status, explicitly stored skill levels and skill-change history. They do not infer skill updates from scores or count pending/rejected Level 5 submissions as approved passes.
+- Reports print in isolated A4 documents, with employee IDs and page numbers; use Save as PDF in the print dialog. Reports are read-only and remain restricted to Admin and the selected organization scope.
+- Browser regression: `node tests/individual-exam-reports.cjs` with `PLAYWRIGHT_MODULE` pointing to Playwright. Optional `PPMS_QA_DIR` writes test PDFs for visual checks.
+- Examination History supports All / Regular / Subcontract filters using current employee contract types, combined with the existing Section, quarter and search filters. Both history print buttons print exactly that selection in an isolated A4 report. Unknown types stay in All and are counted explicitly. Employee summary choices follow the selected contract type; Clear Filters resets the contract selection as well.
