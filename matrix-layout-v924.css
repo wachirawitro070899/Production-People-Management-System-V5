@@ -32,12 +32,12 @@
 .matrix-doc-header aside{font-size:6.5pt;line-height:1.5;border:1px solid #ffffff88;border-radius:1mm;padding:1.5mm 2mm}
 .matrix-doc-table{width:100%;table-layout:fixed;border-collapse:collapse;border-spacing:0;color:#173d63;margin:0}
 .matrix-doc-table th{background:#dae9f7;font-size:7.3pt;line-height:1.3;text-align:center;vertical-align:middle;padding:1.5mm .8mm;height:10mm;border:.2mm solid #bcd1e4;word-break:normal;overflow-wrap:normal}
-.matrix-doc-table td{height:12.5mm;padding:1.3mm .8mm;border:.2mm solid #d1e0ee;text-align:center;vertical-align:middle;font-size:8pt;line-height:1.25;overflow-wrap:anywhere}
+.matrix-doc-table td{height:12.5mm;padding:1.1mm .8mm;border:.2mm solid #d1e0ee;text-align:center;vertical-align:middle;font-size:8pt;line-height:1.25;overflow-wrap:anywhere}
 .matrix-doc-table tbody tr:nth-child(even){background:#f8fbfe}
 .matrix-doc-table tr{break-inside:avoid;page-break-inside:avoid}
 .matrix-doc-table .matrix-doc-name{text-align:left}
-.matrix-doc-name b{display:block;font-size:8.3pt;line-height:1.25}
-.matrix-doc-name span,.matrix-doc-name small{display:block;font-size:6.6pt;line-height:1.25;color:#5b7186;margin-top:.5mm}
+.matrix-doc-name b{display:block;font-size:8pt;line-height:1.15}
+.matrix-doc-name span,.matrix-doc-name small{display:block;font-size:6.6pt;line-height:1.15;color:#5b7186;margin-top:.2mm}
 .matrix-doc-photo img{display:block;width:9mm;height:9mm;object-fit:cover;border-radius:50%;margin:auto;border:.3mm solid #d8e5ef}
 .matrix-doc-initials{display:grid;place-items:center;width:9mm;height:9mm;border-radius:50%;background:#e9f1f8;color:#50728d;font-size:6pt;margin:auto}
 .matrix-doc-level{display:inline-grid;place-items:center;width:6.5mm;height:6.5mm;min-height:0;min-width:0;padding:0;border:0;border-radius:50%;font:700 8pt Tahoma,Arial,sans-serif}

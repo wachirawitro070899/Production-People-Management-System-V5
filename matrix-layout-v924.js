@@ -60,7 +60,7 @@
  }
  async function printFrame(model,opt){
   const frame=document.createElement('iframe');frame.title='Section Skill Matrix';frame.style.cssText='position:fixed;left:-15000px;top:0;width:1200px;height:900px;border:0';document.body.append(frame);
-  const doc=frame.contentDocument;doc.open();doc.write('<!doctype html><html lang="th"><head><meta charset="utf-8"><title>Skill Matrix '+esc(model.title)+'</title><link rel="stylesheet" href="'+new URL('matrix-layout-v924.css',location.href).href+'"><style>@page{size:'+opt.size+' '+opt.orientation+';margin:6mm}body{margin:0}.matrix-document-page{margin:0!important;box-shadow:none!important;border:0!important;break-after:page}.matrix-document-page:last-child{break-after:auto}</style></head><body>'+makePages(model,opt)+'</body></html>');doc.close();
+  const doc=frame.contentDocument;doc.open();doc.write('<!doctype html><html lang="th"><head><meta charset="utf-8"><title>Skill Matrix '+esc(model.title)+'</title><link rel="stylesheet" href="'+new URL('matrix-layout-v924.css?v=925',location.href).href+'"><style>@page{size:'+opt.size+' '+opt.orientation+';margin:6mm}body{margin:0}.matrix-document-page{margin:0!important;box-shadow:none!important;border:0!important;break-after:page}.matrix-document-page:last-child{break-after:auto}</style></head><body>'+makePages(model,opt)+'</body></html>');doc.close();
   await Promise.race([new Promise(resolve=>{if(doc.readyState==='complete')resolve();else frame.onload=resolve}),new Promise(resolve=>setTimeout(resolve,5000))]);
   await doc.fonts?.ready;await Promise.all([...doc.images].map(img=>img.decode?.().catch(()=>{})||Promise.resolve()));return frame;
  }
