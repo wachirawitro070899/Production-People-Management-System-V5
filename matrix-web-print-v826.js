@@ -4,6 +4,7 @@
  const style=document.createElement('style');style.id='matrixWebPrintStyle';document.head.append(style);
  let scheduled=false;
  function capture(){
+    if(window.PPMSMatrixReport)return;
   scheduled=false;if(window.matchMedia('print').matches)return;
   const report=document.querySelector('#app .matrix-report');if(!report)return;
   const width=Math.ceil(report.getBoundingClientRect().width);if(!width)return;
@@ -38,3 +39,4 @@
  window.addEventListener('resize',schedule);window.addEventListener('afterprint',schedule);
  document.fonts?.ready.then(schedule);schedule();
 })();
+

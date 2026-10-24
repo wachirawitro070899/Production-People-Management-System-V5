@@ -71,6 +71,7 @@
   }
 
   function prepare(){
+    if(window.PPMSMatrixReport)return;
     cleanup();
     hydrateCompanyLogos();
     if(!document.body.classList.contains('print-matrix'))return;
@@ -180,3 +181,4 @@
   window.addEventListener('beforeprint',prepare);
   window.addEventListener('afterprint',cleanup);
 })();
+
