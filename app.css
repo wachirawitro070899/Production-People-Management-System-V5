@@ -1084,3 +1084,6 @@ input[id*="exam"][id*="Emp"], input[id*="Exam"][id*="Emp"] {
 .wallet-supervision-level>b{display:grid;place-items:center;width:2.7mm;height:2.5mm;border-radius:.6mm;font-size:1.9mm}
 .wallet-supervision-level>span{white-space:normal;overflow-wrap:anywhere}
 @media print{.wallet-supervision-level>b{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
+
+/* Multi-employee skill assessment */
+#bulkSkillForm fieldset{border:1px solid #cbd5e1;border-radius:10px;padding:12px;margin:12px 0;min-width:0}#bulkSkillForm legend{font-weight:700;color:#173b68}#bulkSkillForm .bulk-skill-roster{max-height:270px;overflow:auto;border-top:1px solid #e2e8f0;margin-top:10px}#bulkSkillForm .bulk-skill-person{display:flex;gap:10px;align-items:center;padding:10px;border-bottom:1px solid #e2e8f0}.bulk-skill-person[hidden]{display:none!important}.bulk-skill-person input{width:18px;height:18px;flex:0 0 18px}.bulk-skill-person span{display:grid;gap:3px}.bulk-skill-person small{color:#64748b}.bulk-skill-preview{max-height:280px;overflow:auto}.bulk-skill-preview th{position:sticky;top:0;background:#e5eef9}#bulkSkillStatus{color:#173b68;font-weight:600}#bulkSkillForm .skill-single-editor select{min-width:95px}

@@ -67,7 +67,7 @@ async function remove(id,snapshot=null){
 }
 // Save the employee collection independently of the large ppms root socket.
 async function upsert(data,originalId='',options={}){
- const id=String(data.id),oldId=String(originalId||''),patchFields=Array.isArray(options.patchFields)?options.patchFields.filter(field=>['stampingShift','organizationTeam','updatedAt'].includes(field)):null;
+ const id=String(data.id),oldId=String(originalId||''),patchFields=Array.isArray(options.patchFields)?options.patchFields.filter(field=>['stampingShift','organizationTeam','updatedAt','skillLevels','currentSkillLevel','skillUpdatedAt','skillRevisionAt','skillQuarter','skillEvaluator','skillHistory'].includes(field)):null;
  const deleted=await request('deletedEmployeeIds');
  if(oldId===id&&Object.values(deleted.value||{}).map(String).includes(id)){const error=Error('พนักงานถูกลบแล้ว กรุณาโหลดรายชื่อใหม่');if(patchFields)error.code='employee-missing';throw error}
  await change('employees',value=>{
@@ -77,7 +77,20 @@ async function upsert(data,originalId='',options={}){
    if(!existing){const error=Error('พนักงานถูกลบแล้ว กรุณาโหลดรายชื่อใหม่');error.code='employee-missing';throw error}
    if(options.expectedSection&&existing.section!==options.expectedSection){const error=Error('แผนกพนักงานเปลี่ยนแล้ว กรุณาโหลดรายชื่อใหม่');error.code='employee-section-changed';error.existing=existing;throw error}
    if(Object.hasOwn(options,'expectedSortingGroup')&&String(existing.sortingGroup||'')!==options.expectedSortingGroup){const error=Error('กลุ่ม Sorting ของพนักงานเปลี่ยนแล้ว กรุณาโหลดรายชื่อใหม่');error.code='employee-section-changed';error.existing=existing;throw error}
-   const patched={...existing,...Object.fromEntries(patchFields.map(field=>[field,data[field]]))};
+   let patched={...existing,...Object.fromEntries(patchFields.map(field=>[field,data[field]]))};
+   const record=patchFields.includes('skillHistory')&&data.skillHistory?.[0];
+   if(record?.source==='Admin Bulk Skill Update'&&record.batchId){
+    const history=Array.isArray(existing.skillHistory)?existing.skillHistory:[];
+    if(history.some(h=>h.batchId===record.batchId))patched=existing;
+    else{
+     const key=s=>!String(s).startsWith('__ppmskey__')&&!/[.#$\[\]\/]/.test(s)?String(s):'__ppmskey__'+encodeURIComponent(s).replace(/\./g,'%2E');
+     const before={...existing.skillLevels};
+     for(const k of Object.keys(record.before||{}))before[k]=Number(existing.skillLevels?.[k]||existing.currentSkillLevel||1);
+     const after={...before},changed=[];
+     for(const topic of record.selectedSkills||[]){const k=key(topic),value=Number(record.after?.[k]);if(!Number.isInteger(value)||value<1||value>5)throw Error('ระดับ Skill ต้องเป็นเลข 1–5');after[k]=value;if(before[k]!==value)changed.push(topic)}
+     patched={...patched,skillLevels:after,currentSkillLevel:Math.max(...Object.values(after)),skillRevisionAt:new Date().toISOString(),skillHistory:[{...record,before,after,changed},...history].slice(0,100)};
+    }
+   }
    if(Array.isArray(value))return value.map(e=>e&&String(e.id)===id?patched:e);
    return Object.fromEntries(Object.entries(value).map(([key,e])=>[key,e&&String(e.id)===id?patched:e]));
   }
@@ -96,7 +109,8 @@ async function upsert(data,originalId='',options={}){
  });
  const [roster,tombstones]=await Promise.all([request('employees'),request('deletedEmployeeIds')]);
  const saved=records(roster.value).find(e=>String(e.id)===id);
- if(!saved||saved.updatedAt!==data.updatedAt||Object.values(tombstones.value||{}).map(String).includes(id))throw Error('Firebase ยังไม่ยืนยันรายชื่อใหม่ • เก็บรายการรอส่งไว้แล้ว');
+ const bulkRecord=patchFields?.includes('skillHistory')&&data.skillHistory?.[0],bulkConfirmed=bulkRecord?.source==='Admin Bulk Skill Update'&&bulkRecord.batchId&&saved?.skillHistory?.some(h=>h.batchId===bulkRecord.batchId);
+ if(!saved||(!bulkConfirmed&&saved.updatedAt!==data.updatedAt)||Object.values(tombstones.value||{}).map(String).includes(id))throw Error('Firebase ยังไม่ยืนยันรายชื่อใหม่ • เก็บรายการรอส่งไว้แล้ว');
  return {employees:roster.value,deletedEmployeeIds:Object.values(tombstones.value||{}).map(String)};
 }
 window.PPMS_EMPLOYEE_SAVE_SERVICE={upsert};

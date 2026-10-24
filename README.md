@@ -56,3 +56,7 @@ Attendance GPS check-in radius can be configured by Admin from 50-500 meters.
 
 ### Batch exam reports (v921)
 Examination History includes one A4 print/PDF command for all visible employees: individual summaries, selected exam evidence, or both. Respects current employment, Section, quarter and search filters. Summaries are deduplicated per employee and include full history; evidence uses only selected attempts and saved snapshots. Each report starts on a new page in a single print dialog.
+
+### Bulk skill assessment (v922)
+Admin: Section Skill Matrix → ปรับสกิลหลายคน. Search and select employees in the current organization/Section/Sorting group, choose topics and Level 1–5, enter evaluator/date, review the per-person changes, then confirm. Each employee retains an assessment history and offline retry job. Conditional Firebase writes merge only the selected topics with the latest employee record and deduplicate retried batches. Matrix rows and exports sort management first and Operator/OP aliases last, then employment type and seniority within each role.
+Validation: `NODE_PATH=<jsdom module directory> node tests/bulk-skills.cjs`; `node tests/employee-save.cjs`.
