@@ -21,7 +21,7 @@
   if(!allowed())throw Error('กรุณาเข้าสู่ระบบ Admin และเปิดหน้าเช็ค / แก้ไขข้อสอบ');
   const form=document.getElementById('examBankForm');if(!form)throw Error('กรุณาเลือกชุดในหน้าเช็ค / แก้ไขข้อสอบ');
   const value=id=>document.getElementById(id)?.value||'',examType=value('examCheckType'),section=value('examCheckSection'),focusSkill=value('examCheckSkill'),quarter=value('examCheckQuarter'),level=Number(value('examCheckLevel')),setName=value('examCheckSet');
-  if(!labels[examType]||!section||!focusSkill||!/^Q[1-4]$/.test(quarter)||!['A','B','C'].includes(setName)||!Number.isInteger(level)||level<1||level>5)throw Error('ข้อมูลชุดข้อสอบไม่ครบ กรุณาเลือกชุดข้อสอบใหม่');
+  if(!labels[examType]||!section||!focusSkill||!/^Q[1-4]$/.test(quarter)||!['A','B','C'].includes(setName)||!Number.isInteger(level)||level<1||level>4)throw Error('ข้อมูลชุดข้อสอบไม่ครบ กรุณาเลือกชุดข้อสอบใหม่');
   // Whitelist text and options. Correct answers, explanations and editor HTML never enter the document.
   const questions=[...form.querySelectorAll('.exam-editor-card')].map((card,i)=>({text:String(form.elements['qtext'+i]?.value||'').trim(),options:[0,1,2,3].map(j=>String(form.elements['opt'+i+'_'+j]?.value||'').trim())}));
   const expected=level===5||examType==='quarterly'?20:40;
@@ -85,3 +85,4 @@
  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();
  window.PPMSPaperExam={read,frame,export:exportPaper,filename,writtenPrompts};
 })();
+

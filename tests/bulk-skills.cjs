@@ -48,8 +48,8 @@ first.skillLevels={Safety:2,'Machine Operation':4};first.currentSkillLevel=1;sec
   assert(w.document.querySelector('#bulkSkillStatus').textContent.includes('ตรงกับค่าที่กำหนดแล้ว'));
   assert.equal(JSON.parse(w.localStorage.getItem('ppms_v3_employees')).find(e=>e.id==='TEST-4-0').skillHistory.length,1);
   const writes=[];w.PPMS_EMPLOYEE_SAVE_SERVICE.upsert=async(data,id,options)=>{writes.push({data,id,options});const list=JSON.parse(w.localStorage.getItem('ppms_v3_employees'));return {employees:list.map(e=>e.id===id?{...e,...data}:e),deletedEmployeeIds:[]}};
-  Object.defineProperty(w.navigator,'onLine',{value:true,configurable:true});f.elements.bulkLevel0.value='5';f.elements.bulkLevel0.dispatchEvent(new w.Event('change',{bubbles:true}));submit();submit();await wait(180);
-  assert(w.document.querySelector('#modal').classList.contains('hidden'));assert(alerts.at(-1).includes('ซิงก์ Firebase แล้ว 1 คน'));assert.equal(writes.length,1);assert(writes[0].options.patchFields.includes('skillHistory'));assert(!JSON.parse(w.localStorage.getItem('ppms_v3_pending_employee_saves'))['TEST-4-0']);assert.equal(JSON.parse(w.localStorage.getItem('ppms_v3_employees')).find(e=>e.id==='TEST-4-0').skillLevels.Safety,5);
+  Object.defineProperty(w.navigator,'onLine',{value:true,configurable:true});f.elements.bulkLevel0.value='3';f.elements.bulkLevel0.dispatchEvent(new w.Event('change',{bubbles:true}));submit();submit();await wait(180);
+  assert(w.document.querySelector('#modal').classList.contains('hidden'));assert(alerts.at(-1).includes('ซิงก์ Firebase แล้ว 1 คน'));assert.equal(writes.length,1);assert(writes[0].options.patchFields.includes('skillHistory'));assert(!JSON.parse(w.localStorage.getItem('ppms_v3_pending_employee_saves'))['TEST-4-0']);assert.equal(JSON.parse(w.localStorage.getItem('ppms_v3_employees')).find(e=>e.id==='TEST-4-0').skillLevels.Safety,3);
   const section=w.document.querySelector('#matrixSection');section.value='Sorting Section';section.dispatchEvent(new w.Event('change',{bubbles:true}));await wait(80);
   w.document.querySelector('[data-action="bulkSkills"]').click();
   const sortingIds=[...w.document.querySelectorAll('#bulkSkillForm [name="bulkEmployee"]')].map(e=>e.value);
@@ -59,3 +59,4 @@ first.skillLevels={Safety:2,'Machine Operation':4};first.currentSkillLevel=1;sec
  }finally{await dispose(dom)}
  const publicState=await setup(false);try{const microtask=publicState.w.queueMicrotask.bind(publicState.w);publicState.w.queueMicrotask=fn=>microtask(()=>{if(publicState.w.document)fn()});assert(!publicState.w.document.querySelector('[data-action="bulkSkills"]'));assert.deepEqual(publicState.errors,[])}finally{await dispose(publicState.dom)}
 })().catch(error=>{console.error(error);process.exitCode=1});
+

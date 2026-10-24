@@ -16,9 +16,9 @@
  const fallbackSkills=['Safety','Quality','Machine Operation','Inspection','Problem Solving','5S','Training'];
  const html=value=>String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
  const skillsFor=section=>SECTION_SKILLS[section]||fallbackSkills;
- const levelFor=(employee,skill)=>Math.max(1,Math.min(5,Number((employee.skillLevels||{})[skill]||employee.currentSkillLevel||1)));
+ const levelFor=(employee,skill)=>Math.max(1,Math.min(4,Number((employee.skillLevels||{})[skill]||employee.currentSkillLevel||1)));
  const scoreFor=(employee,skills)=>skills.reduce((sum,skill)=>sum+levelFor(employee,skill),0);
- function rankFor(score,count){const average=score/Math.max(1,count);if(average>=4.5)return{level:5,label:'Expert'};if(average>=3.5)return{level:4,label:'Advanced'};if(average>=2.5)return{level:3,label:'Qualified'};if(average>=1.5)return{level:2,label:'Developing'};return{level:1,label:'Beginner'}}
+ function rankFor(score,count){const average=score/Math.max(1,count);if(average>=3.5)return{level:4,label:'Advanced'};if(average>=2.5)return{level:3,label:'Qualified'};if(average>=1.5)return{level:2,label:'Developing'};return{level:1,label:'Beginner'}}
  function datesFor(employee){const last=String(employee.skillUpdatedAt||new Date().toISOString().slice(0,10)).slice(0,10),date=new Date(last);if(Number.isNaN(date.getTime()))return{last:'-',next:'-'};date.setMonth(date.getMonth()+3);return{last,next:date.toISOString().slice(0,10)}}
  function logoSrc(){return document.querySelector('header .logo img')?.src||document.querySelector('.brand .logo img')?.src||''}
  function employeeAvatar(employee){
@@ -37,15 +37,14 @@
   'เริ่มเรียนรู้ · ต้องมีผู้ควบคุมตลอดเวลา',
   'ทำได้บางส่วน · ต้องมีผู้ควบคุมใกล้ชิด',
   'ทำงานได้เอง · แจ้งหัวหน้าเมื่อผิดปกติ',
-  'ชำนาญ · ทำงานเอง แก้ปัญหาและแนะนำผู้อื่น',
-  'ผู้เชี่ยวชาญ · ฝึกสอนและประเมินทักษะผู้อื่น'
+  'ชำนาญ · ทำงานเอง แก้ปัญหาและฝึกสอนผู้อื่น (สูงสุด)'
  ];
- function supervisionLegend(){return '<div class="wallet-back-footer wallet-supervision-legend" role="list" aria-label="ความสามารถและการควบคุมดูแล ระดับ 1–5">'+supervisionLevels.map((description,index)=>`<div class="wallet-supervision-level" role="listitem"><b class="level-${index+1}">${index+1}</b><span>${html(description)}</span></div>`).join('')+'</div>'}
+ function supervisionLegend(){return '<div class="wallet-back-footer wallet-supervision-legend" role="list" aria-label="ความสามารถและการควบคุมดูแล ระดับ 1–4">'+supervisionLevels.map((description,index)=>`<div class="wallet-supervision-level" role="listitem"><b class="level-${index+1}">${index+1}</b><span>${html(description)}</span></div>`).join('')+'</div>'}
  window.walletCardMarkup=function walletCardMarkup(employee,side='front'){
   if(!employee||typeof employee!=='object')return '<div class="panel">ไม่พบข้อมูลพนักงาน</div>';
   const skills=skillsFor(employee.section),values=skills.map(skill=>levelFor(employee,skill)),score=scoreFor(employee,skills),rank=rankFor(score,skills.length),dates=datesFor(employee),logo=logoSrc(),logoHtml=logo?`<img src="${html(logo)}" alt="JR">`:'';
   if(side==='back'){const rows=skills.map((skill,index)=>`<div class="wallet-skill-row"><span>${html(skill)}</span><b class="level-box level-${values[index]}">${values[index]}</b></div>`).join('');return `<section class="employee-skill-card wallet-card wallet-back wallet-back-supervision" data-employee-id="${html(employee.id)}"><div class="wallet-banner"><div class="wallet-logo">${logoHtml}</div><div><strong>SKILL LEVEL</strong><small>${html(employee.id)} · ${html(employee.name)}</small></div></div><div class="wallet-skills">${rows}</div>${supervisionLegend()}</section>`}
-  return `<section class="employee-skill-card wallet-card wallet-front" data-employee-id="${html(employee.id)}"><div class="wallet-banner"><div class="wallet-logo">${logoHtml}</div><div><strong>EMPLOYEE COMPETENCY CARD</strong><small>Production Division</small></div><span>LEVEL ${rank.level}</span></div><div class="wallet-main">${employeeAvatar(employee)}<div class="wallet-person"><h2>${html(employee.name)}</h2><p>${html(employee.thaiName||'')}</p><dl><dt>Emp.ID</dt><dd>${html(employee.id)}</dd><dt>Position</dt><dd>${html(employee.position)}</dd><dt>Section</dt><dd>${html(employee.section)}</dd><dt>Updated</dt><dd>${html(dates.last)}</dd></dl></div><div class="wallet-side"><div class="wallet-score"><small>SCORE</small><b>${score}</b><span>/${skills.length*5}</span></div><div class="wallet-qr" data-qr="${html(examUrl(employee))}" title="Scan to open Employee Examination"></div></div></div><div class="wallet-footer"><b>${rank.label}</b><span>Next: ${html(dates.next)}</span></div></section>`;
+  return `<section class="employee-skill-card wallet-card wallet-front" data-employee-id="${html(employee.id)}"><div class="wallet-banner"><div class="wallet-logo">${logoHtml}</div><div><strong>EMPLOYEE COMPETENCY CARD</strong><small>Production Division</small></div><span>LEVEL ${rank.level}</span></div><div class="wallet-main">${employeeAvatar(employee)}<div class="wallet-person"><h2>${html(employee.name)}</h2><p>${html(employee.thaiName||'')}</p><dl><dt>Emp.ID</dt><dd>${html(employee.id)}</dd><dt>Position</dt><dd>${html(employee.position)}</dd><dt>Section</dt><dd>${html(employee.section)}</dd><dt>Updated</dt><dd>${html(dates.last)}</dd></dl></div><div class="wallet-side"><div class="wallet-score"><small>SCORE</small><b>${score}</b><span>/${skills.length*4}</span></div><div class="wallet-qr" data-qr="${html(examUrl(employee))}" title="Scan to open Employee Examination"></div></div></div><div class="wallet-footer"><b>${rank.label}</b><span>Next: ${html(dates.next)}</span></div></section>`;
  };
 })();
 
@@ -177,3 +176,4 @@
  });
  window.PPMS_ATTENDANCE_OEE_VERSION='V761';
 })();
+
