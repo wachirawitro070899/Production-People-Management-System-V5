@@ -386,7 +386,7 @@ body.exam-only-mode .exam-login-panel, body.exam-only-mode .panel { border-radiu
 @media print{@page{size:85.6mm 53.98mm;margin:0}.wallet-card-sheet{display:block!important;padding:0!important}.wallet-card{width:85.6mm!important;height:53.98mm!important;box-shadow:none!important;border-radius:0!important;page-break-after:always!important}.wallet-card:last-child{page-break-after:auto!important}}
 @media(max-width:800px){.wallet-card-sheet{transform-origin:top center}.wallet-card{width:min(85.6mm,94vw);height:auto;aspect-ratio:85.6/53.98}}
 
-.wallet-qr{width:9mm;height:9mm;background:#fff;padding:.4mm;box-sizing:border-box}.wallet-qr img,.wallet-qr canvas{display:block!important;width:8.2mm!important;height:8.2mm!important}.wallet-render-holder .wallet-card{box-shadow:none!important}
+.wallet-qr{width:9mm;height:9mm;background:#fff;padding:.4mm;box-sizing:border-box}.wallet-qr img,.wallet-qr canvas{display:block!important;width:8.2mm!important;height:8.2mm!important}.wallet-qr img{display:none!important}.wallet-qr img.wallet-qr-print-image{display:block!important}.wallet-render-holder .wallet-card{box-shadow:none!important}
 
 /* V335: ensure report control buttons are visible */
 .top-action-toolbar.no-print{display:flex!important;justify-content:flex-end!important;align-items:center!important;margin:0 0 12px!important;overflow:visible!important}

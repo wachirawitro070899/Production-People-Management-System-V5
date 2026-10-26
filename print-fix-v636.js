@@ -21,7 +21,7 @@
       try{
         const img=clone.ownerDocument.createElement('img');
         img.src=canvas.toDataURL('image/png');
-        img.alt='QR Code';
+        img.alt='QR Code';img.className='wallet-qr-print-image';
         target.replaceWith(img);
       }catch(error){
         console.warn('QR copy skipped',error);
@@ -100,7 +100,7 @@
 
       const link=printWindow.document.createElement('link');
       link.rel='stylesheet';
-      link.href=new URL('app.css?v=629',location.href).href;
+      link.href=new URL('app.css?v=926',location.href).href;
       printWindow.document.head.appendChild(link);
 
       const style=printWindow.document.createElement('style');

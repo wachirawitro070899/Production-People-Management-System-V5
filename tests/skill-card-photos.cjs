@@ -4,11 +4,15 @@ const wait=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 const photo='data:image/png;base64,TEST-PHOTO';
 const employee=(id,fields={})=>({id,name:'MR. TEST '+id,section:'Stamping Section',position:'Operator',startDate:'2020-01-01',contractType:'Permanent',...fields});
 const employees=[employee('DATA',{photoData:photo,photoUrl:'https://example.test/url.png',photo:'https://example.test/legacy.png'}),employee('URL',{photoUrl:'https://example.test/url.png'}),employee('LEGACY',{photo:'https://example.test/legacy.png'}),employee('NONE'),employee('ESCAPED',{name:'MR. O\'NEIL <QA> "STAFF"',photoData:photo})];
-const html=fs.readFileSync('index.html','utf8'),scripts=[...html.matchAll(/<script[^>]+src=["']([^"']+)["']/g)].map(m=>m[1].split('?')[0]).filter(p=>!/^https?:/.test(p));
+const html=fs.readFileSync('index.html','utf8'),scripts=[...html.matchAll(/<script[^>]+src=["']([^"']+)["']/g)].map(m=>m[1].split('?')[0]).filter(p=>!/^https?:/.test(p)&&!/^vendor\/(html2canvas|jspdf|qrcode)/.test(p));
 (async()=>{
  const errors=[],vc=new VirtualConsole();vc.on('jsdomError',e=>errors.push(e.message));vc.on('error',e=>errors.push(String(e)));
  const dom=new JSDOM(html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi,''),{url:'https://example.test',runScripts:'dangerously',pretendToBeVisual:true,virtualConsole:vc,storageQuota:50*1024*1024});
  const w=dom.window;w.TextEncoder=TextEncoder;w.TextDecoder=TextDecoder;w.structuredClone=structuredClone;w.CSS={escape:s=>String(s)};
+ // Native rendering vendors are covered by skill-card-export.cjs in Chromium.
+ // Drop observer callbacks queued during jsdom teardown after its document is gone.
+ w.queueMicrotask=callback=>queueMicrotask(()=>{if(w.document)callback()});
+ w.requestAnimationFrame=callback=>w.setTimeout(()=>{if(w.document)callback(Date.now())},16);
  Object.defineProperty(w.crypto,'subtle',{value:require('node:crypto').webcrypto.subtle});
  w.alert=()=>{};w.confirm=()=>false;w.prompt=()=>null;w.print=()=>{};w.scrollTo=()=>{};w.HTMLElement.prototype.scrollIntoView=()=>{};
  w.matchMedia=()=>({matches:false,addEventListener(){},removeEventListener(){},addListener(){},removeListener(){}});
