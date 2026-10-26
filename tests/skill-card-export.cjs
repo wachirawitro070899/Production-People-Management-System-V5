@@ -19,7 +19,7 @@ people.push({...people[0],id:'HIDDEN',section:'Welding Section'});
   await page.goto('https://ppms.test/');await page.locator('#nav [data-page="cards"]').click();await page.locator('.wallet-card-sheet .wallet-front').first().waitFor();
   assert.equal(await page.locator('.wallet-card-sheet .wallet-front').count(),11);
   const before=await page.evaluate(()=>localStorage.getItem('ppms_v3_employees')),writeCount=writes.length;
-  assert.equal(await page.locator('.wallet-card-sheet .wallet-qr canvas').count(),11,'QR dependency renders real codes');
+  assert.equal(await page.locator('.wallet-qr,[data-qr]').count(),0,'No scan code on web cards or print cards');assert.equal(await page.evaluate(()=>typeof window.QRCode),'undefined');
   await page.locator('.wallet-employee-pair').first().screenshot({path:path.join(qa,'skill-card-web.png')});
   let download=page.waitForEvent('download',{timeout:120000});await page.locator('[data-action="pageExcel"]').click();let file=await download;assert(file.suggestedFilename().endsWith('.xlsx'));await file.saveAs(path.join(qa,'skill-cards.xlsx'));
   const book=new ExcelJS.Workbook();await book.xlsx.load(fs.readFileSync(path.join(qa,'skill-cards.xlsx')));const cards=book.getWorksheet('Skill Cards'),data=book.getWorksheet('Employee Skills');
@@ -31,6 +31,6 @@ people.push({...people[0],id:'HIDDEN',section:'Welding Section'});
   download=page.waitForEvent('download',{timeout:120000});await page.locator('[data-action="pagePdf"]').click();file=await download;assert.equal(file.suggestedFilename(),'Employee_Skill_Card_TEST-003.pdf');await file.saveAs(path.join(qa,'skill-card-single.pdf'));
   assert.equal(await page.evaluate(()=>localStorage.getItem('ppms_v3_employees')),before);assert.equal(writes.length,writeCount);assert.deepEqual(errors,[]);assert(!external.some(url=>/html2canvas|jspdf|qrcode|exceljs/.test(url)),'Export tools use same-origin assets even when external scripts are unavailable');
   assert.equal(await page.locator('[data-action="pageExcel"]').isEnabled(),true);assert.equal(await page.locator('[data-i18n-ignore] .wallet-card').count(),0);
-  console.log('PASS: real all-section and individual PDF/XLSX downloads; QR canvases; 22 matching card images; A4 page breaks; text IDs; filtered editable data; no data writes; no external export libraries; clean UI.');
+  console.log('PASS: real all-section and individual PDF/XLSX downloads; no scan codes or QR dependency; 22 matching card images; A4 page breaks; text IDs; filtered editable data; no data writes; no external export libraries; clean UI.');
  }finally{await browser.close()}
 })().catch(e=>{console.error(e);process.exitCode=1});

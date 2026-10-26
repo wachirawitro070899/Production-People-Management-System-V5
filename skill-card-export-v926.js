@@ -26,8 +26,6 @@
   const host=document.createElement('div');host.setAttribute('data-i18n-ignore','');host.style.cssText='position:absolute;left:-20000px;top:0;width:85.6mm;background:#fff;pointer-events:none';
   host.append(card);document.body.append(host);
   try{
-   // Rebuild QR canvases after cloning; a cloned canvas has no pixel contents.
-   for(const qr of card.querySelectorAll('.wallet-qr[data-qr]')){qr.replaceChildren();new window.QRCode(qr,{text:qr.dataset.qr,width:72,height:72,correctLevel:window.QRCode.CorrectLevel.M})}
    for(const img of [...card.querySelectorAll('img.avatar')]){
     const id=card.dataset.employeeId,record=window.PPMS_RUNTIME?.monthReportContext?.().employees?.find(e=>String(e.id)===String(id));
     if(record&&window.PPMSOrganizationExcel?.portrait){const photo=await window.PPMSOrganizationExcel.portrait(record);if(photo?.data){img.removeAttribute('onerror');img.src=photo.data}}
@@ -50,19 +48,19 @@
   });
   cards.pageSetup.printArea='A1:C'+Math.max(1,records.length*2);
   const data=book.addWorksheet('Employee Skills',{views:[{state:'frozen',ySplit:2,showGridLines:false}],pageSetup:{paperSize:9,orientation:'landscape',fitToPage:true,fitToWidth:1,fitToHeight:0,printTitlesRow:'1:2'}});
-  data.mergeCells('A1:K1');data.getCell('A1').value='ภาพบัตรตรงกับหน้าเว็บ ณ เวลาส่งออก · แก้ไขข้อมูลในชีตนี้ได้ แต่ภาพบัตรไม่เปลี่ยนตาม';data.getRow(1).height=30;data.getCell('A1').alignment={wrapText:true,vertical:'middle'};
-  data.addRow(['Emp.ID','Name','Position','Section','Updated','Next Update','Skill','Level','Total Score','Rank','QR URL']);
-  [18,34,30,30,16,16,30,10,14,18,55].forEach((w,i)=>data.getColumn(i+1).width=w);
-  for(const person of records)for(const skill of person.skills){const row=data.addRow([String(person.id),person.name,person.position,person.section,person.updated,person.next,skill.name,skill.level,person.score,person.rank,person.front.querySelector('.wallet-qr')?.dataset.qr||'']);row.getCell(1).numFmt='@';row.height=30;row.alignment={vertical:'middle',wrapText:true};row.font={name:'Tahoma',size:10}}
+  data.mergeCells('A1:J1');data.getCell('A1').value='ภาพบัตรตรงกับหน้าเว็บ ณ เวลาส่งออก · แก้ไขข้อมูลในชีตนี้ได้ แต่ภาพบัตรไม่เปลี่ยนตาม';data.getRow(1).height=30;data.getCell('A1').alignment={wrapText:true,vertical:'middle'};
+  data.addRow(['Emp.ID','Name','Position','Section','Updated','Next Update','Skill','Level','Total Score','Rank']);
+  [18,34,30,30,16,16,30,10,14,18].forEach((w,i)=>data.getColumn(i+1).width=w);
+  for(const person of records)for(const skill of person.skills){const row=data.addRow([String(person.id),person.name,person.position,person.section,person.updated,person.next,skill.name,skill.level,person.score,person.rank]);row.getCell(1).numFmt='@';row.height=30;row.alignment={vertical:'middle',wrapText:true};row.font={name:'Tahoma',size:10}}
   data.getRow(2).eachCell(cell=>{cell.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FF194E82'}};cell.font={name:'Tahoma',size:10,bold:true,color:{argb:'FFFFFFFF'}}});data.getRow(2).height=26;
-  data.autoFilter='A2:K'+Math.max(2,data.rowCount);return book;
+  data.autoFilter='A2:J'+Math.max(2,data.rowCount);return book;
  }
  async function download(){
   if(busy)return;busy=true;const button=document.querySelector('[data-action="pageExcel"]');
   const notify=text=>{let node=document.getElementById('skillCardExportStatus');if(!node){node=document.createElement('p');node.id='skillCardExportStatus';node.setAttribute('role','status');node.className='no-print';document.querySelector('.card-filter')?.append(node)}node.textContent=text};
   try{
    if(button)button.disabled=true;const records=snapshot();if(!records.length)throw Error('ไม่พบข้อมูลพนักงาน');
-   if(!window.html2canvas||!window.QRCode)throw Error('โหลดระบบสร้างบัตรไม่ครบ กรุณารีเฟรชหน้าเว็บ');
+   if(!window.html2canvas)throw Error('โหลดระบบสร้างบัตรไม่ครบ กรุณารีเฟรชหน้าเว็บ');
    await dependency();const images=[];
    for(let i=0;i<records.length;i++){notify('กำลังสร้าง Excel บัตร '+(i+1)+' / '+records.length);images.push({front:await capture(records[i].front),back:await capture(records[i].back)})}
    const book=await workbook(records,images),bytes=await book.xlsx.writeBuffer(),url=URL.createObjectURL(new Blob([bytes],{type:MIME}));
