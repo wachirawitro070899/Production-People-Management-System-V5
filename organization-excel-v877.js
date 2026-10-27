@@ -52,7 +52,7 @@
    const model={title,nodes,labels,width:Math.max(800,...nodes.map(n=>n.x+n.w+20),...labels.map(n=>n.x+n.w+20)),height:Math.max(260,...nodes.map(n=>n.y+n.h+20))};
    if(target.matches('.division-org:not(.employee-history-report)')&&window.PPMSOrgPoster){
     const counts=window.PPMSOrgPoster.context(target)?.counts;
-    if(counts){window.PPMSOrgPoster.metrics(counts).forEach((item,i)=>model.labels.push({text:item.label+': '+item.value,x:20+(i%3)*(model.width-40)/3,y:model.height+24+Math.floor(i/3)*36,w:(model.width-40)/3,h:28}));model.height+=110}
+    if(counts){model.summary=summaryLayout(model.width,model.height,window.PPMSOrgPoster.metrics(counts),target.querySelector('.org-poster-summary h3')?.textContent||'Employee headcount');model.height=model.summary.bottom}
    }
    return model;
   }finally{holder.remove()}
@@ -73,6 +73,15 @@
  const paragraph=(text,size=900,bold=false)=>`<a:p><a:pPr algn="ctr"/><a:r><a:rPr lang="th-TH" sz="${size}" b="${bold?1:0}"><a:solidFill><a:srgbClr val="173C63"/></a:solidFill><a:latin typeface="Tahoma"/><a:ea typeface="Tahoma"/><a:cs typeface="Tahoma"/></a:rPr><a:t>${xml(text)}</a:t></a:r><a:endParaRPr lang="th-TH" sz="${size}"/></a:p>`;
  const transform=(x,y,w,h)=>`<a:xfrm><a:off x="${emu(x)}" y="${emu(y)}"/><a:ext cx="${emu(w)}" cy="${emu(h)}"/></a:xfrm>`;
  function textShape(id,text,x,y,w,h){return `<xdr:absoluteAnchor><xdr:pos x="${emu(x)}" y="${emu(y)}"/><xdr:ext cx="${emu(w)}" cy="${emu(h)}"/><xdr:sp><xdr:nvSpPr><xdr:cNvPr id="${id}" name="${xml(text)}"/><xdr:cNvSpPr txBox="1"/></xdr:nvSpPr><xdr:spPr>${transform(x,y,w,h)}<a:prstGeom prst="rect"><a:avLst/></a:prstGeom><a:noFill/><a:ln><a:noFill/></a:ln></xdr:spPr><xdr:txBody><a:bodyPr wrap="square" lIns="0" tIns="0" rIns="0" bIns="0"/><a:lstStyle/>${paragraph(text,1100,true)}</xdr:txBody></xdr:sp><xdr:clientData/></xdr:absoluteAnchor>`}
+ function summaryLayout(width,top,items,title){
+  const gap=Math.max(12,width/200),padding=Math.max(16,width/120),rowHeight=Math.max(140,width/22),headingHeight=Math.max(52,width/55),w=(width-2*padding-2*gap)/3,y=top+gap;
+  const labelSize=Math.round(Math.min(400000,Math.max(1800,width/130*75))),valueSize=Math.round(Math.min(400000,Math.max(3600,width/50*75)));
+  return {title,x:padding,y,w:width-2*padding,h:headingHeight,labelSize,valueSize,cards:items.map((item,i)=>({...item,x:padding+(i%3)*(w+gap),y:y+headingHeight+gap+Math.floor(i/3)*(rowHeight+gap),w,h:rowHeight,padding:gap,labelSize,valueSize})),bottom:y+headingHeight+gap+2*(rowHeight+gap)};
+ }
+ function summaryShape(item,index){
+  const {x,y,w,h,padding,labelSize,valueSize}=item;
+  return `<xdr:absoluteAnchor><xdr:pos x="${emu(x)}" y="${emu(y)}"/><xdr:ext cx="${emu(w)}" cy="${emu(h)}"/><xdr:sp><xdr:nvSpPr><xdr:cNvPr id="${300001+index}" name="Headcount ${xml(item.key)}"/><xdr:cNvSpPr txBox="1"/></xdr:nvSpPr><xdr:spPr>${transform(x,y,w,h)}<a:prstGeom prst="roundRect"><a:avLst/></a:prstGeom><a:solidFill><a:srgbClr val="EFF5FB"/></a:solidFill><a:ln w="${emu(Math.max(1,w/1500))}"><a:solidFill><a:srgbClr val="8AA8C1"/></a:solidFill></a:ln></xdr:spPr><xdr:txBody><a:bodyPr wrap="square" lIns="${emu(padding)}" tIns="${emu(padding)}" rIns="${emu(padding)}" bIns="${emu(padding)}" anchor="ctr"><a:noAutofit/></a:bodyPr><a:lstStyle/>${paragraph(item.label,labelSize,true)}${paragraph(String(item.value),valueSize,true)}</xdr:txBody></xdr:sp><xdr:clientData/></xdr:absoluteAnchor>`;
+ }
  function cardShape(node,index,hasPhoto){
   const {employee:e,x,y,w,h}=node,id=100+index*10,pw=Math.min(64,w-12),ph=64,photoX=(w-pw)/2;
   const jdLink=`<a:hlinkClick r:id="orgJD${index}" tooltip="${xml('เปิด JD / View JD: '+(e.name||e.id))}"/>`;
@@ -179,6 +188,7 @@
   const zip=await JSZip.loadAsync(await book.xlsx.writeBuffer()),relations=[],shapes=[],indices=new Map(model.nodes.map((n,i)=>[String(n.employee.id),i])),routes=window.PPMSOrganizationLines?.route(model);
   model.nodes.forEach((node,i)=>{const p=indices.get(node.parent);if(p!==undefined)shapes.push(connector(model.nodes[p],node,i,p,i,routes?.get(i)))});
   model.labels.forEach((label,i)=>shapes.push(textShape(200000+i,label.text,label.x,label.y,label.w,Math.max(28,label.h))));
+  if(model.summary){const s=model.summary;shapes.push(textShape(300000,s.title,s.x,s.y,s.w,s.h).replaceAll('sz="1100"','sz="'+Math.round(s.labelSize*1.2)+'"'));s.cards.forEach((item,i)=>shapes.push(summaryShape(item,i)))}
   model.nodes.forEach((node,i)=>{
    relations.push(`<Relationship Id="orgJD${i}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="${xml(jdAnchors[i])}" TargetMode="External"/>`);
    shapes.push(cardShape(node,i,!!photos[i].data));if(!photos[i].data)return;
@@ -204,5 +214,5 @@
    const failed=photos.filter(p=>p.failed).length;notify(failed?`ดาวน์โหลด Excel แล้ว · โหลดรูปไม่ได้ ${failed} คน กรุณาตรวจสอบรูปในรายชื่อ`:'ดาวน์โหลดผังองค์กร Excel พร้อมรูปแล้ว',failed?'error':'ok');
   }catch(error){panel?.remove();notify('สร้างผังองค์กร Excel ไม่สำเร็จ: '+error.message,'error');alert('สร้างผังองค์กร Excel ไม่สำเร็จ: '+error.message)}finally{busy=false}
  }
- window.PPMSOrganizationExcel={download,snapshot,workbook,portrait};
+ window.PPMSOrganizationExcel={download,snapshot,workbook,portrait,summaryLayout};
 })();
