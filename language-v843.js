@@ -3007,6 +3007,27 @@ Layout โรงงาน|Factory Layout
  Object.assign(reverse,{"Audit": "การตรวจประเมิน", "Cumulative": "สะสม", "Go-Live": "เริ่มใช้งานจริง", "Quarter": "ไตรมาส", "Upskill": "ยกระดับทักษะ", "Baseline": "ข้อมูลตั้งต้น", "Job Observation": "การสังเกตการทำงาน", "Skill Proficiency Levels": "ระดับความเชี่ยวชาญ", "Checked by": "ผู้ตรวจสอบ", "User": "ผู้ใช้งาน", "Hash": "แฮช", "Live Sync": "ซิงก์แบบทันที", "Card": "การ์ด", "Master": "ข้อมูลหลัก", "Duplex": "พิมพ์สองด้าน", "Leader Login": "เข้าสู่ระบบหัวหน้าทีม", "Training & Examination Plan": "แผนฝึกอบรมและการสอบ", "JINRONG ELECTRONIC TECHNOLOGY (THAILAND) COMPANY LIMITED": "บริษัทจินร้งอิเล็กทรอนิกส์ เทคโนโลยี (ไทยแลนด์) จำกัด", "KPI": "ตัวชี้วัด", "JD": "รายละเอียดงาน", "OJT": "การฝึกปฏิบัติงาน", "NG": "งานเสีย", "QC Division": "ฝ่ายควบคุมคุณภาพ", "WH Division": "ฝ่ายคลังสินค้า", "HR Division": "ฝ่ายบุคคล", "Safety Division": "ฝ่ายความปลอดภัย", "Planning Division": "ฝ่ายวางแผน", "Purchasing Division": "ฝ่ายจัดซื้อ", "Marketing Division": "ฝ่ายการตลาด", "Sorting 1": "คัดแยก 1", "Sorting 2": "คัดแยก 2"});
  Object.assign(reverse,{"Production Manager":"ผู้จัดการฝ่ายผลิต","Production Engineer":"วิศวกรการผลิต","Tooling Engineer":"วิศวกรแม่พิมพ์","Welding Engineer":"วิศวกรการเชื่อม","Manufacturing Engineer":"วิศวกรการผลิต"});
  Object.assign(reverse,{"Stoer":"พนักงานห้องเบิกจ่ายของ","Stroe":"พนักงานห้องเบิกจ่ายของ","Store":"พนักงานห้องเบิกจ่ายของ","Storekeeper":"พนักงานห้องเบิกจ่ายของ","Document Control":"เจ้าหน้าที่ควบคุมเอกสาร","Document Controller":"เจ้าหน้าที่ควบคุมเอกสาร","Production Planning":"เจ้าหน้าที่วางแผนการผลิต","Production Planner":"เจ้าหน้าที่วางแผนการผลิต","Assistant Leader":"ผู้ช่วยหัวหน้าทีม"});
+ // Full Section phrases avoid partial translations and cover legacy roster spellings.
+ const sectionNames=[
+  ['Die-Casting Mold Maintenance Section','แผนกซ่อมบำรุงแม่พิมพ์หล่ออลูมิเนียม',['Die Casting Mold Maintenance Section','Die-Casting Mold Maintenance','ช่างซ่อมแม่พิมพ์อลูมิเนียม']],
+  ['Die Casting','หลอมอลูมิเนียม',['Die Casting Section','Die-Casting Section','Die-Casting','แผนกหลอมอลูมิเนียม','หล่ออลูมิเนียม','แผนกหล่ออลูมิเนียม']],
+  ['Polishing / Shot Blasting / X-Ray','คัดครีบ-พ่นทราย-X-Ray',['คัดครีบ/พ่นทราย/X-Ray','แผนกคัดครีบ-พ่นทราย-X-Ray']],
+  ['Human Resources Section','แผนกทรัพยากรบุคคล',['HR Section']],
+  ['Safety Section','แผนกความปลอดภัย',[]],
+  ['Accounting Section','แผนกบัญชี',[]],
+  ['Planning Section','แผนกวางแผน',[]],
+  ['Purchasing Section','แผนกจัดซื้อ',[]],
+  ['Marketing Section','แผนกการตลาด',[]],
+  ['Warehouse Section','แผนกคลังสินค้า',[]],
+  ['Quality Control Section','แผนกควบคุมคุณภาพ',['QC Section']],
+  ['Quality Assurance Section','แผนกประกันคุณภาพ',['QA Section']],
+  ['Inspection Section','แผนกตรวจสอบ',[]],
+  ['Assembly Section','แผนกประกอบ',[]]
+ ];
+ for(const [en,th,aliases] of sectionNames){
+  reverse[en]=th;dictionary[th]=en;
+  for(const alias of aliases){if(/[ก-๙]/.test(alias))dictionary[alias]=en;else reverse[alias]=th}
+ }
  for(const [en,th] of Object.entries(reverse))if(!dictionary[th])dictionary[th]=en;
  Object.assign(dictionary,{'พนักงานห้องเบิกจ่ายของ':'Store','เจ้าหน้าที่ควบคุมเอกสาร':'Document Control','วางแผนการผลิต':'Production Planning','เจ้าหน้าที่วางแผนการผลิต':'Production Planning','ผู้ช่วยหัวหน้าทีม':'Assistant Leader'});
  const reverseLower=Object.fromEntries(Object.entries(reverse).map(([k,v])=>[k.toLowerCase(),v]));
@@ -3088,7 +3109,10 @@ Layout โรงงาน|Factory Layout
   const scope=api.sectionDisplayScope(element),key=scope.division+'::'+scope.plant;
   if(sectionDisplayCache.has(key))return sectionDisplayCache.get(key);
   const values=new Map();for(const item of api.sectionDisplayEntries(scope))for(const alias of item.aliases){
-   for(const text of [alias,translate(alias,'th'),translate(alias,'en')])if(text)values.set(text,item.name);
+   // Renamed Section labels still follow the selected language when a translation
+   // is known. Keep arbitrary custom names intact and never change Section keys.
+   const name=item.name.trim(),display=dictionary[name]||reverseLower[name.toLowerCase()]?translate(item.name):item.name;
+   for(const text of [alias,translate(alias,'th'),translate(alias,'en')])if(text)values.set(text,display);
   }
   const keys=[...values.keys()].sort((a,b)=>b.length-a.length),result=keys.length?{values,pattern:new RegExp('(?<![\\p{L}\\p{N}])(?:'+keys.map(escape).join('|')+')(?![\\p{L}\\p{N}])','gu')}:null;
   sectionDisplayCache.set(key,result);return result;
