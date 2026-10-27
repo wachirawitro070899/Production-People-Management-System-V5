@@ -8,7 +8,7 @@ assert.notEqual(scope.sectionKey('ช่างซ่อมแม่พิมพ�
 assert.deepEqual(Array.from(scope.uniqueSections(['Support Production','แผนกสนับสนุนการผลิต','Sorting 1','Sorting 2'],['Support Production Section'])),['Support Production Section','Sorting 1','Sorting 2']);
 const people=[{id:'S1',section:'Support Production Section'},{id:'S2',section:'Support Production Section'},{id:'ONE',section:'Sorting 1'},{id:'TWO',section:'Sorting 2'}];
 values.set('ppms_organization_master_v1',JSON.stringify({plants:['โรง 1'],divisions:['Production Division'],sectionMap:{'Production Division::โรง 1':['Support Production','แผนกสนับสนุนการผลิต','Sorting 1','Sorting 2']}}));
-assert.deepEqual(Array.from(scope.sections(people)),['Support Production Section','Sorting 1','Sorting 2']);
+assert.deepEqual(Array.from(scope.sections(people)),['Support Production Section','Sorting Section']);
 const manager=fs.readFileSync('organization-manager-v694.js','utf8'),createCtx={PPMSOrganizationScope:scope,sectionKey:(division,plant)=>division+'::'+plant};vm.createContext(createCtx);vm.runInContext(manager.slice(manager.indexOf('function sectionName('),manager.indexOf('function openSectionForm(')),createCtx);
 const master={sections:[],sectionMap:{'Production Division::โรง 1':['Support Production','Sorting 1']}};
 assert.equal(createCtx.withNewSection(master,'Production Division','โรง 1','Support Production Section'),undefined);
@@ -16,4 +16,4 @@ assert.equal(createCtx.withNewSection(master,'Production Division','โรง 1'
 assert.equal(createCtx.withNewSection(master,'Production Division','โรง 1','คัดแยก 1'),undefined);
 assert(createCtx.withNewSection(master,'Production Division','โรง 1','Sorting 2'));
 assert(createCtx.withNewSection(master,'Quality Division','รวม','Support Production Section'),'Same name in another Division is not a duplicate');
-console.log('Passed: Thai/English department prefixes and Section suffixes deduplicate; occupied names stay selectable; Sorting 1/2 and distinct aluminum processes remain separate; duplicate creation is rejected within its own scope.');
+console.log('Passed: Thai/English department prefixes and Section suffixes deduplicate; occupied names stay selectable; Sorting 1/2 share one selectable section while history keys and distinct aluminum processes remain separate; duplicate creation is rejected within its own scope.');

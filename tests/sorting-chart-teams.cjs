@@ -1,20 +1,44 @@
 const fs=require('node:fs'),assert=require('node:assert/strict');
-const prefix=fs.readFileSync('tests/section-chart-teams.cjs','utf8').split('\n(async()=>{')[0];
-const {setup,employees,nav,section,mode,organizationCards,organizationSnapshot,extra}=new Function('require',prefix+'\nreturn {setup,employees,nav,section,mode,organizationCards,organizationSnapshot,extra};')(require);
+let prefix=fs.readFileSync('tests/production-hierarchy.cjs','utf8').split('(async()=>{')[0];
+prefix=prefix.replace('w.alert=()=>{};', 'w.HTMLCanvasElement.prototype.getContext=()=>null;w.alert=()=>{};');
+const {setup,employees}=new Function('require',prefix+'\nreturn {setup,employees};')(require);
 const wait=ms=>new Promise(resolve=>setTimeout(resolve,ms));
-employees.push(extra('SORT1-A','Sorting Section','Operator',{sortingGroup:'Sorting 1',organizationTeam:'Team A'}),extra('SORT1-LEAD','Sorting Section','Leader',{sortingGroup:'Sorting 1'}),extra('SORT2-A','Sorting Section','Operator',{sortingGroup:'Sorting 2',organizationTeam:'Team A'}),extra('SORT2-B','Sorting Section','Operator',{sortingGroup:'Sorting 2',organizationTeam:'Team B'}),extra('SORT2-DIRECT','Sorting 2','Operator',{organizationTeam:'Team A'}));
-function drag(w,id,team,group){const card=organizationCards(w).find(card=>card.dataset.edit===id),target=w.document.querySelector('[data-section-team-group="'+group+'"][data-section-team-target="'+team+'"]');assert(card?.draggable);assert(target);const values=new Map(),dataTransfer={setData:(k,v)=>values.set(k,v),getData:k=>values.get(k)||''};for(const [node,type]of [[card,'dragstart'],[target,'dragover'],[target,'drop']]){const event=new w.Event(type,{bubbles:true,cancelable:true});Object.defineProperty(event,'dataTransfer',{value:dataTransfer});node.dispatchEvent(event)}}
+const extra=(id,section,fields={})=>({id,name:'TEST '+id,section,position:'Operator',contractType:'Permanent',startDate:'2020-01-01',currentSkillLevel:1,skillLevels:{Safety:3},...fields});
+employees.push(extra('SORT-DIRECT-1','Sorting 1'),extra('SORT-DIRECT-2','Sorting 2 Section'),extra('SORT-THAI','คัดแยก ๒'),extra('SORT-UNGROUPED','Sorting Section'),extra('SORT-LEADER','Sorting Section',{position:'Leader',sortingGroup:'Sorting 1'}),extra('SORT-OTHER-PLANT','Sorting Section',{organizationPlant:'โรง 2'}));
+const ids=['OP5','OP6','SORT-DIRECT-1','SORT-DIRECT-2','SORT-THAI','SORT-UNGROUPED','SORT-LEADER'];
+async function nav(w,page){w.document.querySelector('#nav [data-page="'+page+'"]').click();await wait(240)}
+async function select(w,id,value){const node=w.document.getElementById(id);assert(node,id);node.value=value;node.dispatchEvent(new w.Event('change',{bubbles:true}));await wait(300)}
 (async()=>{
- const {dom,w,errors}=await setup('index.html');
- try{
-  Object.defineProperty(w.navigator,'onLine',{value:false,configurable:true});await nav(w,'sectionChart');await section(w,'Sorting Section');const options=[...w.document.querySelector('#sectionSelect').options].map(o=>o.value);for(const value of ['Sorting Section','Sorting 1','Sorting 2'])assert(options.includes(value));
-  await mode(w,'split');const all=organizationSnapshot(w);assert(w.document.querySelector('[data-sorting-group="Sorting 1"] [data-section-chart-team="Team A"] [data-edit="SORT1-A"]'));assert(w.document.querySelector('[data-sorting-group="Sorting 2"] [data-section-chart-team="Team A"] [data-edit="SORT2-A"]'));drag(w,'SORT1-A','Team B','Sorting 2');await wait(220);assert.equal(JSON.parse(w.localStorage.getItem('ppms_v3_employees')).find(e=>e.id==='SORT1-A').organizationTeam,'Team A','Cross-Sorting drops do not change an employee');assert.deepEqual(organizationSnapshot(w),all);
-  await section(w,'Sorting 1');assert.equal(w.document.querySelector('#sectionSelect').value,'Sorting 1');assert.equal(w.document.querySelector('#sectionChartTeamView').value,'split');const one=organizationSnapshot(w);assert(one.some(e=>e.id==='SORT1-A'));assert(one.some(e=>e.id==='SORT1-LEAD'));assert(!one.some(e=>e.id.startsWith('SORT2')||e.id==='OP6'));assert.equal(w.document.querySelectorAll('.sorting-print-page').length,1);assert.equal(w.document.querySelector('.sorting-print-page').dataset.sortingGroup,'Sorting 1');assert(w.document.querySelector('.org-document-title').textContent.includes('1'));
-  await mode(w,'split');drag(w,'SORT1-A','Team B','Sorting 1');await wait(220);assert(w.document.querySelector('[data-section-chart-team="Team B"] [data-edit="SORT1-A"]'));assert.deepEqual(organizationSnapshot(w),one,'The printable Sorting 1 roster stays complete');let queue=JSON.parse(w.localStorage.getItem('ppms_v3_pending_employee_saves'));assert.equal(queue['SORT1-A'].expectedSection,'Sorting Section');assert.equal(queue['SORT1-A'].expectedSortingGroup,'Sorting 1');
-  await section(w,'Sorting 2');await mode(w,'split');const two=organizationSnapshot(w);assert(two.some(e=>e.id==='SORT2-DIRECT'));assert(!two.some(e=>e.id.startsWith('SORT1')||e.id==='OP5'));assert.equal(w.document.querySelectorAll('.sorting-print-page').length,1);assert.equal(w.document.querySelector('.sorting-print-page').dataset.sortingGroup,'Sorting 2');drag(w,'SORT2-A','Team B','Sorting 2');await wait(220);drag(w,'SORT2-DIRECT','Team B','Sorting 2');await wait(220);assert.deepEqual(organizationSnapshot(w),two);queue=JSON.parse(w.localStorage.getItem('ppms_v3_pending_employee_saves'));assert.equal(queue['SORT2-DIRECT'].expectedSection,'Sorting 2');const saved=JSON.parse(w.localStorage.getItem('ppms_v3_employees'));assert.equal(saved.find(e=>e.id==='SORT2-A').sortingGroup,'Sorting 2');assert.equal(saved.find(e=>e.id==='SORT2-A').section,'Sorting Section');assert.equal(saved.find(e=>e.id==='SORT2-DIRECT').section,'Sorting 2');
-  w.dispatchEvent(new w.Event('beforeprint'));assert(w.document.body.classList.contains('print-section-org'));assert(w.document.body.classList.contains('org-sorting'));assert.equal(w.document.querySelectorAll('.sorting-print-page').length,1);w.dispatchEvent(new w.Event('afterprint'));
-  await nav(w,'dashboard');await nav(w,'sectionChart');assert.equal(w.document.querySelector('#sectionSelect').value,'Sorting 2','Virtual group selection survives navigation and scope refresh');await section(w,'Sorting 1');assert.equal(w.document.querySelector('#sectionChartTeamView').value,'split');assert(w.document.querySelector('[data-section-chart-team="Team B"] [data-edit="SORT1-A"]'));assert(!w.document.querySelector('.section-chart-workspace [data-edit="SORT2-A"]'));
-  const scope={...w.PPMS_RUNTIME.organizationScope(),section:'Sorting 1',sortingGroup:'Sorting 1',targetSortingGroup:'Sorting 2'};await assert.rejects(w.PPMS_RUNTIME.assignSectionChartTeam('SORT1-A','Team A',scope),/Sorting เดียวกัน/);assert.deepEqual(errors,[],errors.join('\n'));
-  console.log('PASSED individual and combined Sorting views, separate Team A/B boards, legacy/direct sections, durable group selection, print titles/full rosters and cross-Sorting guards');
- }finally{dom.window.close()}
-})().catch(error=>{console.error(error);process.exitCode=1});
+ for(const entry of ['index.html','404.html','factory-organization.html']){
+  const {w,errors}=await setup(entry),factory=entry==='factory-organization.html';
+  const selector=factory?'.factory-org-section':'.division-section';
+  const charts=[...w.document.querySelectorAll(selector)].filter(node=>/sorting/i.test(node.dataset.orgSection));assert.equal(charts.length,1,entry+' has one Sorting section');assert.equal(charts[0].dataset.orgSection,'Sorting Section');
+  for(const id of ids)assert.equal(charts[0].querySelectorAll('[data-edit="'+id+'"]').length,1,id+' appears exactly once');assert(!charts[0].querySelector('[data-edit="SORT-OTHER-PLANT"]'));
+  const api=w.PPMSOrganizationScope;for(const alias of ['Sorting','Sorting 1','Sorting 2 Section','คัดแยก ๒'])assert.equal(api.combinedSection(alias),'Sorting Section');
+  assert.equal(api.sectionKey('Sorting 1'),'sorting1','Historical section keys remain stable');
+  assert.equal(api.sections(employees).filter(api.isSorting).length,1);
+  if(!factory){
+   w.sessionStorage.setItem('chartSec','Sorting 2');await nav(w,'sectionChart');
+   assert.equal(w.document.querySelector('#sectionSelect').value,'Sorting Section','Old selection opens combined chart');
+   assert.equal([...w.document.querySelector('#sectionSelect').options].filter(o=>api.isSorting(o.value)).length,1);
+   const source=w.document.querySelector('.sorting-combined');assert(source);for(const id of ids)assert(source.querySelector('[data-edit="'+id+'"]'));
+   assert.equal(w.document.querySelectorAll('.sorting-print-page').length,1,'One unified printable chart');for(const id of ids)assert(w.document.querySelector('.sorting-print-page [data-edit="'+id+'"]'));
+   assert.equal(w.document.querySelector('[data-employment-count="permanent"]').textContent,String(ids.length));
+   await select(w,'sectionChartTeamView','split');assert.equal(w.document.querySelectorAll('[data-section-chart-team="Team A"]').length,1,'One shared Team A');
+   Object.defineProperty(w.navigator,'onLine',{value:false,configurable:true});
+   const before=JSON.parse(w.localStorage.getItem('ppms_v3_employees'));
+   await w.PPMS_RUNTIME.assignSectionChartTeam('SORT-DIRECT-2','Team B',{...w.PPMS_RUNTIME.organizationScope(),section:'Sorting Section',sortingGroup:'',targetSortingGroup:''});await wait(220);
+   assert(w.document.querySelector('[data-section-chart-team="Team B"] [data-edit="SORT-DIRECT-2"]'));
+   const saved=JSON.parse(w.localStorage.getItem('ppms_v3_employees')),old=before.find(e=>e.id==='SORT-DIRECT-2'),current=saved.find(e=>e.id==='SORT-DIRECT-2');assert.equal(current.section,old.section);assert.deepEqual(current.skillLevels,old.skillLevels);assert.equal(saved.length,before.length);
+   await w.PPMS_RUNTIME.assignSectionChartTeam('SORT-UNGROUPED','Team A',{...w.PPMS_RUNTIME.organizationScope(),section:'Sorting Section',sortingGroup:'',targetSortingGroup:''});
+   await nav(w,'matrix');w.sessionStorage.setItem('matrixSortingGroup','Sorting 1');await select(w,'matrixSection','Sorting Section');
+   assert.equal(w.document.querySelector('#matrixSortingGroup'),null,'No legacy group filter');for(const id of ids)assert([...w.document.querySelectorAll('.skill-matrix-table tbody tr')].some(row=>row.textContent.includes(id)),id+' included in combined matrix');
+   w.document.querySelector('[data-action="bulkSkills"]').click();for(const id of ids)assert(w.document.querySelector('[name="bulkEmployee"][value="'+id+'"]'));w.document.querySelector('[data-action="close"]').click();
+   await nav(w,'cards');await select(w,'cardSection','Sorting Section');for(const id of ids)assert([...w.document.querySelector('#cardEmployee').options].some(o=>o.value===id));
+   await nav(w,'sectionChart');assert.equal(w.document.querySelector('#sectionSelect').value,'Sorting Section');
+   const leader=employees.find(e=>e.id==='SORT-LEADER');assert(w.PPMSSectionAccess.sameSection(leader,employees.find(e=>e.id==='SORT-DIRECT-2')));assert(!w.PPMSSectionAccess.sameSection(leader,employees.find(e=>e.id==='SORT-OTHER-PLANT')));
+  }
+  assert.deepEqual(errors,[],entry+' errors');console.log('PASS',entry,'merged Sorting, complete roster, scoped counts'+(factory?'':', unified print, teams, skills and cards'));
+ }
+ process.exit(0);
+})().catch(error=>{console.error(error);process.exit(1)});

@@ -25,7 +25,7 @@ function checkHierarchy(w,factory=false){
  assert.equal(w.document.querySelector('.org-current-shift-banner'),null,'Factory chart omits the current-shift banner');
  if(!factory)assert.equal(w.document.querySelector('#app>.page-head h2').textContent,w.PPMSOrganizationScope.title());
  const supervised=[...root.querySelectorAll('.production-supervised-sections '+selector)].map(el=>el.dataset.orgSection.replace(/\s+Section$/,''));
- assert.deepEqual(supervised,['Stamping','Bending','Tapping','Welding','CNC','Sorting 1','Sorting 2']);
+ assert.deepEqual(supervised,['Stamping','Bending','Tapping','Welding','CNC','Sorting']);
  const direct=[...root.querySelectorAll('.production-direct-sections '+selector)].map(el=>el.dataset.orgSection.replace(/\s+Section$/,''));assert.deepEqual(direct,supportSections);
  assert.equal(root.querySelectorAll('.production-supervisor-top [data-edit="SUP"]').length,1);
  assert.equal(root.querySelectorAll(selector+' [data-edit="SUP"]').length,0,'Division supervisor must never be repeated inside a section');

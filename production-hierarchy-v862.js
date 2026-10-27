@@ -3,8 +3,8 @@
  'use strict';
  const position='Supervisor Production',supervisorSection='Production Division';
  const headPosition='Stamping Specialist',headSections=['Bending Section','Stamping Section','Tapping Section','Tooling Maintenance Section'];
- const sectionOrder=['stamping','bending','tapping','welding','cnc','sorting1','sorting2'];
- const sectionKey=value=>window.PPMSOrganizationScope?.sectionKey(value)||String(value||'').trim().toLowerCase().replace(/\s+section$/,'').replace(/\s+/g,'').replace(/^taping$/,'tapping');
+ const sectionOrder=['stamping','bending','tapping','welding','cnc','sorting'];
+ const sectionKey=value=>window.PPMSOrganizationScope?.sectionGroupKey(value)||String(value||'').trim().toLowerCase().replace(/\s+section$/,'').replace(/\s+/g,'').replace(/^taping$/,'tapping');
  function isHead(value){return /^(?:Stamping Specialist|ผู้เชี่ยวชาญงานปั๊มโลหะ|ผู้เชี่ยวชาญงานปั้ม|Head of Forming & Tooling|หัวหน้างานขึ้นรูปโลหะและแม่พิมพ์)$/i.test(String(value||'').trim())}
  function headOwns(section){return headSections.some(name=>sectionKey(name)===sectionKey(section))}
  function headTitle(language=window.PPMSLanguage?.language||'th'){return language==='en'?headPosition:'ผู้เชี่ยวชาญงานปั๊มโลหะ'}

@@ -15,7 +15,7 @@
  };
  const fallbackSkills=['Safety','Quality','Machine Operation','Inspection','Problem Solving','5S','Training'];
  const html=value=>String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
- const skillsFor=section=>SECTION_SKILLS[section]||fallbackSkills;
+ const skillsFor=section=>SECTION_SKILLS[window.PPMSOrganizationScope.combinedSection(section)]||fallbackSkills;
  const levelFor=(employee,skill)=>Math.max(1,Math.min(4,Number((employee.skillLevels||{})[skill]||employee.currentSkillLevel||1)));
  const scoreFor=(employee,skills)=>skills.reduce((sum,skill)=>sum+levelFor(employee,skill),0);
  function rankFor(score,count){const average=score/Math.max(1,count);if(average>=3.5)return{level:4,label:'Advanced'};if(average>=2.5)return{level:3,label:'Qualified'};if(average>=1.5)return{level:2,label:'Developing'};return{level:1,label:'Beginner'}}

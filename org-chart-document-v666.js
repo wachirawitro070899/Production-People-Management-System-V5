@@ -41,7 +41,7 @@ function sortAllPeople(report){
 function sortingPrintPages(report,header,footer){
  let pages=report.querySelector('.sorting-print-pages');
  if(!/^sorting\s*(?:section|[12])$/i.test(section())){pages?.remove();return}
- const teams=[...report.querySelectorAll('.sorting-split>.sorting-team,.sorting-unassigned')];if(!teams.length)return;
+ const teams=[...report.querySelectorAll('.sorting-combined,.sorting-split>.sorting-team,.sorting-unassigned')];if(!teams.length)return;
  const meta=employeeMeta();const html=teams.map(team=>{const clone=team.cloneNode(true);clone.querySelectorAll('[data-edit]').forEach(card=>{const id=String(card.dataset.edit||''),item=meta.get(employeeId(id))||null,position=item?.position||card.closest('.level')?.querySelector('h4')?.textContent||'',rank=rankOf({textContent:position})[0];card.outerHTML=weldingCard(id,card,item,rank,position)});const head=header.cloneNode(true),group=team.dataset.sortingGroup||'Sorting Section',title=head.querySelector('h1'),subtitle=head.querySelector('p');if(title)title.textContent='SECTION ORGANIZATION CHART — '+group;if(subtitle)subtitle.textContent='Production People Management System · Section: '+group;const levels=[...clone.querySelectorAll(':scope>.level')].map(level=>level.outerHTML).join(''),label=team.dataset.sortingGroup?'':clone.querySelector(':scope>h3')?.outerHTML||'';return`<section class="sorting-print-page unified-section-page" data-sorting-group="${esc(team.dataset.sortingGroup||'')}">${head.outerHTML}<div class="panel hierarchy unified-section-hierarchy">${label}${levels}</div>${footer.outerHTML}</section>`}).join('');
  if(!pages){pages=document.createElement('div');pages.className='sorting-print-pages';report.append(pages)}
  updateHTML(pages,html);

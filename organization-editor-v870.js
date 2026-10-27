@@ -20,7 +20,7 @@
  const employment=e=>/^(permanent|พนักงานประจำ)$/i.test(String(e.contractType||'Permanent'))?0:1;
  const start=e=>{const n=Date.parse((employment(e)===0?e.permanentStartDate:'')||e.startDate||'');return Number.isFinite(n)?n:Number.MAX_SAFE_INTEGER};
  const seniority=(a,b)=>employment(a)-employment(b)||start(a)-start(b)||String(a.id).localeCompare(String(b.id),undefined,{numeric:true});
- const sectionOf=e=>e.section==='Sorting Section'?e.section+'::'+(e.sortingGroup||''):e.section;
+ const sectionOf=e=>window.PPMSOrganizationScope.combinedSection(e.section);
  function assertAcyclic(parents){
   const complete=new Set();
   for(const id of parents.keys()){
