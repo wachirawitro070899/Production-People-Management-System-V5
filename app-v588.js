@@ -2902,6 +2902,7 @@ function printSkillCardsDuplex(){
  };
 }
 function printSettings(){
+ if(current==='dashboard'&&window.PPMSOrgPoster)return window.PPMSOrgPoster.open('print');
  const matrixPrint=current==='matrix';
  const savedSize=sessionStorage.getItem('matrixPaperSize')||'A4';
  const savedScale=sessionStorage.getItem('matrixPaperScale')||(savedSize==='A4'?'Fit Width':'100');
@@ -2992,6 +2993,7 @@ function matrixExcelDownload(){
  dl(`Skill_Matrix_${selected.replace(/[^A-Za-z0-9ก-๙_-]+/g,'_')}.xls`,'\ufeff'+html,'application/vnd.ms-excel;charset=utf-8');status('ดาวน์โหลด Excel แล้ว');
 }
 async function pagePdfDownload(){
+ if(current==='dashboard'&&window.PPMSOrgPoster)return window.PPMSOrgPoster.open('pdf');
  let target=null,name='Report',format='a4',orientation='landscape';
  if(current==='dashboard'){target=document.querySelector('.division-org');name='Factory_Organization_Chart';format='a3'}
  else if(current==='sectionChart'){target=document.querySelector('.section-org-report');name='Section_Organization_Chart_'+(sessionStorage.getItem('chartSec')||sections[0]);format='a3'}

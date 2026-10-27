@@ -49,7 +49,12 @@
    const labels=[...clone.querySelectorAll('.division-section-head h3,.production-supervised-title,.level>h4,.org-document-title h1,.sorting-team>h3')].map(label=>{
     const r=label.getBoundingClientRect();return {text:label.textContent.trim(),x:r.left-base.left+20,y:r.top-base.top+70,w:r.width,h:r.height};
    }).filter(label=>label.w&&label.h&&label.text);
-   return {title,nodes,labels,width:Math.max(800,...nodes.map(n=>n.x+n.w+20),...labels.map(n=>n.x+n.w+20)),height:Math.max(260,...nodes.map(n=>n.y+n.h+20))};
+   const model={title,nodes,labels,width:Math.max(800,...nodes.map(n=>n.x+n.w+20),...labels.map(n=>n.x+n.w+20)),height:Math.max(260,...nodes.map(n=>n.y+n.h+20))};
+   if(target.matches('.division-org:not(.employee-history-report)')&&window.PPMSOrgPoster){
+    const counts=window.PPMSOrgPoster.context(target)?.counts;
+    if(counts){window.PPMSOrgPoster.metrics(counts).forEach((item,i)=>model.labels.push({text:item.label+': '+item.value,x:20+(i%3)*(model.width-40)/3,y:model.height+24+Math.floor(i/3)*36,w:(model.width-40)/3,h:28}));model.height+=110}
+   }
+   return model;
   }finally{holder.remove()}
  }
  function imageData(source){return new Promise((resolve,reject)=>{

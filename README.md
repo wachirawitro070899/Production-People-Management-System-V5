@@ -60,3 +60,8 @@ Examination History includes one A4 print/PDF command for all visible employees:
 ### Bulk skill assessment (v922)
 Admin: Section Skill Matrix → ปรับสกิลหลายคน. Search and select employees in the current organization/Section/Sorting group, choose topics and Level 1–5, enter evaluator/date, review the per-person changes, then confirm. Each employee retains an assessment history and offline retry job. Conditional Firebase writes merge only the selected topics with the latest employee record and deduplicate retried batches. Matrix rows and exports sort management first and Operator/OP aliases last, then employment type and seniority within each role.
 Validation: `NODE_PATH=<jsdom module directory> node tests/bulk-skills.cjs`; `node tests/employee-save.cjs`.
+
+## V929 Full organization chart printing
+- Save PDF / Print on the main organization chart opens paper, zoom and layout controls. Poster mode tiles the complete chart across A4 or A3 landscape pages, with 5 mm overlap, trim guides and row/column coordinates. Empty tiles are omitted. Fit mode keeps the complete chart on one sheet.
+- A scoped headcount footer shows unique chart employees, Sections, Permanent, Subcontract, Thai subcontractors (NCN IDs) and Myanmar subcontractors. The counts appear below the chart, on each printed page, and below the native Excel chart. Vacancies are excluded.
+- Regression: `node tests/organization-poster.cjs` with Playwright Chromium; optionally set `CHROMIUM_EXECUTABLE_PATH` and `PPMS_QA_DIR`. The test uses a synthetic 152-person roster and checks poster coverage, A4/A3 PDFs, counts, scope and source-data preservation.
