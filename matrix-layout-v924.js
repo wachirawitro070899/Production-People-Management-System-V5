@@ -60,7 +60,7 @@
  }
  async function printFrame(model,opt){
   const frame=document.createElement('iframe');frame.title='Section Skill Matrix';frame.style.cssText='position:fixed;left:-15000px;top:0;width:1200px;height:900px;border:0';document.body.append(frame);
-  const doc=frame.contentDocument;doc.open();doc.write('<!doctype html><html lang="th"><head><meta charset="utf-8"><title>Skill Matrix '+esc(model.title)+'</title><link rel="stylesheet" href="'+new URL('matrix-layout-v924.css?v=925',location.href).href+'"><style>@page{size:'+opt.size+' '+opt.orientation+';margin:6mm}body{margin:0}.matrix-document-page{margin:0!important;box-shadow:none!important;border:0!important;break-after:page}.matrix-document-page:last-child{break-after:auto}</style></head><body>'+makePages(model,opt)+'</body></html>');doc.close();
+  const doc=frame.contentDocument;doc.open();doc.write('<!doctype html><html lang="th"><head><meta charset="utf-8"><title>Skill Matrix '+esc(model.title)+'</title><link rel="stylesheet" href="'+new URL('matrix-layout-v924.css?v=933',location.href).href+'"><style>@page{size:'+opt.size+' '+opt.orientation+';margin:6mm}body{margin:0}.matrix-document-page{margin:0!important;box-shadow:none!important;border:0!important;break-after:page}.matrix-document-page:last-child{break-after:auto}</style></head><body>'+makePages(model,opt)+'</body></html>');doc.close();
   await Promise.race([new Promise(resolve=>{if(doc.readyState==='complete')resolve();else frame.onload=resolve}),new Promise(resolve=>setTimeout(resolve,5000))]);
   await doc.fonts?.ready;await Promise.all([...doc.images].map(img=>img.decode?.().catch(()=>{})||Promise.resolve()));return frame;
  }
@@ -103,6 +103,25 @@
   });
   sheet.pageSetup.printArea='A1:'+sheet.getColumn(last).letter+(row-1);book.calcProperties.fullCalcOnLoad=true;return book;
  }
+ // Print-resolution output is independent of the monitor's device pixel ratio.
+ const PDF_DPI=300;
+ function captureOptions(page){
+  const bounds=page.getBoundingClientRect();
+  return {scale:PDF_DPI/96,backgroundColor:'#ffffff',useCORS:true,logging:false,
+   width:Math.ceil(bounds.width),height:Math.ceil(bounds.height),scrollX:0,scrollY:0,
+   onclone(doc){doc.querySelectorAll('.matrix-doc-header,.matrix-doc-table th').forEach(node=>{node.style.setProperty('position','static','important');node.style.setProperty('top','auto','important')})}};
+ }
+ async function addPdfPage(pdf,page,opt,addPage=false){
+  let canvas;
+  try{
+   canvas=await window.html2canvas(page,captureOptions(page));
+   const imageH=canvas.height*(opt.w-12)/canvas.width;
+   if(imageH>opt.h-11)throw Error('เนื้อหาบางแถวยาวเกินหน้า กรุณาเลือก A3');
+   if(addPage)pdf.addPage(opt.size.toLowerCase(),opt.orientation);
+   // PNG keeps small Thai text and table lines free of JPEG compression artifacts.
+   pdf.addImage(canvas.toDataURL('image/png'),'PNG',6,6,opt.w-12,imageH,undefined,'FAST');
+  }finally{if(canvas)canvas.width=canvas.height=1}
+ }
  async function run(kind,opt){
   if(busy)return;busy=true;let frame,holder;
   try{
@@ -113,7 +132,7 @@
     holder=document.createElement('div');holder.className='matrix-document-render';holder.style.cssText='position:absolute;left:-15000px;top:0';holder.innerHTML=makePages(model,opt);document.body.append(holder);await document.fonts?.ready;
     await Promise.all([...holder.querySelectorAll('img')].map(i=>i.decode?.().catch(()=>{})||Promise.resolve()));
     const pdf=new window.jspdf.jsPDF({unit:'mm',format:opt.size.toLowerCase(),orientation:opt.orientation,compress:true});let i=0;
-    for(const page of holder.children){const canvas=await html2canvas(page,{scale:2,backgroundColor:'#ffffff',useCORS:true,logging:false});if(i++)pdf.addPage(opt.size.toLowerCase(),opt.orientation);const imageH=canvas.height*(opt.w-12)/canvas.width;if(imageH>opt.h-11)throw Error('เนื้อหาบางแถวยาวเกินหน้า กรุณาเลือก A3');pdf.addImage(canvas.toDataURL('image/jpeg',.96),'JPEG',6,6,opt.w-12,imageH,undefined,'FAST')}
+    for(const page of holder.children)await addPdfPage(pdf,page,opt,i++>0);
     pdf.save('Skill_Matrix_'+safeName(model)+'_'+opt.size+'.pdf');
    }else{frame=await printFrame(model,opt);frame.contentWindow.addEventListener('afterprint',()=>frame.remove(),{once:true});frame.contentWindow.focus();frame.contentWindow.print();setTimeout(()=>frame?.remove(),60000)}
    const failed=model.rows.filter(r=>r.failed).length;status((kind==='print'?'เปิดหน้าพิมพ์แล้ว':'ดาวน์โหลด '+(kind==='excel'?'Excel (.xlsx)':'PDF')+' แล้ว')+(failed?' · รูปโหลดไม่ได้ '+failed+' คน (ระบุไว้ในรายงาน)':''));
