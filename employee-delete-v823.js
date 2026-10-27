@@ -68,6 +68,7 @@ async function remove(id,snapshot=null){
 // Save the employee collection independently of the large ppms root socket.
 async function upsert(data,originalId='',options={}){
  const id=String(data.id),oldId=String(originalId||''),patchFields=Array.isArray(options.patchFields)?options.patchFields.filter(field=>['stampingShift','organizationTeam','updatedAt','skillLevels','currentSkillLevel','skillUpdatedAt','skillRevisionAt','skillQuarter','skillEvaluator','skillHistory'].includes(field)):null;
+ if(options.organizationScopeUpdate&&(!data.organizationDivision||!data.organizationPlant))throw Error('กรุณาเลือกฝ่ายและโรงงานก่อนบันทึก');
  const deleted=await request('deletedEmployeeIds');
  if(oldId===id&&Object.values(deleted.value||{}).map(String).includes(id)){const error=Error('พนักงานถูกลบแล้ว กรุณาโหลดรายชื่อใหม่');if(patchFields)error.code='employee-missing';throw error}
  await change('employees',value=>{
@@ -107,11 +108,17 @@ async function upsert(data,originalId='',options={}){
   const ids=new Set(Object.values(value||{}).map(String));
   ids.delete(id);if(oldId&&oldId!==id)ids.add(oldId);return [...ids];
  });
+ let organizationScope;
+ if(options.organizationScopeUpdate){
+  const key=!id.startsWith('__ppmskey__')&&!/[.#$\[\]\/]/.test(id)?id:'__ppmskey__'+encodeURIComponent(id).replace(/\./g,'%2E');
+  organizationScope=await change('employeeOrganization/'+encodeURIComponent(key),value=>({...value,division:data.organizationDivision,plant:data.organizationPlant}),'');
+  if(organizationScope?.division!==data.organizationDivision||organizationScope?.plant!==data.organizationPlant)throw Error('ฐานข้อมูลยังไม่ยืนยันการย้ายฝ่าย • เก็บรายการรอส่งไว้แล้ว');
+ }
  const [roster,tombstones]=await Promise.all([request('employees'),request('deletedEmployeeIds')]);
  const saved=records(roster.value).find(e=>String(e.id)===id);
  const bulkRecord=patchFields?.includes('skillHistory')&&data.skillHistory?.[0],bulkConfirmed=bulkRecord?.source==='Admin Bulk Skill Update'&&bulkRecord.batchId&&saved?.skillHistory?.some(h=>h.batchId===bulkRecord.batchId);
  if(!saved||(!bulkConfirmed&&saved.updatedAt!==data.updatedAt)||Object.values(tombstones.value||{}).map(String).includes(id))throw Error('Firebase ยังไม่ยืนยันรายชื่อใหม่ • เก็บรายการรอส่งไว้แล้ว');
- return {employees:roster.value,deletedEmployeeIds:Object.values(tombstones.value||{}).map(String)};
+ return {employees:roster.value,deletedEmployeeIds:Object.values(tombstones.value||{}).map(String),...(organizationScope?{organizationScope}:{})};
 }
 window.PPMS_EMPLOYEE_SAVE_SERVICE={upsert};
 // A small REST read still reaches other devices when the large root socket stalls.

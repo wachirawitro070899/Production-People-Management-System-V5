@@ -47,6 +47,12 @@ async function scenario(initial,conflict=false){
  await s.service.upsert(bulk,'bulk',{patchFields:fields,expectedSection:'Welding Section'});result=s.db.employees.find(e=>e.id==='bulk');assert.equal(result.skillHistory.length,2,'Retry is idempotent');assert.equal(result.updatedAt,'newer');assert.equal(result.skillLevels.Quality,2,'Retry preserves a later assessment');
  const encoded='__ppmskey__Drawing%20%2F%20Specification';bulk.skillHistory[0]={source:'Admin Bulk Skill Update',batchId:'batch-2',before:{[encoded]:1},after:{[encoded]:5},selectedSkills:['Drawing / Specification']};
  await s.service.upsert(bulk,'bulk',{patchFields:fields,expectedSection:'Welding Section'});result=s.db.employees.find(e=>e.id==='bulk');assert.equal(result.skillLevels[encoded],5);assert.equal(result.skillLevels.Safety,4);assert.equal(result.skillHistory.length,3);
+ // An explicit transfer updates the employee and the scope index, retaining index metadata.
+ s=await scenario({employees:[{id:'move',name:'KEEP',section:'Warehouse Section',organizationDivision:'Warehouse Division',organizationPlant:'รวม'}],deletedEmployeeIds:[],'/employeeOrganization/move':{division:'Warehouse Division',plant:'รวม',note:'KEEP'}});
+ const moved={id:'move',name:'KEEP',section:'Stamping Section',organizationDivision:'Production Division',organizationPlant:'โรง 2',updatedAt:'transfer-r'};
+ const transfer=await s.service.upsert(moved,'move',{organizationScopeUpdate:true});assert.equal(transfer.organizationScope.division,'Production Division');assert.deepEqual(s.db['/employeeOrganization/move'],{division:'Production Division',plant:'โรง 2',note:'KEEP'});assert.equal(s.db.employees[0].section,'Stamping Section');
+ await assert.rejects(s.service.upsert({...moved,organizationPlant:''},'move',{organizationScopeUpdate:true}),/เลือกฝ่ายและโรงงาน/);assert.equal(s.db.employees[0].organizationPlant,'โรง 2','Invalid transfer does not write the employee');
+ console.log('Passed: explicit division transfers persist both employee and scope index; invalid transfers leave the saved employee untouched.');
  console.log('Passed: bulk conditional writes preserve concurrent profiles/unselected skills/history, retry idempotently, and handle encoded topic names.');
  console.log('Passed: employee saves, durable pending state, deletion guards, and team patches preserve concurrent names/photos/skills, original departments, tombstones and other employees.');
 })().catch(err=>{console.error(err);process.exitCode=1});

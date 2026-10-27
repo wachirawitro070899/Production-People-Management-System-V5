@@ -6,8 +6,9 @@
 
   function fieldContainer(form,name){
     const field=form.querySelector('[name="'+name+'"]');
-    if(!field)return null;
-    return field.closest("label")||field.parentElement;
+    if(!field||field.type==="hidden")return null;
+    const container=field.closest("label")||field.parentElement;
+    return container===form?null:container;
   }
 
   function setVisible(form,name,visible){
