@@ -103,3 +103,8 @@ Validation: `NODE_PATH=<jsdom module directory> node tests/bulk-skills.cjs`; `no
 - Skill Matrix employee rows show course names after the update date on the same line, such as `Update: 2026-10-15 · CQI-15`. Compact matrix and card summaries omit certificate-status wording.
 - Matrix print/PDF and Excel employee summaries use the same compact course names. The update date remains a separate model value, and detailed course status/history remains available in the training records.
 - The browser regression verifies the inline label, reduced row lines, unchanged export date and course-only card text; existing course, file and workbook checks pass.
+
+## V942 Bounded course summaries
+- Compact employee/card summaries show the first course and a remaining-course count. Full course names are available in the tooltip and detailed history.
+- Matrix update lines use constrained flex children and ellipsis, preserving the existing employee-column and table widths. The print/PDF summary uses the same bounded preview; full export data remains available in the training worksheet.
+- Browser verification adds 20 long course titles and confirms unchanged table/employee-column widths, one-line height, the remaining count and complete tooltip names. Existing date, card, file and workbook checks pass.

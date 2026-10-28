@@ -33,10 +33,13 @@
  }
  function summary(employee){return courseRecords(employee).map(r=>r.course+' · '+label(r)+(pending(employee.id,r.id)?' (รอซิงก์)':'')).join('; ')}
  function names(employee){return courseRecords(employee).map(r=>r.course).join(', ')}
+ function previewMarkup(employee){
+  const list=courseRecords(employee);if(!list.length)return '';
+  return '<span class="cert-course-preview" data-i18n-ignore>'+esc(list[0].course)+'</span>'+(list.length>1?'<span class="cert-course-count" data-i18n-ignore>+อีก '+(list.length-1)+' หลักสูตร</span>':'');
+ }
  function cardMarkup(employee){
   const list=courseRecords(employee);if(!list.length)return '';
-  const text=list.slice(0,3).map(r=>r.course+(pending(employee.id,r.id)?' *':'' )).join(', ')+(list.length>3?' · +'+(list.length-3)+' หลักสูตร':'');
-  return '<div class="wallet-course-strip" data-course-card="'+esc(employee.id)+'" title="'+esc(summary(employee))+'"><b>COURSES</b><span data-i18n-ignore>'+esc(text)+'</span></div>';
+  return '<div class="wallet-course-strip" data-course-card="'+esc(employee.id)+'" title="'+esc(names(employee))+'"><b>COURSES</b><span data-i18n-ignore>'+previewMarkup(employee)+'</span></div>';
  }
  function matrixModel(list){
   const courses=new Map(),rows=ordered(list).map(e=>{const entries=courseRecords(e);for(const r of entries)if(!courses.has(courseKey(r.course)))courses.set(courseKey(r.course),r.course);return {employee:e,entries:new Map(entries.map(r=>[courseKey(r.course),r]))}});
@@ -190,5 +193,5 @@
  window.addEventListener('focus',()=>void sync());
  setInterval(()=>void sync(),15000);
  ready.then(()=>{refresh();void sync()});
- window.PPMSCertificates={page,panel,records,state,safeUrl,sync,exportCsv,summary,names,cardMarkup,courseRecords,matrixModel,matrixMarkup,matrixPages,label};
+ window.PPMSCertificates={page,panel,records,state,safeUrl,sync,exportCsv,summary,names,previewMarkup,cardMarkup,courseRecords,matrixModel,matrixMarkup,matrixPages,label};
 })();
