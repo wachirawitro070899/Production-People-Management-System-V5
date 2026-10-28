@@ -3,11 +3,12 @@
 (()=>{'use strict';
 const running=new Map();
 async function request(path,options={},prefix='ppms/'){
+ const {timeoutMs=20000,...fetchOptions}=options;
  const base=String(window.PPMS_FIREBASE_CONFIG?.databaseURL||'').replace(/\/$/,'');
  if(!base)throw Error('ไม่พบการตั้งค่า Firebase');
- const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),20000);
+ const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),timeoutMs);
  try{
-  const response=await fetch(base+'/'+prefix+path+'.json',{...options,signal:controller.signal,cache:'no-store'});
+  const response=await fetch(base+'/'+prefix+path+'.json',{...fetchOptions,signal:controller.signal,cache:'no-store'});
   if(!response.ok&&response.status!==412)throw Error('Firebase ไม่ยืนยันการบันทึก ('+response.status+')');
   // Keep the deadline active until the body has also finished downloading.
   const value=await response.json();
@@ -15,13 +16,13 @@ async function request(path,options={},prefix='ppms/'){
  }catch(error){if(error.name==='AbortError')throw Error('เชื่อมต่อ Firebase หมดเวลา • เก็บรายการรอลบไว้แล้ว');throw error}
  finally{clearTimeout(timer)}
 }
-async function change(path,update,prefix='ppms/'){
+async function change(path,update,prefix='ppms/',timeoutMs=20000){
  for(let attempt=0;attempt<5;attempt++){
-  const read=await request(path,{headers:{'X-Firebase-ETag':'true'}},prefix);
+  const read=await request(path,{headers:{'X-Firebase-ETag':'true'},timeoutMs},prefix);
   if(!read.etag)throw Error('Firebase ไม่ส่งข้อมูลยืนยันเวอร์ชัน');
   const next=update(read.value);
   if(JSON.stringify(next)===JSON.stringify(read.value))return read.value;
-  const saved=await request(path,{method:'PUT',headers:{'Content-Type':'application/json','if-match':read.etag},body:JSON.stringify(next)},prefix);
+  const saved=await request(path,{method:'PUT',headers:{'Content-Type':'application/json','if-match':read.etag},body:JSON.stringify(next),timeoutMs},prefix);
   if(saved.status!==412)return saved.value;
  }
  throw Error('มีการแก้รายชื่อพร้อมกัน • ระบบจะส่งรายการรอลบซ้ำ');
@@ -152,8 +153,8 @@ async function saveCertificates(changes){
   }
   if(!patched.size)return value;
   return Array.isArray(value)?value.map(e=>e&&patched.get(String(e.id))||e):Object.fromEntries(Object.entries(value).map(([key,e])=>[key,e&&patched.get(String(e.id))||e]));
- });
- const [roster,tombstones]=await Promise.all([request('employees'),request('deletedEmployeeIds')]);
+ },'ppms/',90000);
+ const [roster,tombstones]=await Promise.all([request('employees',{timeoutMs:90000}),request('deletedEmployeeIds')]);
  const people=new Map(records(roster.value).map(e=>[String(e.id),e])),gone=new Set(Object.values(tombstones.value||{}).map(String));
  for(const {employeeId,record} of changes){
   if(gone.has(String(employeeId)))throw missing(employeeId);

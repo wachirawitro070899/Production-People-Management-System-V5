@@ -88,3 +88,8 @@ Validation: `NODE_PATH=<jsdom module directory> node tests/bulk-skills.cjs`; `no
 - Course selection, histories shown in course views, card course strips and training exports are restricted to employees explicitly recorded as Permanent or พนักงานประจำ. Existing stored history is retained.
 - Conditional single/batch saves recheck the latest employee contract type, including after a concurrent-write retry. Subcontractors and unspecified contract types cannot receive a course through these save paths; an invalid batch is rejected before any partial write.
 - Certificate service, UI selection and synthetic browser regressions pass, including mixed-type batches and a contract change during a conditional write.
+
+## V939 Larger certificate attachments
+- PDF, JPG and PNG certificate attachments now accept up to 5 MB per file, including a shared attachment when selecting several permanent employees.
+- Certificate conditional writes and their verification reads allow 90 seconds for larger transfers; other employee operations keep their existing request deadline. Existing offline persistence and retry behavior remain in use.
+- Browser validation covers a file at the full 5 MB limit, a byte-identical download, reload/edit, batch assignment and rejection of a file larger than 5 MB before any save.
