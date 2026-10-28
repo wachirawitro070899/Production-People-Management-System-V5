@@ -93,3 +93,8 @@ Validation: `NODE_PATH=<jsdom module directory> node tests/bulk-skills.cjs`; `no
 - PDF, JPG and PNG certificate attachments now accept up to 5 MB per file, including a shared attachment when selecting several permanent employees.
 - Certificate conditional writes and their verification reads allow 90 seconds for larger transfers; other employee operations keep their existing request deadline. Existing offline persistence and retry behavior remain in use.
 - Browser validation covers a file at the full 5 MB limit, a byte-identical download, reload/edit, batch assignment and rejection of a file larger than 5 MB before any save.
+
+## V940 Employee ordering in training and cards
+- Training attendee selection, course history, course matrices and their exports use the existing Skill Matrix position order, highest position first. Employees in the same position follow the existing employment/seniority and employee-ID tie-breakers.
+- Skill Card employee choices, all-employee card views, duplex output and A4 PDF output follow the same order. Sorting copies the displayed list and does not rewrite employee records.
+- The synthetic browser regression checks attendee, training-history and card-selector order using a deliberately unsorted roster. Existing training, permanent-only eligibility, 5 MB evidence and export checks also pass.

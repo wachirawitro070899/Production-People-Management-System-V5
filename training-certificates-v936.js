@@ -12,7 +12,8 @@
  const pending=(id,rid)=>jobs[key(id,rid)];
  const persist=()=>localStorage.setItem(KEY,JSON.stringify(jobs));
  const isPermanent=employee=>window.PPMS_EMPLOYEE_SAVE_SERVICE?.isPermanent(employee)===true;
- const people=()=>context().employees.filter(isPermanent);
+ const ordered=list=>window.PPMS_RUNTIME?.sortEmployees?.(list)||[...list];
+ const people=()=>ordered(context().employees.filter(isPermanent));
  function records(employee){
   if(!isPermanent(employee))return [];
   const map=new Map((Array.isArray(employee?.certifications)?employee.certifications:[]).map(r=>[r.id,r]));
@@ -37,7 +38,7 @@
   return '<div class="wallet-course-strip" data-course-card="'+esc(employee.id)+'" title="'+esc(summary(employee))+'"><b>COURSES</b><span data-i18n-ignore>'+esc(text)+'</span></div>';
  }
  function matrixModel(list){
-  const courses=new Map(),rows=list.map(e=>{const entries=courseRecords(e);for(const r of entries)if(!courses.has(courseKey(r.course)))courses.set(courseKey(r.course),r.course);return {employee:e,entries:new Map(entries.map(r=>[courseKey(r.course),r]))}});
+  const courses=new Map(),rows=ordered(list).map(e=>{const entries=courseRecords(e);for(const r of entries)if(!courses.has(courseKey(r.course)))courses.set(courseKey(r.course),r.course);return {employee:e,entries:new Map(entries.map(r=>[courseKey(r.course),r]))}});
   return {courses:[...courses].map(([key,name])=>({key,name})),rows};
  }
  function courseTable(model,columns=model.courses,rows=model.rows){

@@ -1810,7 +1810,7 @@ function renderQRCodes(root=document){
 }
 function cardsPage(){
  const selectedSection=sessionStorage.getItem('cardSection')||employees.find(x=>String(x.id)===String(sessionStorage.getItem('cardEmp')))?.section||sections[0];
- const sectionEmployees=employees.filter(x=>sectionChartMatches(x,selectedSection));
+ const sectionEmployees=sortSkillMatrixEmployees(employees.filter(x=>sectionChartMatches(x,selectedSection)));
  const selected=sessionStorage.getItem('cardEmp')||sectionEmployees[0]?.id||'';
  const showAll=selected==='__ALL__';
  const e=sectionEmployees.find(x=>String(x.id)===String(selected))||sectionEmployees[0];
@@ -3000,7 +3000,7 @@ async function pagePdfDownload(){
  try{if(current==='cards'){const cards=[...target.querySelectorAll('.wallet-card')];const {jsPDF}=window.jspdf;const pdf=new jsPDF({orientation:'landscape',unit:'mm',format:[85.6,53.98],compress:true});for(let i=0;i<cards.length;i++){const c=await pdfCanvas(cards[i],{scale:4});if(i)pdf.addPage([85.6,53.98],'landscape');pdf.addImage(c.toDataURL('image/jpeg',.96),'JPEG',0,0,85.6,53.98,undefined,'FAST')}pdf.save(name.replace(/[^A-Za-z0-9ก-๙_-]+/g,'_')+'.pdf');status('ดาวน์โหลด PDF ขนาดบัตรแล้ว','ok');return}const canvas=await pdfCanvas(target,{scale:2,ignoreElements:el=>el.classList&&el.classList.contains('no-print')});const {jsPDF}=window.jspdf;const pdf=new jsPDF({orientation,unit:'mm',format,compress:true});const pw=pdf.internal.pageSize.getWidth(),ph=pdf.internal.pageSize.getHeight(),m=6,iw=pw-m*2,ih=canvas.height*iw/canvas.width,usable=ph-m*2;if(ih<=usable){pdf.addImage(canvas.toDataURL('image/jpeg',.94),'JPEG',m,m,iw,ih,undefined,'FAST')}else{const ppm=canvas.width/iw,slice=Math.floor(usable*ppm),pc=document.createElement('canvas');let y=0,page=0;while(y<canvas.height){const h=Math.min(slice,canvas.height-y);pc.width=canvas.width;pc.height=h;const ctx=pc.getContext('2d');ctx.fillStyle='#fff';ctx.fillRect(0,0,pc.width,pc.height);ctx.drawImage(canvas,0,y,canvas.width,h,0,0,canvas.width,h);if(page++)pdf.addPage(format,orientation);pdf.addImage(pc.toDataURL('image/jpeg',.94),'JPEG',m,m,iw,h/ppm,undefined,'FAST');y+=h}}pdf.save(name.replace(/[^A-Za-z0-9ก-๙_-]+/g,'_')+'.pdf');status('ดาวน์โหลด PDF แล้ว','ok')}catch(err){console.error(err);alert('สร้าง PDF ไม่สำเร็จ: '+err.message)}}
 async function cardsA4PdfDownload(){
  const section=sessionStorage.getItem('cardSection')||employees.find(x=>String(x.id)===String(sessionStorage.getItem('cardEmp')))?.section||sections[0];
- const list=organizationScopedEmployees(employees).filter(e=>sectionChartMatches(e,section));
+ const list=sortSkillMatrixEmployees(organizationScopedEmployees(employees).filter(e=>sectionChartMatches(e,section)));
  if(!list.length)return alert('ไม่พบพนักงานใน Section นี้');
  if(typeof html2canvas==='undefined'||!window.jspdf?.jsPDF)return alert('ไม่สามารถโหลดระบบสร้าง PDF ได้ กรุณารีเฟรชแล้วลองใหม่');
  status('กำลังสร้าง PDF บัตรทั้ง Section...');
@@ -3087,7 +3087,7 @@ window.PPMS_RUNTIME={
   if(select&&[...select.options].some(o=>o.value===section)){select.value=section;select.dispatchEvent(new Event('change',{bubbles:true}))}
  },
  MAX_SKILL_LEVEL,skillLevel,skillScoreRanges,
- employeeEmploymentRank,employeeSeniorityStart,orgSeniorityCompare,
+ employeeEmploymentRank,employeeSeniorityStart,orgSeniorityCompare,sortEmployees:sortSkillMatrixEmployees,
  employeePhotoData:imageToData,
  async addLeaderEmployee(data){
   const leader=leaderEmployee();
