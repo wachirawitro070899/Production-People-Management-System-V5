@@ -10,17 +10,31 @@ const encodeFirebase=value=>{if(Array.isArray(value))return value.map(encodeFire
 const employeesFrom=value=>{const source=value&&typeof value==='object'&&Object.prototype.hasOwnProperty.call(value,'employees')?value.employees:value;if(Array.isArray(source))return source.filter(Boolean);return source&&typeof source==='object'?Object.entries(source).map(([key,item])=>item&&typeof item==='object'?{...item,id:String(item.id||'').trim()||key}:null).filter(Boolean):[]};
 const findEmployee=(list,value)=>{const key=employeeKey(value);let found=list.find(item=>employeeKey(item?.id)===key);if(found)return found;const match=key.match(/(\d+)$/);if(!match)return null;const tail=String(Number(match[1])),matches=list.filter(item=>{const m=employeeKey(item?.id).match(/(\d+)$/);return m&&String(Number(m[1]))===tail});return matches.length===1?matches[0]:null};
 function firebaseDb(){if(!window.firebase)throw Error('โหลด Firebase ไม่สำเร็จ กรุณาตรวจสอบอินเทอร์เน็ต');if(!firebase.apps.length)firebase.initializeApp(window.PPMS_FIREBASE_CONFIG||{});return firebase.database()}
+// REST reads bypass a stalled/cached realtime socket after employee mutations.
+async function readRosterNode(db,path){
+ const base=String(window.PPMS_FIREBASE_CONFIG?.databaseURL||'').replace(/\/$/,'');
+ if(base){
+  const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),6000);
+  try{const response=await fetch(base+'/ppms/'+path+'.json',{signal:controller.signal,cache:'no-store'});if(!response.ok)throw Error('HTTP '+response.status);return {value:decodeFirebase(await response.json()),fresh:true}}
+  catch(error){if(!db)throw error}
+  finally{clearTimeout(timer)}
+ }
+ if(!db)throw Error('โหลดรายชื่อจาก Firebase ไม่สำเร็จ');
+ return {value:decodeFirebase((await db.ref('ppms/'+path).once('value')).val()),fresh:false};
+}
 async function loadMaster(){
- const db=firebaseDb(),limited=(promise,ms=6000)=>Promise.race([promise,new Promise((_,reject)=>setTimeout(()=>reject(Error('Firebase timeout')),ms))]);
+ const revision=window.PPMS_RUNTIME?.employeeRosterRevision?.(),db=firebaseDb(),limited=(promise,ms=6000)=>Promise.race([promise,new Promise((_,reject)=>setTimeout(()=>reject(Error('Firebase timeout')),ms))]);
  let local=[],localSchedules={};try{local=employeesFrom(JSON.parse(localStorage.getItem('ppms_v3_employees')||'[]'));localSchedules=JSON.parse(localStorage.getItem('ppms_v3_shift_schedules')||'{}')||{}}catch(_){}
- const [employeeResult,shiftResult,deletedResult]=await Promise.allSettled([limited(db.ref('ppms/employees').once('value')),limited(db.ref('ppms/shiftSchedules').once('value')),limited(db.ref('ppms/deletedEmployeeIds').once('value'))]);
- const direct=employeeResult.status==='fulfilled'?employeesFrom(decodeFirebase(employeeResult.value.val()||[])):local;
+ const [employeeResult,shiftResult,deletedResult]=await Promise.allSettled([limited(readRosterNode(db,'employees'),12000),limited(db.ref('ppms/shiftSchedules').once('value')),limited(readRosterNode(db,'deletedEmployeeIds'),12000)]);
+ const direct=employeeResult.status==='fulfilled'?employeesFrom(employeeResult.value.value||[]):local;
  const schedules=shiftResult.status==='fulfilled'?decodeFirebase(shiftResult.value.val()||{})||{}:localSchedules;
  let localDeleted=[],pending=[];try{localDeleted=JSON.parse(localStorage.getItem('ppms_v3_deleted_employee_ids')||'[]');pending=JSON.parse(localStorage.getItem('ppms_v3_pending_employee_deletes')||'[]')}catch(_){}
- const remoteDeleted=deletedResult.status==='fulfilled'?decodeFirebase(deletedResult.value.val()||[]):localDeleted;
+ const remoteDeleted=deletedResult.status==='fulfilled'?deletedResult.value.value||[]:localDeleted;
  const deleted=new Set([...(Array.isArray(remoteDeleted)?remoteDeleted:Object.values(remoteDeleted||{})),...pending].map(employeeKey)),seen=new Set();
  const roster=direct.filter(e=>{const id=employeeKey(e?.id);if(!id||!e.name&&!e.thaiName||deleted.has(id)||seen.has(id))return false;seen.add(id);return true});
  if(employeeResult.status!=='fulfilled'&&!roster.length)throw Error('โหลดรายชื่อจาก Firebase ไม่สำเร็จ กรุณาตรวจอินเทอร์เน็ตแล้วลองใหม่');
+ // Authorize mutations against the same fresh roster displayed in this dialog.
+ if(employeeResult.status==='fulfilled'&&deletedResult.status==='fulfilled'&&employeeResult.value.fresh&&deletedResult.value.fresh)window.PPMS_RUNTIME?.applyEmployeeRosterSnapshot?.({employees:direct,deletedEmployeeIds:Object.values(remoteDeleted||{}).map(String)},revision);
  return {db,root:{},employees:roster,schedules};
 }
 async function leaderLogin(){const id=String(prompt('กรอกรหัสพนักงานระดับ Leader ขึ้นไป')||'').trim();if(!id)return;const button=document.getElementById('leaderLoginBtn');if(button){button.disabled=true;button.textContent='กำลังตรวจสอบ...'}try{let master=null,emp=null;for(let attempt=1;attempt<=2&&!emp;attempt++){master=await loadMaster();emp=findEmployee(master.employees,id);if(!emp&&attempt<2){if(button)button.textContent='กำลังโหลดรายชื่อ...';await new Promise(resolve=>setTimeout(resolve,500))}}if(!emp)throw Error('ไม่พบรหัสพนักงานนี้ใน Employee Master');if(!isLeader(emp.position))throw Error('รหัสนี้ไม่มีสิทธิ์ Leader');if(!String(emp.section||'').trim())throw Error('Leader คนนี้ยังไม่ได้กำหนด Section');sessionStorage.removeItem('ppms_admin');sessionStorage.setItem('ppms_leader_id',String(emp.id));sessionStorage.setItem('shiftRosterSection',String(emp.section));location.reload()}catch(error){alert(error.message||String(error));if(button){button.disabled=false;button.textContent='Leader+ Login'}}}
@@ -50,7 +64,7 @@ document.addEventListener('click',event=>{const login=event.target.closest?.('#l
 // V725: save only changed cells in small batches. This avoids replacing the
 // complete schedule and keeps Leader saving reliable on mobile networks.
 document.addEventListener('submit',async event=>{
- const form=event.target;if(form?.id!=='leaderRosterDirect')return;
+ const form=event.target;if(form?.getAttribute('id')!=='leaderRosterDirect')return;
  event.preventDefault();event.stopImmediatePropagation();
  const submit=form.querySelector('[type="submit"]');submit.disabled=true;submit.textContent='กำลังบันทึกและตรวจสอบ...';
  try{
@@ -84,7 +98,7 @@ async function openLeaderEmployeeManager(){
  const master=await loadMaster(),leader=findEmployee(master.employees,sessionStorage.getItem('ppms_leader_id'));
  if(!leader||!isLeader(leader.position))throw Error('กรุณา Login ด้วยรหัส Leader ใหม่');
  const section=String(leader.section||''),division=String(leader.organizationDivision||'Production Division'),plant=String(leader.organizationPlant||'โรง 1'),list=master.employees.filter(item=>sameSection(leader,item)).sort((a,b)=>window.PPMS_RUNTIME?.orgSeniorityCompare?.(a,b)||String(a.id).localeCompare(String(b.id),undefined,{numeric:true}));
- const rows=list.map(emp=>'<tr><td><b>'+esc(emp.id)+'</b></td><td>'+(emp.photoData||emp.photoUrl?'<img src="'+esc(emp.photoData||emp.photoUrl)+'" alt="รูปพนักงาน" style="width:48px;height:48px;object-fit:cover;border-radius:50%;vertical-align:middle;margin-right:8px">':'')+esc(emp.name||emp.thaiName||'')+'<br><button type="button" class="secondary compact" data-leader-photo="'+esc(emp.id)+'">เพิ่ม / เปลี่ยน / ลบรูป</button></td><td>'+esc(emp.position||'Operator')+'</td><td>'+esc(emp.startDate||'-')+'</td><td>'+(String(emp.id)===String(leader.id)?'<small>Leader ที่ Login</small>':'<button type="button" class="danger compact" data-leader-remove="'+esc(emp.id)+'">พนักงานลาออก</button>')+'</td></tr>').join('');
+ const rows=list.map(emp=>'<tr><td><b>'+esc(emp.id)+'</b></td><td>'+(emp.photoData||emp.photoUrl?'<img src="'+esc(emp.photoData||emp.photoUrl)+'" alt="รูปพนักงาน" style="width:48px;height:48px;object-fit:cover;border-radius:50%;vertical-align:middle;margin-right:8px">':'')+esc(emp.name||emp.thaiName||'')+'<br><button type="button" class="secondary compact" data-leader-photo="'+esc(emp.id)+'">เพิ่ม / เปลี่ยน / ลบรูป</button></td><td>'+esc(emp.position||'Operator')+'</td><td>'+esc(emp.startDate||'-')+'</td><td>'+(String(emp.id)===String(leader.id)?'<small>Leader ที่ Login</small>':'<button type="button" class="danger compact" data-leader-remove="'+esc(emp.id)+'">ลบ / บันทึกลาออก</button>')+'</td></tr>').join('');
  const responsibility=sectionKey(section).includes('stamping')?'<label>ทีม Stamping<select name="stampingShift"><option value="">ไม่ระบุ</option><option>Team A</option><option>Team B</option></select></label><label>Stamping Group<select name="stampingGroup"><option value="">ไม่ระบุ</option><option value="A">Group A (No.1#–No.6#)</option><option value="B">Group B (No.7#–No.8#)</option><option value="C">Group C (No.9#–No.13#)</option></select></label><label>หน้าที่ในกลุ่ม<select name="stampingRole"><option value="">ไม่ระบุ</option>'+['Operator 1','Operator 2','Operator 3','Operator 4','Operator 5','Operator 6','Operator 7','Operator 8','Operator 9','Operator 10','Spare','Support'].map(value=>'<option>'+value+'</option>').join('')+'</select></label><label>เครื่องที่รับผิดชอบ<input name="stampingMachines" placeholder="เช่น No.1# & No.2#"></label>':(sectionKey(section).includes('sorting')?'<label>กลุ่ม Sorting<select name="sortingGroup"><option value="">ไม่ระบุ</option><option>Sorting 1</option><option>Sorting 2</option></select></label>':'');
  openModal('<h2>เพิ่ม / ลบพนักงาน • '+esc(section)+'</h2><p class="modal-note">แบบฟอร์มเดียวกับหน้า Admin • Leader เพิ่มได้เฉพาะ Section ของตน</p><form id="leaderAddEmployee" class="form-grid"><label>รหัสพนักงาน<input name="id" placeholder="รหัสพนักงาน" required></label><label>ชื่อภาษาอังกฤษ<input name="name" placeholder="ชื่อภาษาอังกฤษ" required></label><label>ชื่อภาษาไทย<input name="thaiName" placeholder="ชื่อภาษาไทย"></label><label>เบอร์โทร<input name="phone" placeholder="เบอร์โทร"></label><label>Division<input value="'+esc(division)+'" readonly><input type="hidden" name="organizationDivision" value="'+esc(division)+'"></label><label>โรงงาน<input value="'+esc(plant)+'" readonly><input type="hidden" name="organizationPlant" value="'+esc(plant)+'"></label><label>Section<input value="'+esc(section)+'" readonly></label><label>ตำแหน่ง<input name="position" value="Operator" placeholder="ตำแหน่ง" required></label><label>วันที่เริ่มงาน<input name="startDate" type="date" required></label><label>ประเภทพนักงาน<select name="contractType"><option value="Permanent">Permanent</option><option value="Subcontractor">Subcontractor</option></select></label><label>กะ Attendance<select name="attendanceShift"><option value="day">กะเช้า / Day Shift</option><option value="night">กะดึก / Night Shift</option></select></label>'+responsibility+'<label>วันที่ปรับเป็นพนักงานประจำ<input name="permanentStartDate" type="date"><small>กรอกเมื่อปรับบรรจุ เพื่อเริ่มนับอายุงานประจำใหม่</small></label><label class="full">รูปพนักงาน<input type="file" name="photo" accept="image/*"><small>เลือกรูปจากมือถือหรือคอม รูปจะบันทึกเข้าระบบ PPMS และแชร์ให้ทุกคนเห็น</small></label><div class="full actions"><button type="submit">บันทึกข้อมูล</button></div></form><div class="table-wrap" style="margin-top:18px"><table><thead><tr><th>รหัส</th><th>ชื่อ / รูป</th><th>ตำแหน่ง</th><th>วันเริ่ม</th><th>จัดการ</th></tr></thead><tbody>'+rows+'</tbody></table></div>');
  document.querySelectorAll('[data-leader-photo]').forEach(button=>button.onclick=()=>{
@@ -110,10 +124,10 @@ async function openLeaderEmployeeManager(){
   button.disabled=true;try{if(!window.PPMS_RUNTIME?.deleteEmployeeNow)throw Error('ระบบรายชื่อหลักยังไม่พร้อม กรุณารีเฟรชหน้าเว็บ');const ok=await window.PPMS_RUNTIME.deleteEmployeeNow(id);if(!ok)throw Error('ฐานข้อมูลยังไม่ยืนยันการลบ');alert('นำ '+id+' ออกจากรายชื่อปัจจุบันและเก็บประวัติแล้ว');await openLeaderEmployeeManager()}catch(error){button.disabled=false;alert('นำพนักงานออกไม่สำเร็จ: '+(error.message||String(error))) }
  });
 }
-// V720: save the new employee and clear an old resigned marker in one Firebase
-// transaction, so the main app cannot filter the new row out between two writes.
+// Identify forms by their attribute: input[name=id] shadows form.id in Chromium.
+// Employee writes use the shared verified save service and durable retry outbox.
 document.addEventListener('submit',async event=>{
- const form=event.target;if(form?.id!=='leaderAddEmployee')return;
+ const form=event.target;if(form?.getAttribute('id')!=='leaderAddEmployee')return;
  event.preventDefault();event.stopImmediatePropagation();
  if(form.querySelector('[type="submit"]')?.disabled)return;
  const data=Object.fromEntries(new FormData(form)),id=String(data.id||'').trim(),name=String(data.name||'').trim();
@@ -123,7 +137,7 @@ document.addEventListener('submit',async event=>{
   const master=await loadMaster(),leader=findEmployee(master.employees,sessionStorage.getItem('ppms_leader_id'));
   if(!leader||!isLeader(leader.position))throw Error('กรุณา Login ด้วยรหัส Leader ใหม่');
   const section=String(leader.section||''),employee={id,name:name.toUpperCase(),thaiName:String(data.thaiName||'').trim(),phone:String(data.phone||'').trim(),section,position:String(data.position||'Operator').trim(),contractType:String(data.contractType||'Permanent'),startDate:String(data.startDate||dateKey()),permanentStartDate:String(data.contractType||'Permanent')==='Permanent'?String(data.permanentStartDate||''):'',attendanceShift:String(data.attendanceShift||'day'),organizationDivision:String(data.organizationDivision||leader.organizationDivision||'Production Division'),organizationPlant:String(data.organizationPlant||leader.organizationPlant||'โรง 1'),sortingGroup:String(data.sortingGroup||''),stampingShift:String(data.stampingShift||''),stampingGroup:String(data.stampingGroup||''),stampingRole:String(data.stampingRole||''),stampingMachines:String(data.stampingMachines||'').trim(),currentSkillLevel:1,skillLevels:{},createdAt:new Date().toISOString(),updatedAt:new Date().toISOString(),createdByLeader:String(leader.id)};
-  if(findEmployee(master.employees,id))throw Error('รหัสพนักงานนี้มีอยู่แล้ว');
+  if(master.employees.some(e=>employeeKey(e.id)===employeeKey(id)))throw Error('รหัสพนักงานนี้มีอยู่แล้ว');
   if(!window.PPMS_RUNTIME?.addLeaderEmployee)throw Error('กรุณารีเฟรชเพื่อใช้ระบบรายชื่อใหม่');
   const file=form.elements.photo.files[0];
   employee.photoData=file?await window.PPMS_RUNTIME.employeePhotoData(file):'';employee.photoUrl='';

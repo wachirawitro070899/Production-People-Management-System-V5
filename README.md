@@ -65,3 +65,9 @@ Validation: `NODE_PATH=<jsdom module directory> node tests/bulk-skills.cjs`; `no
 - Save PDF / Print on the main organization chart opens paper, zoom and layout controls. Poster mode tiles the complete chart across A4 or A3 landscape pages, with 5 mm overlap, trim guides and row/column coordinates. Empty tiles are omitted. Fit mode keeps the complete chart on one sheet.
 - A scoped headcount footer shows unique chart employees, Sections, Permanent, Subcontract, Thai subcontractors (NCN IDs) and Myanmar subcontractors. The counts appear below the chart, on each printed page, and below the native Excel chart. Vacancies are excluded.
 - Regression: `node tests/organization-poster.cjs` with Playwright Chromium; optionally set `CHROMIUM_EXECUTABLE_PATH` and `PPMS_QA_DIR`. The test uses a synthetic 152-person roster and checks poster coverage, A4/A3 PDFs, counts, scope and source-data preservation.
+
+## V935 Leader employee maintenance
+- Leader employee submission reads the form ID attribute, avoiding HTML form named-property shadowing by the employee ID field. Different employee-ID prefixes sharing a numeric suffix no longer count as duplicates.
+- The dialog reads the employee roster and deletion markers through REST before falling back to the realtime SDK. Confirmed fresh snapshots update the shared runtime before permission checks, so recently added employees can be removed and stale socket caches do not hide successful mutations.
+- Removal retains resignation history and existing Section/self-removal guards. Both entry pages request the updated Leader module.
+- Validation: `node tests/leader-employee-mutations.cjs` with jsdom; `node tests/leader-employee-browser.cjs` with Playwright Chromium (optional `CHROMIUM_EXECUTABLE_PATH`). Both use synthetic intercepted databases. Employee save, live-roster and Section-access regressions also pass.
