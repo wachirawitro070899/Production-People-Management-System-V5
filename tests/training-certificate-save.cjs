@@ -24,5 +24,11 @@ const employee={id:'E1',name:'KEEP NAME',section:'Welding Section',skillLevels:{
  s=await setup({employee});await s.service.saveCertificate('E1',record);assert.equal(s.db.employees.employee.certifications[0].course,'CQI-15','Keyed rosters are supported');
  s.db.deletedEmployeeIds=['E1'];await assert.rejects(s.service.saveCertificate('E1',{...record,id:'C3'}),e=>e.code==='employee-missing');
  s=await setup([]);await assert.rejects(s.service.saveCertificate('E1',record),e=>e.code==='employee-missing');assert.equal(s.db.employees.length,0);
+ s=await setup([employee,{...employee,id:'E2',name:'SECOND'},{id:'OTHER',name:'UNSELECTED'}],db=>{db.employees[1].photoData='LATEST PHOTO'});
+ const changes=['E1','E2'].map(employeeId=>({employeeId,record:{...record,id:'BATCH-'+employeeId,certificateNumber:employeeId},expectedUpdatedAt:''}));
+ await s.service.saveCertificates(changes);assert.equal(s.db.employees[0].certifications[0].certificateNumber,'E1');assert.equal(s.db.employees[1].certifications[0].certificateNumber,'E2');assert.equal(s.db.employees[1].photoData,'LATEST PHOTO');assert.equal(s.db.employees[2].certifications,undefined);
+ await s.service.saveCertificates(changes);assert.equal(s.db.employees[0].certifications.length,1,'Whole-batch retry is idempotent');
+ const before=structuredClone(s.db.employees);await assert.rejects(s.service.saveCertificates([{employeeId:'E1',record:{...record,id:'NEW'}},{employeeId:'MISSING',record}]),e=>e.code==='employee-missing');assert.deepEqual(s.db.employees,before,'Invalid recipient prevents a partial batch commit');
+ await assert.rejects(s.service.saveCertificates([{employeeId:'E1',record:{...record,id:'NEW'}},{employeeId:'E2',record:{...record,id:'BATCH-E2',updatedAt:'stale'},expectedUpdatedAt:'wrong'}]),e=>e.code==='certificate-conflict');assert.deepEqual(s.db.employees,before,'Conflicting recipient prevents a partial batch commit');
  console.log('PASS certificate CAS retries, concurrent course and profile preservation, idempotence, stale-edit conflict, keyed rosters and deletion guards.');
 })().catch(e=>{console.error(e);process.exitCode=1});

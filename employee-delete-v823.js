@@ -125,27 +125,41 @@ async function upsert(data,originalId='',options={}){
 // Certificate edits merge one record against the current roster. Profile edits,
 // retries and simultaneous courses must never replace another certificate.
 async function saveCertificate(employeeId,record,expectedUpdatedAt=''){
- const id=String(employeeId);
- if(!record?.id||!String(record.course||'').trim()||!record.updatedAt)throw Error('กรุณาระบุหลักสูตร');
- if(!['certified','completed','planned'].includes(record.status))throw Error('สถานะการอบรมไม่ถูกต้อง');
+ return saveCertificates([{employeeId,record,expectedUpdatedAt}]);
+}
+async function saveCertificates(changes){
+ if(!Array.isArray(changes)||!changes.length)throw Error('กรุณาเลือกพนักงาน');
+ const seen=new Set();
+ for(const {employeeId,record} of changes){
+  if(employeeId==null||!record?.id||!String(record.course||'').trim()||!record.updatedAt)throw Error('กรุณาระบุหลักสูตร');
+  if(!['certified','completed','planned'].includes(record.status))throw Error('สถานะการอบรมไม่ถูกต้อง');
+  const key=JSON.stringify([String(employeeId),record.id]);if(seen.has(key))throw Error('รายการพนักงานซ้ำ');seen.add(key);
+ }
  const deleted=await request('deletedEmployeeIds');
- if(Object.values(deleted.value||{}).map(String).includes(id)){const error=Error('พนักงานถูกลบแล้ว');error.code='employee-missing';throw error}
+ const missing=id=>{const error=Error('ไม่พบพนักงาน หรือพนักงานถูกลบแล้ว');error.code='employee-missing';error.employeeId=String(id);return error};
+ const deletedIds=new Set(Object.values(deleted.value||{}).map(String));
+ for(const change of changes)if(deletedIds.has(String(change.employeeId)))throw missing(change.employeeId);
  await change('employees',value=>{
-  const employee=records(value).find(e=>String(e.id)===id);
-  if(!employee){const error=Error('ไม่พบพนักงาน');error.code='employee-missing';throw error}
-  const list=Array.isArray(employee.certifications)?employee.certifications:[],old=list.find(r=>r.id===record.id);
-  if(old?.updatedAt===record.updatedAt)return value;
-  if((old?.updatedAt||'')!==expectedUpdatedAt){const error=Error('รายการอบรมนี้ถูกแก้ไขจากเครื่องอื่น กรุณาเปิดรายการใหม่');error.code='certificate-conflict';error.existing=employee;throw error}
-  const patched={...employee,certifications:[record,...list.filter(r=>r.id!==record.id)]};
-  return Array.isArray(value)?value.map(e=>e&&String(e.id)===id?patched:e):Object.fromEntries(Object.entries(value).map(([key,e])=>[key,e&&String(e.id)===id?patched:e]));
+  const people=new Map(records(value).map(e=>[String(e.id),e])),patched=new Map();
+  for(const {employeeId,record,expectedUpdatedAt=''} of changes){
+   const id=String(employeeId),employee=patched.get(id)||people.get(id);if(!employee)throw missing(id);
+   const list=Array.isArray(employee.certifications)?employee.certifications:[],old=list.find(r=>r.id===record.id);
+   if(old?.updatedAt===record.updatedAt)continue;
+   if((old?.updatedAt||'')!==expectedUpdatedAt){const error=Error('รายการอบรมนี้ถูกแก้ไขจากเครื่องอื่น กรุณาเปิดรายการใหม่');error.code='certificate-conflict';error.existing=employee;error.employeeId=id;throw error}
+   patched.set(id,{...employee,certifications:[record,...list.filter(r=>r.id!==record.id)]});
+  }
+  if(!patched.size)return value;
+  return Array.isArray(value)?value.map(e=>e&&patched.get(String(e.id))||e):Object.fromEntries(Object.entries(value).map(([key,e])=>[key,e&&patched.get(String(e.id))||e]));
  });
  const [roster,tombstones]=await Promise.all([request('employees'),request('deletedEmployeeIds')]);
- const saved=records(roster.value).find(e=>String(e.id)===id)?.certifications?.find(r=>r.id===record.id);
- if(Object.values(tombstones.value||{}).map(String).includes(id)){const error=Error('พนักงานถูกลบแล้ว');error.code='employee-missing';throw error}
- if(saved?.updatedAt!==record.updatedAt)throw Error('ยังไม่ยืนยันการบันทึกใบเซอร์ กรุณาลองใหม่');
+ const people=new Map(records(roster.value).map(e=>[String(e.id),e])),gone=new Set(Object.values(tombstones.value||{}).map(String));
+ for(const {employeeId,record} of changes){
+  if(gone.has(String(employeeId)))throw missing(employeeId);
+  if(people.get(String(employeeId))?.certifications?.find(r=>r.id===record.id)?.updatedAt!==record.updatedAt)throw Error('ยังไม่ยืนยันการบันทึกใบเซอร์ กรุณาลองใหม่');
+ }
  return {employees:roster.value,deletedEmployeeIds:Object.values(tombstones.value||{}).map(String)};
 }
-window.PPMS_EMPLOYEE_SAVE_SERVICE={upsert,saveCertificate};
+window.PPMS_EMPLOYEE_SAVE_SERVICE={upsert,saveCertificate,saveCertificates};
 // A small REST read still reaches other devices when the large root socket stalls.
 let deletionPollRunning=false;
 async function pollDeletions(){

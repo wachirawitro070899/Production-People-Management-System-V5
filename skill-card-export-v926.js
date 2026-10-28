@@ -19,7 +19,7 @@
    const id=front.dataset.employeeId,back=backs.find(card=>card.dataset.employeeId===id);if(!back)throw Error('ไม่พบด้านหลังบัตร '+id);
    const fields=[...front.querySelectorAll('.wallet-person dd')].map(n=>n.textContent.trim());
    const skills=[...back.querySelectorAll('.wallet-skill-row')].map(row=>({name:row.querySelector('span').textContent.trim(),level:Number(row.querySelector('b').textContent.trim())}));
-   return {id,name:front.querySelector('.wallet-person h2')?.textContent.trim()||'',position:fields[1]||'',section:fields[2]||'',updated:fields[3]||'',next:front.querySelector('.wallet-footer span')?.textContent.replace(/^Next:\s*/,'').trim()||'',score:Number(front.querySelector('.wallet-score b')?.textContent),rank:front.querySelector('.wallet-footer b')?.textContent.trim()||'',skills,front:front.cloneNode(true),back:back.cloneNode(true)};
+   return {id,name:front.querySelector('.wallet-person h2')?.textContent.trim()||'',position:fields[1]||'',section:fields[2]||'',updated:fields[3]||'',next:front.querySelector('.wallet-footer span')?.textContent.replace(/^Next:\s*/,'').trim()||'',score:Number(front.querySelector('.wallet-score b')?.textContent),rank:front.querySelector('.wallet-footer b')?.textContent.trim()||'',skills,certifications:window.PPMSCertificates?.records(window.PPMS_RUNTIME?.certificateContext().employees.find(e=>String(e.id)===String(id)))||[],front:front.cloneNode(true),back:back.cloneNode(true)};
   });
  }
  async function capture(card){
@@ -53,7 +53,13 @@
   [18,34,30,30,16,16,30,10,14,18].forEach((w,i)=>data.getColumn(i+1).width=w);
   for(const person of records)for(const skill of person.skills){const row=data.addRow([String(person.id),person.name,person.position,person.section,person.updated,person.next,skill.name,skill.level,person.score,person.rank]);row.getCell(1).numFmt='@';row.height=30;row.alignment={vertical:'middle',wrapText:true};row.font={name:'Tahoma',size:10}}
   data.getRow(2).eachCell(cell=>{cell.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FF194E82'}};cell.font={name:'Tahoma',size:10,bold:true,color:{argb:'FFFFFFFF'}}});data.getRow(2).height=26;
-  data.autoFilter='A2:J'+Math.max(2,data.rowCount);return book;
+  data.autoFilter='A2:J'+Math.max(2,data.rowCount);
+  if(records.some(person=>person.certifications?.length)){
+   const courses=book.addWorksheet('Training Certificates',{views:[{state:'frozen',ySplit:1}]});courses.addRow(['Emp.ID','Name','Course','Provider','Training date','Expiry date','Status','Certificate No.']);
+   [18,32,36,30,18,18,28,22].forEach((width,i)=>courses.getColumn(i+1).width=width);
+   records.forEach(person=>(person.certifications||[]).forEach(r=>{const row=courses.addRow([String(person.id),person.name,r.course,r.provider,r.date,r.expiryDate,window.PPMSCertificates?.state(r)||r.status,r.certificateNumber]);row.getCell(1).numFmt='@';row.height=32;row.alignment={vertical:'middle',wrapText:true};row.font={name:'Tahoma',size:10}}));courses.getRow(1).font={name:'Tahoma',size:10,bold:true};
+  }
+  return book;
  }
  async function download(){
   if(busy)return;busy=true;const button=document.querySelector('[data-action="pageExcel"]');

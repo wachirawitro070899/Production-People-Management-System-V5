@@ -19,7 +19,7 @@
    const cells=[...r.cells],id=cells[2].textContent.trim(),person=people.get(id);if(!person)throw Error('รายชื่อพนักงานเปลี่ยนแล้ว กรุณาโหลดหน้าใหม่');
    const levels=cells.slice(4,-2).map(c=>Number(c.textContent.trim()));if(levels.some(n=>!Number.isInteger(n)||n<1||n>4))throw Error('ระดับสกิลไม่ถูกต้อง: '+id);
    const score=levels.reduce((a,b)=>a+b,0),image=cells[1].querySelector('img');
-   return {no:i+1,id,name:cells[3].querySelector('b')?.textContent.trim()||person.name||'',position:cells[3].querySelector('small:not(.skill-updated)')?.textContent.trim()||person.position||'',updated:cells[3].querySelector('.skill-updated')?.textContent.replace(/^Update:\s*/,'').trim()||'',levels,score,level:rank(score,skills.length),photo:image?.currentSrc||image?.src||'',person:{...person},failed:false};
+   return {no:i+1,id,name:cells[3].querySelector('b')?.textContent.trim()||person.name||'',position:cells[3].querySelector('small:not(.skill-updated):not(.cert-matrix-summary)')?.textContent.trim()||person.position||'',updated:cells[3].querySelector('.skill-updated')?.textContent.replace(/^Update:\s*/,'').trim()||'',levels,score,level:rank(score,skills.length),photo:image?.currentSrc||image?.src||'',person:{...person},courseSummary:window.PPMSCertificates?.summary(person)||'',failed:false};
   });
   const section=document.getElementById('matrixSection')?.value||'',group=document.getElementById('matrixSortingGroup')?.value||'';
   const date=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Bangkok',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
@@ -35,7 +35,7 @@
  function pageHTML(model,rows,index,total){
   const title='<header class="matrix-doc-header">'+(model.logo?'<img src="'+esc(model.logo)+'" alt="JR">':'<strong>JR</strong>')+'<div><small>JINRONG ELECTRONICS TECHNOLOGY (THAILAND) CO., LTD.</small><h2>SECTION SKILL MATRIX</h2><p>'+esc(model.title)+'</p></div><aside>Document No. '+esc(model.documentNo)+'<br>Revision '+esc(model.revision)+'<br>Effective Date '+esc(model.date)+'</aside></header>';
   const head=['No.','Photo','Emp.ID','Employee / Position',...model.skills,'Score','Level'];
-  const table='<table class="matrix-doc-table">'+columns(model)+'<thead><tr>'+head.map(h=>'<th>'+esc(h)+'</th>').join('')+'</tr></thead><tbody>'+rows.map(r=>'<tr data-matrix-doc-employee="'+esc(r.id)+'"><td>'+r.no+'</td><td class="matrix-doc-photo">'+photo(r)+'</td><td class="matrix-doc-id">'+esc(r.id)+'</td><td class="matrix-doc-name"><b>'+esc(r.name)+'</b><span>'+esc(r.position)+'</span><small>Update: '+esc(r.updated||'—')+'</small></td>'+r.levels.map((v,i)=>'<td><button type="button" data-skill-edit="'+esc(r.id)+'" data-skill-name="'+esc(model.skills[i])+'" class="matrix-doc-level level-'+v+'">'+v+'</button></td>').join('')+'<td><b>'+r.score+'</b></td><td><b class="matrix-doc-rank level-'+r.level+'">Level '+r.level+'</b></td></tr>').join('')+(rows.length?'':'<tr><td colspan="'+head.length+'">ไม่มีข้อมูลพนักงานตามตัวกรองนี้</td></tr>')+'</tbody></table>';
+  const table='<table class="matrix-doc-table">'+columns(model)+'<thead><tr>'+head.map(h=>'<th>'+esc(h)+'</th>').join('')+'</tr></thead><tbody>'+rows.map(r=>'<tr data-matrix-doc-employee="'+esc(r.id)+'"><td>'+r.no+'</td><td class="matrix-doc-photo">'+photo(r)+'</td><td class="matrix-doc-id">'+esc(r.id)+'</td><td class="matrix-doc-name"><b>'+esc(r.name)+'</b><span>'+esc(r.position)+'</span><small>Update: '+esc(r.updated||'—')+'</small>'+(r.courseSummary?'<small class="cert-matrix-summary" data-i18n-ignore>'+esc(r.courseSummary)+'</small>':'')+'</td>'+r.levels.map((v,i)=>'<td><button type="button" data-skill-edit="'+esc(r.id)+'" data-skill-name="'+esc(model.skills[i])+'" class="matrix-doc-level level-'+v+'">'+v+'</button></td>').join('')+'<td><b>'+r.score+'</b></td><td><b class="matrix-doc-rank level-'+r.level+'">Level '+r.level+'</b></td></tr>').join('')+(rows.length?'':'<tr><td colspan="'+head.length+'">ไม่มีข้อมูลพนักงานตามตัวกรองนี้</td></tr>')+'</tbody></table>';
   const criteria='<section class="matrix-doc-footer"><div class="matrix-doc-criteria">'+model.ranges.map(r=>'<div class="level-'+r.level+'"><b>Level '+r.level+' · '+r.min+'–'+r.max+' คะแนน</b><span>'+descriptions[r.level-1]+'</span><small>'+ (r.level===1?'เริ่มต้น / Baseline':'สอบปรับเป็น Level '+r.level+' ผ่าน ≥80%')+'</small></div>').join('')+'</div><p class="matrix-doc-note">'+esc(examNote)+'<br>'+model.skills.length+' หัวข้อ · คะแนนรวมเต็ม '+model.skills.length*4+' · คะแนนรวมเป็นผลรวมระดับทักษะ ไม่ใช่เปอร์เซ็นต์คะแนนสอบ</p><div class="matrix-doc-signatures">'+['Prepared by / ผู้จัดทำ','Checked by / ผู้ตรวจสอบ','Approved by / ผู้อนุมัติ'].map(s=>'<div><b>'+s+'</b><span></span><small>Signature / Date</small></div>').join('')+'</div><p class="matrix-doc-number">'+esc(model.title)+' · '+model.rows.length+' คน <span>Page '+index+' / '+total+'</span></p></section>';
   return title+table+criteria;
  }
@@ -47,7 +47,11 @@
    row.photo=result?.data||'';row.failed=!!result?.failed;status('กำลังเตรียมรูปพนักงาน '+(++done)+' / '+model.rows.length);
   }}));return model;
  }
- function makePages(model,opt){const groups=model.pages||paginate(model.rows,opt);return groups.map((rows,i)=>'<section class="matrix-document-page" style="width:'+(opt.w-12)+'mm;min-height:'+(opt.h-12)+'mm" data-page="'+(i+1)+'">'+pageHTML(model,rows,i+1,groups.length)+'</section>').join('')}
+ function makePages(model,opt){
+  const groups=model.pages||paginate(model.rows,opt),courses=window.PPMSCertificates?.matrixPages(model.rows.map(r=>r.person),model.title)||[],total=groups.length+courses.length;
+  const page=(content,i)=>'<section class="matrix-document-page" style="width:'+(opt.w-12)+'mm;min-height:'+(opt.h-12)+'mm" data-page="'+(i+1)+'">'+content+'</section>';
+  return groups.map((rows,i)=>page(pageHTML(model,rows,i+1,total),i)).join('')+courses.map((content,i)=>page(content+'<p class="matrix-doc-number">Page '+(groups.length+i+1)+' / '+total+'</p>',groups.length+i)).join('');
+ }
  async function resolvePages(model,opt){
   const holder=document.createElement('div');holder.className='matrix-document-render';holder.style.cssText='position:absolute;left:-15000px;top:0';document.body.append(holder);
   try{let count=paginate(model.rows,opt).length;
@@ -60,7 +64,7 @@
  }
  async function printFrame(model,opt){
   const frame=document.createElement('iframe');frame.title='Section Skill Matrix';frame.style.cssText='position:fixed;left:-15000px;top:0;width:1200px;height:900px;border:0';document.body.append(frame);
-  const doc=frame.contentDocument;doc.open();doc.write('<!doctype html><html lang="th"><head><meta charset="utf-8"><title>Skill Matrix '+esc(model.title)+'</title><link rel="stylesheet" href="'+new URL('matrix-layout-v924.css?v=933',location.href).href+'"><style>@page{size:'+opt.size+' '+opt.orientation+';margin:6mm}body{margin:0}.matrix-document-page{margin:0!important;box-shadow:none!important;border:0!important;break-after:page}.matrix-document-page:last-child{break-after:auto}</style></head><body>'+makePages(model,opt)+'</body></html>');doc.close();
+  const doc=frame.contentDocument;doc.open();doc.write('<!doctype html><html lang="th"><head><meta charset="utf-8"><title>Skill Matrix '+esc(model.title)+'</title><link rel="stylesheet" href="'+new URL('matrix-layout-v924.css?v=937',location.href).href+'"><link rel="stylesheet" href="'+new URL('training-certificates-v936.css?v=937',location.href).href+'"><style>@page{size:'+opt.size+' '+opt.orientation+';margin:6mm}body{margin:0}.matrix-document-page{margin:0!important;box-shadow:none!important;border:0!important;break-after:page}.matrix-document-page:last-child{break-after:auto}</style></head><body>'+makePages(model,opt)+'</body></html>');doc.close();
   await Promise.race([new Promise(resolve=>{if(doc.readyState==='complete')resolve();else frame.onload=resolve}),new Promise(resolve=>setTimeout(resolve,5000))]);
   await doc.fonts?.ready;await Promise.all([...doc.images].map(img=>img.decode?.().catch(()=>{})||Promise.resolve()));return frame;
  }
@@ -101,7 +105,15 @@
    merge(row,1,row,last,model.title+' · '+model.rows.length+' คน     Page '+(page+1)+' / '+groups.length,{size:8,align:'right'});sheet.getRow(row++).height=14;
    if(start===1)sheet.views=[{showGridLines:false,state:'frozen',ySplit:3,zoomScale:85}];
   });
-  sheet.pageSetup.printArea='A1:'+sheet.getColumn(last).letter+(row-1);book.calcProperties.fullCalcOnLoad=true;return book;
+  sheet.pageSetup.printArea='A1:'+sheet.getColumn(last).letter+(row-1);
+  const courses=window.PPMSCertificates?.matrixModel(model.rows.map(r=>r.person));
+  if(courses?.courses.length){
+   const training=book.addWorksheet('Training Certificates',{views:[{state:'frozen',ySplit:1,xSplit:2,showGridLines:false}],pageSetup:{paperSize:9,orientation:'landscape',fitToPage:true,fitToWidth:1,fitToHeight:0,printTitlesRow:'1:1'}});
+   training.addRow(['Emp.ID','Employee / Position',...courses.courses.map(c=>c.name)]);training.getColumn(1).width=18;training.getColumn(2).width=35;courses.courses.forEach((c,i)=>training.getColumn(i+3).width=28);
+   courses.rows.forEach(({employee,entries})=>{const row=training.addRow([String(employee.id),employee.name+'\n'+employee.position,...courses.courses.map(c=>{const r=entries.get(c.key);return r?window.PPMSCertificates.label(r)+(r.date?'\n'+r.date:'')+(r.expiryDate?'\nExp. '+r.expiryDate:''):'—'})]);row.height=48;row.eachCell(cell=>fmt(cell,{align:cell.col===2?'left':'center',size:9}));row.getCell(1).numFmt='@'});
+   training.getRow(1).height=44;training.getRow(1).eachCell(cell=>fmt(cell,{fill:'DAE9F7',bold:true,size:9}));training.autoFilter={from:{row:1,column:1},to:{row:training.rowCount,column:courses.courses.length+2}};
+  }
+  book.calcProperties.fullCalcOnLoad=true;return book;
  }
  // Print-resolution output is independent of the monitor's device pixel ratio.
  const PDF_DPI=300;

@@ -10,7 +10,8 @@ async function dispose(dom){dom.window.requestAnimationFrame=()=>0;dom.window.qu
   assert(w.document.querySelector('#certificatePage').textContent.includes('0'));
   w.document.querySelector('[data-cert-add]').click();let form=w.document.querySelector('#certificateForm');
   assert(form.querySelector('option[value="CQI-15"]'),'CQI-15 is an editable course suggestion');
-  form.elements.employeeId.value='TEST-4-1';form.elements.course.value='CQI-15';form.elements.provider.value='Training Institute';form.elements.date.value='2026-09-01';form.elements.certificateNumber.value='CERT-123';
+  const attendeeSearch=form.querySelector('#certAttendeeSearch');attendeeSearch.value='TEST-4-';attendeeSearch.dispatchEvent(new w.Event('input',{bubbles:true}));form.querySelector('#certSelectVisible').click();assert.equal(form.querySelectorAll('[name="employeeIds"]:checked').length,8,'Select all respects the attendee search');form.querySelector('#certClearSelection').click();assert.equal(form.querySelectorAll('[name="employeeIds"]:checked').length,0);attendeeSearch.value='';attendeeSearch.dispatchEvent(new w.Event('input',{bubbles:true}));
+  form.querySelector('[name="employeeIds"][value="TEST-4-1"]').checked=true;form.elements.course.value='CQI-15';form.elements.provider.value='Training Institute';form.elements.date.value='2026-09-01';form.elements.certificateNumber.value='CERT-123';
   const submit=()=>form.dispatchEvent(new w.Event('submit',{bubbles:true,cancelable:true}));
   form.elements.expiryDate.value='2026-08-01';submit();await wait(50);assert(w.document.querySelector('#certificateStatus').textContent.includes('วันหมดอายุ'));
   form.elements.expiryDate.value='2027-09-01';form.elements.certificateUrl.value='javascript:alert(1)';submit();await wait(50);assert(w.document.querySelector('#certificateStatus').textContent.includes('https://'));

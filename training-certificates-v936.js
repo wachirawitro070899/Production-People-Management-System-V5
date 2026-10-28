@@ -19,6 +19,37 @@
  }
  function state(record){return record.status==='certified'&&record.expiryDate&&record.expiryDate<today()?'expired':record.status}
  function label(record){return state(record)==='expired'?'ใบเซอร์หมดอายุ':statuses[record.status]||'ไม่ระบุ'}
+ const courseKey=value=>String(value||'').trim().toLocaleLowerCase().replace(/\s+/g,' ');
+ function courseRecords(employee){
+  const groups=new Map(),priority={certified:4,completed:3,expired:2,planned:1};
+  for(const record of records(employee)){
+   const k=courseKey(record.course),old=groups.get(k);if(!k)continue;
+   if(!old||(priority[state(record)]||0)>(priority[state(old)]||0))groups.set(k,record);
+  }
+  return [...groups.values()];
+ }
+ function summary(employee){return courseRecords(employee).map(r=>r.course+' · '+label(r)+(pending(employee.id,r.id)?' (รอซิงก์)':'')).join('; ')}
+ function cardMarkup(employee){
+  const list=courseRecords(employee);if(!list.length)return '';
+  const short={certified:'มีเซอร์',completed:'อบรมแล้ว',expired:'หมดอายุ',planned:'แผนอบรม'},text=list.slice(0,3).map(r=>r.course+' ('+short[state(r)]+')'+(pending(employee.id,r.id)?' *':'' )).join(' · ')+(list.length>3?' · +'+(list.length-3)+' หลักสูตร':'');
+  return '<div class="wallet-course-strip" data-course-card="'+esc(employee.id)+'" title="'+esc(summary(employee))+'"><b>COURSES</b><span data-i18n-ignore>'+esc(text)+'</span></div>';
+ }
+ function matrixModel(list){
+  const courses=new Map(),rows=list.map(e=>{const entries=courseRecords(e);for(const r of entries)if(!courses.has(courseKey(r.course)))courses.set(courseKey(r.course),r.course);return {employee:e,entries:new Map(entries.map(r=>[courseKey(r.course),r]))}});
+  return {courses:[...courses].map(([key,name])=>({key,name})),rows};
+ }
+ function courseTable(model,columns=model.courses,rows=model.rows){
+  return '<div class="table-wrap"><table class="cert-course-matrix"><thead><tr><th>รหัส / Employee ID</th><th>พนักงาน / Employee</th>'+columns.map(c=>'<th data-i18n-ignore>'+esc(c.name)+'</th>').join('')+'</tr></thead><tbody>'+rows.map(({employee:e,entries})=>'<tr data-course-matrix-employee="'+esc(e.id)+'"><td>'+esc(e.id)+'</td><td><b data-i18n-ignore>'+esc(e.name)+'</b><small>'+esc(e.position)+'</small></td>'+columns.map(c=>{const r=entries.get(c.key);return '<td data-course-key="'+esc(c.key)+'">'+(r?'<span class="cert-badge cert-'+esc(state(r))+'">'+esc(label(r))+'</span>'+(r.date?'<small>'+esc(r.date)+'</small>':'')+(r.expiryDate?'<small>Exp. '+esc(r.expiryDate)+'</small>':'')+(pending(e.id,r.id)?'<small>รอซิงก์</small>':''):'—')+'</td>'}).join('')+'</tr>').join('')+'</tbody></table></div>';
+ }
+ function matrixMarkup(list){
+  const model=matrixModel(list);if(!model.courses.length)return '';
+  return '<section class="cert-matrix-section"><h3>Training & Certificate Matrix / หลักสูตรอบรมและใบเซอร์</h3><p>แสดงสถานะหลักสูตรรายคน · — = ยังไม่มีรายการ</p>'+courseTable(model)+'</section>';
+ }
+ function matrixPages(list,title=''){
+  const model=matrixModel(list),pages=[];if(!model.courses.length)return pages;
+  for(let c=0;c<model.courses.length;c+=4)for(let r=0;r<model.rows.length;r+=10)pages.push('<section class="cert-matrix-section"><h3>Training & Certificate Matrix</h3><p>'+esc(title)+' · หลักสูตรอบรมและใบเซอร์ · — = ยังไม่มีรายการ</p>'+courseTable(model,model.courses.slice(c,c+4),model.rows.slice(r,r+10))+'</section>');
+  return pages;
+ }
  function safeUrl(value){try{const u=new URL(String(value));return u.protocol==='https:'?u.href:''}catch{return ''}}
  function fileValid(file){return file&&typeof file.data==='string'&&/^data:(application\/pdf|image\/png|image\/jpeg);base64,[A-Za-z0-9+/=]+$/.test(file.data)&&file.data.length<MAX_FILE*1.4+100}
  function evidence(record){
@@ -60,34 +91,53 @@
   const data=await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result).replace(/^data:[^;]*;/,'data:'+type+';'));reader.onerror=()=>reject(Error('อ่านไฟล์ไม่สำเร็จ'));reader.readAsDataURL(file)});
   return {name:file.name,type,data};
  }
+ function attendeePicker(employeeId,editing){
+  if(editing){const employee=people().find(e=>String(e.id)===String(employeeId));return '<label class="full">พนักงาน<select name="employeeId" disabled><option>'+esc(employee?.name||employeeId)+'</option></select></label>'}
+  return '<fieldset class="full cert-attendees"><legend>เลือกพนักงานเข้าอบรม (เลือกได้หลายคน)</legend><input id="certAttendeeSearch" placeholder="ค้นหา รหัส ชื่อ แผนก หรือตำแหน่ง" aria-label="ค้นหาผู้เข้าอบรม"><div class="cert-attendee-tools"><button type="button" class="secondary" id="certSelectVisible">เลือกทุกคนตามผลค้นหา</button><button type="button" class="secondary" id="certClearSelection">ล้างที่เลือก</button><b id="certAttendeeCount" aria-live="polite"></b></div><div class="cert-attendee-list">'+people().map(e=>'<div class="cert-attendee-row" data-cert-attendee-search="'+esc([e.id,e.name,e.thaiName,e.section,e.position].join(' ').toLowerCase())+'"><label><input type="checkbox" name="employeeIds" value="'+esc(e.id)+'" '+(String(e.id)===String(employeeId)?'checked':'')+'><span data-i18n-ignore><b>'+esc(e.name)+'</b><small>'+esc(e.id+' · '+e.position+' · '+e.section)+'</small></span></label><input data-cert-person-number="'+esc(e.id)+'" placeholder="เลขที่ใบเซอร์รายคน (ถ้ามี)" aria-label="'+esc('เลขที่ใบเซอร์ '+e.name)+'" maxlength="120" hidden></div>').join('')+'</div><small>รายละเอียดหลักสูตรและไฟล์แนบจะใช้กับผู้ที่เลือก สามารถใส่เลขที่ใบเซอร์รายคนได้</small></fieldset>';
+ }
+ function bindAttendees(form){
+  if(!form.querySelector('.cert-attendees'))return;
+  const update=()=>{const boxes=[...form.querySelectorAll('[name="employeeIds"]')];form.querySelector('#certAttendeeCount').textContent='เลือกแล้ว '+boxes.filter(b=>b.checked).length+' คน';boxes.forEach(b=>{b.closest('.cert-attendee-row').querySelector('[data-cert-person-number]').hidden=!b.checked})};
+  form.querySelector('#certAttendeeSearch').oninput=event=>{const q=event.target.value.toLowerCase();form.querySelectorAll('[data-cert-attendee-search]').forEach(row=>{row.hidden=!row.dataset.certAttendeeSearch.includes(q)})};
+  form.querySelector('#certSelectVisible').onclick=()=>{form.querySelectorAll('.cert-attendee-row:not([hidden]) [name="employeeIds"]').forEach(box=>box.checked=true);update()};
+  form.querySelector('#certClearSelection').onclick=()=>{form.querySelectorAll('[name="employeeIds"]').forEach(box=>box.checked=false);update()};
+  form.querySelectorAll('[name="employeeIds"]').forEach(box=>box.onchange=update);update();
+ }
  function open(employeeId='',recordId=''){
   if(!context().isAdmin)return;
   document.getElementById('certificateDialog')?.remove();
   const employee=people().find(e=>String(e.id)===String(employeeId)),old=employee&&records(employee).find(r=>r.id===recordId)||{};
   if(recordId&&!old.id)return;
+  const editExpected=old.id?(pending(employee.id,old.id)?.expectedUpdatedAt??(employee.certifications||[]).find(r=>r.id===old.id)?.updatedAt??''):'';
   const dialog=document.createElement('div');dialog.id='certificateDialog';dialog.className='modal cert-dialog';dialog.setAttribute('role','dialog');dialog.setAttribute('aria-modal','true');dialog.setAttribute('aria-labelledby','certificateDialogTitle');
-  dialog.innerHTML='<div class="modal-card"><button type="button" class="close" data-cert-close aria-label="ปิด">×</button><h2 id="certificateDialogTitle">'+(old.id?'แก้ไข':'เพิ่ม')+'หลักสูตร / ใบเซอร์</h2><p>บันทึกผู้ผ่านอบรมเป็นรายบุคคล ไม่เพิ่มระดับ Skill โดยอัตโนมัติ</p><form id="certificateForm" class="form-grid"><label class="full">พนักงาน<select name="employeeId" '+(old.id?'disabled':'')+' required><option value="">เลือกพนักงาน</option>'+people().map(e=>'<option value="'+esc(e.id)+'" '+(String(e.id)===String(employeeId)?'selected':'')+'>'+esc(e.id+' · '+e.name+' · '+e.position+' · '+e.section)+'</option>').join('')+'</select></label><label>ชื่อหลักสูตร<input name="course" list="certificateCourses" required maxlength="180" placeholder="เช่น CQI-15 หรือพิมพ์หลักสูตรใหม่" value="'+esc(old.course||'')+'"><datalist id="certificateCourses">'+courses().map(c=>'<option value="'+esc(c)+'">').join('')+'</datalist></label><label>ผู้จัดอบรม / สถาบัน<input name="provider" maxlength="180" value="'+esc(old.provider||'')+'"></label><label>วันที่อบรม<input name="date" type="date" value="'+esc(old.date||'')+'"><small>เว้นว่างได้หากยังไม่ทราบวันที่เดิม</small></label><label>วันหมดอายุใบเซอร์<input name="expiryDate" type="date" value="'+esc(old.expiryDate||'')+'"><small>เว้นว่างได้หากไม่ระบุวันหมดอายุ</small></label><label>สถานะ<select name="status">'+Object.entries(statuses).map(([k,v])=>'<option value="'+k+'" '+(k===(old.status||'certified')?'selected':'')+'>'+esc(v)+'</option>').join('')+'</select></label><label>เลขที่ใบเซอร์<input name="certificateNumber" maxlength="120" value="'+esc(old.certificateNumber||'')+'"></label><label class="full">ลิงก์ใบเซอร์ (HTTPS)<input name="certificateUrl" type="url" value="'+esc(old.certificateUrl||'')+'" placeholder="https://..."></label><label class="full">แนบไฟล์ใบเซอร์<input name="certificateFile" type="file" accept="application/pdf,image/jpeg,image/png"><small>PDF / JPG / PNG ไม่เกิน 1 MB'+(old.attachment?' · ไฟล์เดิม: '+esc(old.attachment.name):'')+'</small></label>'+(old.attachment?'<label class="full"><span><input type="checkbox" name="removeAttachment"> เอาไฟล์แนบเดิมออกจากรายการ</span></label>':'')+'<label class="full">หมายเหตุ<textarea name="note" maxlength="1000">'+esc(old.note||'')+'</textarea></label><p id="certificateStatus" class="full" role="status" aria-live="polite"></p><div class="full actions"><button type="submit">บันทึกหลักสูตร / ใบเซอร์</button><button type="button" class="secondary" data-cert-close>ยกเลิก</button></div></form></div>';
-  document.body.append(dialog);const form=dialog.querySelector('form');form.elements.course.focus();
+  dialog.innerHTML='<div class="modal-card"><button type="button" class="close" data-cert-close aria-label="ปิด">×</button><h2 id="certificateDialogTitle">'+(old.id?'แก้ไข':'เพิ่ม')+'หลักสูตร / ใบเซอร์</h2><p>เลือกผู้เข้าอบรมได้หลายคน แล้วบันทึกหลักสูตรครั้งเดียว</p><form id="certificateForm" class="form-grid">'+attendeePicker(employeeId,!!old.id)+'<label>ชื่อหลักสูตร<input name="course" list="certificateCourses" required maxlength="180" placeholder="เช่น CQI-15 หรือพิมพ์หลักสูตรใหม่" value="'+esc(old.course||'')+'"><datalist id="certificateCourses">'+courses().map(c=>'<option value="'+esc(c)+'">').join('')+'</datalist></label><label>ผู้จัดอบรม / สถาบัน<input name="provider" maxlength="180" value="'+esc(old.provider||'')+'"></label><label>วันที่อบรม<input name="date" type="date" value="'+esc(old.date||'')+'"><small>เว้นว่างได้หากยังไม่ทราบวันที่เดิม</small></label><label>วันหมดอายุใบเซอร์<input name="expiryDate" type="date" value="'+esc(old.expiryDate||'')+'"><small>เว้นว่างได้หากไม่ระบุวันหมดอายุ</small></label><label>สถานะ<select name="status">'+Object.entries(statuses).map(([k,v])=>'<option value="'+k+'" '+(k===(old.status||'certified')?'selected':'')+'>'+esc(v)+'</option>').join('')+'</select></label><label>เลขที่ใบเซอร์<input name="certificateNumber" maxlength="120" value="'+esc(old.certificateNumber||'')+'"></label><label class="full">ลิงก์ใบเซอร์ (HTTPS)<input name="certificateUrl" type="url" value="'+esc(old.certificateUrl||'')+'" placeholder="https://..."></label><label class="full">แนบไฟล์ใบเซอร์<input name="certificateFile" type="file" accept="application/pdf,image/jpeg,image/png"><small>PDF / JPG / PNG ไม่เกิน 1 MB'+(old.attachment?' · ไฟล์เดิม: '+esc(old.attachment.name):'')+'</small></label>'+(old.attachment?'<label class="full"><span><input type="checkbox" name="removeAttachment"> เอาไฟล์แนบเดิมออกจากรายการ</span></label>':'')+'<label class="full">หมายเหตุ<textarea name="note" maxlength="1000">'+esc(old.note||'')+'</textarea></label><p id="certificateStatus" class="full" role="status" aria-live="polite"></p><div class="full actions"><button type="submit">บันทึกหลักสูตร / ใบเซอร์</button><button type="button" class="secondary" data-cert-close>ยกเลิก</button></div></form></div>';
+  document.body.append(dialog);const form=dialog.querySelector('form'),batchId=crypto.randomUUID(),recordIds=new Map();bindAttendees(form);form.elements.course.focus();
   form.onsubmit=async event=>{
    event.preventDefault();const message=dialog.querySelector('#certificateStatus'),button=form.querySelector('[type="submit"]');
    if(button.disabled)return;button.disabled=true;message.textContent='กำลังบันทึก...';
    try{
     await ready;if(running)throw Error('ระบบกำลังส่งรายการก่อนหน้า กรุณาลองอีกครั้ง');
-    const id=old.id?String(employeeId):form.elements.employeeId.value,e=people().find(e=>String(e.id)===id);if(!context().isAdmin||!e)throw Error('กรุณาเลือกพนักงานในฝ่ายปัจจุบัน');
+    const ids=old.id?[String(employeeId)]:[...new Set([...form.querySelectorAll('[name="employeeIds"]:checked')].map(box=>box.value))],eligible=new Map(people().map(e=>[String(e.id),e]));if(!context().isAdmin||!ids.length||ids.some(id=>!eligible.has(id)))throw Error('กรุณาเลือกพนักงานในฝ่ายปัจจุบันอย่างน้อย 1 คน');
     const data=Object.fromEntries(new FormData(form));
     if(!String(data.course||'').trim())throw Error('กรุณาระบุหลักสูตร');
     if(data.date&&data.expiryDate&&data.expiryDate<data.date)throw Error('วันหมดอายุต้องไม่ก่อนวันที่อบรม');
     if(data.status!=='planned'&&data.date&&data.date>today())throw Error('วันที่ผ่านอบรมต้องไม่เป็นวันในอนาคต');
     if(data.certificateUrl&&!safeUrl(data.certificateUrl))throw Error('ลิงก์ใบเซอร์ต้องขึ้นต้นด้วย https://');
-    const stamp=new Date().toISOString(),record={id:old.id||crypto.randomUUID(),course:data.course.trim(),provider:data.provider.trim(),date:data.date,expiryDate:data.expiryDate,status:data.status,certificateNumber:data.certificateNumber.trim(),certificateUrl:data.certificateUrl.trim(),note:data.note.trim(),createdAt:old.createdAt||stamp,updatedAt:stamp,recordedBy:context().actor};
+    const stamp=new Date().toISOString(),record={course:data.course.trim(),provider:data.provider.trim(),date:data.date,expiryDate:data.expiryDate,status:data.status,certificateNumber:data.certificateNumber.trim(),certificateUrl:data.certificateUrl.trim(),note:data.note.trim(),createdAt:old.createdAt||stamp,updatedAt:stamp,recordedBy:context().actor};
     if(old.attachment&&!data.removeAttachment)record.attachment=old.attachment;
     const file=form.elements.certificateFile.files[0];if(file)record.attachment=await attachment(file);
-    const previous=pending(id,record.id),remote=(e.certifications||[]).find(r=>r.id===record.id),job={employeeId:id,record,expectedUpdatedAt:remote?.updatedAt||''},k=key(id,record.id);
-    jobs[k]=job;try{persist();if(await window.ppmsErrorGuard?.flushStorage?.([KEY])===false)throw Error('ยังเก็บข้อมูลในเครื่องไม่ได้ กรุณาลองใหม่')}catch(error){if(previous)jobs[k]=previous;else delete jobs[k];persist();throw error}
+    const before={...jobs},submitted=[];
+    for(const id of ids){
+     const e=eligible.get(id),rid=old.id||recordIds.get(id)||crypto.randomUUID();recordIds.set(id,rid);
+     const ownNumber=[...form.querySelectorAll('[data-cert-person-number]')].find(el=>el.dataset.certPersonNumber===id)?.value.trim(),personal={...record,id:rid,...(ownNumber?{certificateNumber:ownNumber}:{})},remote=(e.certifications||[]).find(r=>r.id===rid),job={employeeId:id,record:personal,expectedUpdatedAt:old.id?editExpected:(remote?.updatedAt||''),batchId},k=key(id,rid);
+     jobs[k]=job;submitted.push(k);
+    }
+    try{persist();if(await window.ppmsErrorGuard?.flushStorage?.([KEY])===false)throw Error('ยังเก็บข้อมูลในเครื่องไม่ได้ กรุณาลองใหม่')}catch(error){jobs=before;persist();throw error}
     refresh();if(navigator.onLine!==false)await sync();
-    const remaining=jobs[k];if(remaining?.error){message.textContent='เก็บรายการรอส่งแล้ว: '+remaining.error;return}
+    const remaining=submitted.filter(k=>jobs[k]),failed=remaining.map(k=>jobs[k]).find(j=>j.error);
+    if(failed){message.textContent='บันทึกแล้ว '+(ids.length-remaining.length)+' คน • รอส่ง '+remaining.length+' คน: '+failed.error;return}
     dialog.remove();window.PPMS_RUNTIME?.refreshCertificates();refresh();
-    alert(remaining?'เก็บหลักสูตรไว้ในเครื่องแล้ว • รอซิงก์เมื่อมีอินเทอร์เน็ต':'บันทึกหลักสูตร / ใบเซอร์เรียบร้อยแล้ว');
+    alert('บันทึกหลักสูตร / ใบเซอร์ '+ids.length+' คน'+(remaining.length?' • รอซิงก์ '+remaining.length+' คนเมื่อมีอินเทอร์เน็ต':'เรียบร้อยแล้ว'));
    }catch(error){message.textContent=error.message}finally{button.disabled=false}
   };
  }
@@ -98,15 +148,19 @@
  async function runSync(){
   await ready;if(running||navigator.onLine===false||!context().isAdmin||!window.PPMS_EMPLOYEE_SAVE_SERVICE)return;
   running=true;
-  try{for(const [k,job] of Object.entries(jobs)){
-   if(!people().some(e=>String(e.id)===String(job.employeeId)))continue;
-   try{
-    const result=await window.PPMS_EMPLOYEE_SAVE_SERVICE.saveCertificate(job.employeeId,job.record,job.expectedUpdatedAt);
-    window.PPMS_RUNTIME.confirmCertificateSnapshot(job.employeeId,result);
-    // Another local revision must stay pending.
-    if(jobs[k]?.record.updatedAt===job.record.updatedAt){delete jobs[k];persist()}
-   }catch(error){if(error.existing)window.PPMS_RUNTIME.confirmCertificateSnapshot(job.employeeId,{employees:[error.existing]});if(jobs[k]){jobs[k].error=error.message;persist()}if(error.code!=='certificate-conflict')break}
-  }}finally{running=false;refresh()}
+  try{
+   const eligible=new Set(people().map(e=>String(e.id))),groups=new Map();
+   for(const [k,job] of Object.entries(jobs)){if(!eligible.has(String(job.employeeId)))continue;const group=job.batchId||k;if(!groups.has(group))groups.set(group,[]);groups.get(group).push([k,job])}
+   const confirm=(entries,result)=>{if(window.PPMS_RUNTIME.confirmCertificateSnapshots)window.PPMS_RUNTIME.confirmCertificateSnapshots(entries.map(([,job])=>job.employeeId),result);else entries.forEach(([,job])=>window.PPMS_RUNTIME.confirmCertificateSnapshot(job.employeeId,result));for(const [k,job] of entries)if(jobs[k]?.record.updatedAt===job.record.updatedAt)delete jobs[k];persist()};
+   const fail=(k,job,error)=>{if(error.existing)window.PPMS_RUNTIME.confirmCertificateSnapshot(job.employeeId,{employees:[error.existing]});if(jobs[k]){jobs[k].error=error.message;persist()}};
+   for(const entries of groups.values()){
+    if(entries.length>1&&window.PPMS_EMPLOYEE_SAVE_SERVICE.saveCertificates){
+     try{confirm(entries,await window.PPMS_EMPLOYEE_SAVE_SERVICE.saveCertificates(entries.map(([,job])=>job)));continue}
+     catch(error){if(!['certificate-conflict','employee-missing'].includes(error.code)){entries.forEach(([k,job])=>fail(k,job,error));break}}
+    }
+    for(const [k,job] of entries){try{confirm([[k,job]],await window.PPMS_EMPLOYEE_SAVE_SERVICE.saveCertificate(job.employeeId,job.record,job.expectedUpdatedAt))}catch(error){fail(k,job,error);if(!['certificate-conflict','employee-missing'].includes(error.code))return}}
+   }
+  }finally{running=false;refresh()}
  }
  function download(employeeId,recordId){
   const employee=people().find(e=>String(e.id)===employeeId),record=employee&&records(employee).find(r=>r.id===recordId);if(!fileValid(record?.attachment))return;
@@ -132,5 +186,5 @@
  window.addEventListener('focus',()=>void sync());
  setInterval(()=>void sync(),15000);
  ready.then(()=>{refresh();void sync()});
- window.PPMSCertificates={page,panel,records,state,safeUrl,sync,exportCsv};
+ window.PPMSCertificates={page,panel,records,state,safeUrl,sync,exportCsv,summary,cardMarkup,courseRecords,matrixModel,matrixMarkup,matrixPages,label};
 })();
