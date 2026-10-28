@@ -97,12 +97,14 @@ async function upsert(data,originalId='',options={}){
   }
   if(Array.isArray(value)||value==null){
    const next=records(value).filter(e=>String(e.id)!==id&&(!oldId||String(e.id)!==oldId));
-   return [...next,data];
+   const previous=existing||records(value).find(e=>String(e.id)===oldId);
+   return [...next,{...data,...(previous?.certifications?{certifications:previous.certifications}:{})}];
   }
   const next={...value};
   for(const [key,e] of Object.entries(next))if(e&&(String(e.id)===id||(oldId&&String(e.id)===oldId)))delete next[key];
   const key=!id.startsWith('__ppmskey__')&&!/[.#$\[\]\/]/.test(id)?id:'__ppmskey__'+encodeURIComponent(id).replace(/\./g,'%2E');
-  next[key]=data;return next;
+  const previous=existing||records(value).find(e=>String(e.id)===oldId);
+  next[key]={...data,...(previous?.certifications?{certifications:previous.certifications}:{})};return next;
  });
  if(!patchFields)await change('deletedEmployeeIds',value=>{
   const ids=new Set(Object.values(value||{}).map(String));
@@ -120,7 +122,30 @@ async function upsert(data,originalId='',options={}){
  if(!saved||(!bulkConfirmed&&saved.updatedAt!==data.updatedAt)||Object.values(tombstones.value||{}).map(String).includes(id))throw Error('Firebase ยังไม่ยืนยันรายชื่อใหม่ • เก็บรายการรอส่งไว้แล้ว');
  return {employees:roster.value,deletedEmployeeIds:Object.values(tombstones.value||{}).map(String),...(organizationScope?{organizationScope}:{})};
 }
-window.PPMS_EMPLOYEE_SAVE_SERVICE={upsert};
+// Certificate edits merge one record against the current roster. Profile edits,
+// retries and simultaneous courses must never replace another certificate.
+async function saveCertificate(employeeId,record,expectedUpdatedAt=''){
+ const id=String(employeeId);
+ if(!record?.id||!String(record.course||'').trim()||!record.updatedAt)throw Error('กรุณาระบุหลักสูตร');
+ if(!['certified','completed','planned'].includes(record.status))throw Error('สถานะการอบรมไม่ถูกต้อง');
+ const deleted=await request('deletedEmployeeIds');
+ if(Object.values(deleted.value||{}).map(String).includes(id)){const error=Error('พนักงานถูกลบแล้ว');error.code='employee-missing';throw error}
+ await change('employees',value=>{
+  const employee=records(value).find(e=>String(e.id)===id);
+  if(!employee){const error=Error('ไม่พบพนักงาน');error.code='employee-missing';throw error}
+  const list=Array.isArray(employee.certifications)?employee.certifications:[],old=list.find(r=>r.id===record.id);
+  if(old?.updatedAt===record.updatedAt)return value;
+  if((old?.updatedAt||'')!==expectedUpdatedAt){const error=Error('รายการอบรมนี้ถูกแก้ไขจากเครื่องอื่น กรุณาเปิดรายการใหม่');error.code='certificate-conflict';error.existing=employee;throw error}
+  const patched={...employee,certifications:[record,...list.filter(r=>r.id!==record.id)]};
+  return Array.isArray(value)?value.map(e=>e&&String(e.id)===id?patched:e):Object.fromEntries(Object.entries(value).map(([key,e])=>[key,e&&String(e.id)===id?patched:e]));
+ });
+ const [roster,tombstones]=await Promise.all([request('employees'),request('deletedEmployeeIds')]);
+ const saved=records(roster.value).find(e=>String(e.id)===id)?.certifications?.find(r=>r.id===record.id);
+ if(Object.values(tombstones.value||{}).map(String).includes(id)){const error=Error('พนักงานถูกลบแล้ว');error.code='employee-missing';throw error}
+ if(saved?.updatedAt!==record.updatedAt)throw Error('ยังไม่ยืนยันการบันทึกใบเซอร์ กรุณาลองใหม่');
+ return {employees:roster.value,deletedEmployeeIds:Object.values(tombstones.value||{}).map(String)};
+}
+window.PPMS_EMPLOYEE_SAVE_SERVICE={upsert,saveCertificate};
 // A small REST read still reaches other devices when the large root socket stalls.
 let deletionPollRunning=false;
 async function pollDeletions(){

@@ -5,6 +5,23 @@
  let language='th', scheduled=false, applying=false;
  try{language=localStorage.getItem(KEY)==='en'?'en':'th'}catch{}
  const dictionary=Object.fromEntries(`
+อบรมและใบเซอร์|Training & Certificates
+การอบรมและใบรับรอง|Training and certifications
+เพิ่มหลักสูตร / ใบเซอร์|Add course / certificate
+แก้ไขหลักสูตร / ใบเซอร์|Edit course / certificate
+บันทึกหลักสูตร / ใบเซอร์|Save course / certificate
+ชื่อหลักสูตร|Course name
+ผู้จัดอบรม / สถาบัน|Training provider
+วันที่อบรม|Training date
+วันหมดอายุใบเซอร์|Certificate expiry date
+เลขที่ใบเซอร์|Certificate number
+มีใบเซอร์|Certified
+ผ่านอบรม / ยังไม่มีใบเซอร์|Trained / no certificate yet
+วางแผนอบรม|Planned training
+ใบเซอร์หมดอายุ|Expired certificate
+ทุกหลักสูตร|All courses
+เปิดใบเซอร์|Open certificate
+ดาวน์โหลดไฟล์|Download file
 แก้ไขชื่อ Section|Rename Section
 ชื่อ Section ใหม่|New Section name
 บันทึกชื่อ Section|Save Section name
