@@ -12,7 +12,7 @@ async function setup(roster,conflict){
   function response(status,value){return {ok:status===200,status,headers:{get:()=>String(revision)},json:async()=>structuredClone(value)}}
  }};vm.createContext(ctx);vm.runInContext(source,ctx);return {db,service:ctx.window.PPMS_EMPLOYEE_SAVE_SERVICE};
 }
-const employee={id:'E1',name:'KEEP NAME',section:'Welding Section',skillLevels:{Safety:4},photoData:'KEEP PHOTO',organizationDivision:'Production Division'},record={id:'C1',course:'CQI-15',status:'certified',date:'2026-09-01',updatedAt:'r1'};
+const employee={id:'E1',name:'KEEP NAME',contractType:'Permanent',section:'Welding Section',skillLevels:{Safety:4},photoData:'KEEP PHOTO',organizationDivision:'Production Division'},record={id:'C1',course:'CQI-15',status:'certified',date:'2026-09-01',updatedAt:'r1'};
 (async()=>{
  let s=await setup([employee,{id:'OTHER',name:'KEEP OTHER'}],db=>{db.employees[0].name='CONCURRENT NAME';db.employees[0].certifications=[{id:'C2',course:'Other course',updatedAt:'other'}]});
  await s.service.saveCertificate('E1',record);
@@ -30,5 +30,11 @@ const employee={id:'E1',name:'KEEP NAME',section:'Welding Section',skillLevels:{
  await s.service.saveCertificates(changes);assert.equal(s.db.employees[0].certifications.length,1,'Whole-batch retry is idempotent');
  const before=structuredClone(s.db.employees);await assert.rejects(s.service.saveCertificates([{employeeId:'E1',record:{...record,id:'NEW'}},{employeeId:'MISSING',record}]),e=>e.code==='employee-missing');assert.deepEqual(s.db.employees,before,'Invalid recipient prevents a partial batch commit');
  await assert.rejects(s.service.saveCertificates([{employeeId:'E1',record:{...record,id:'NEW'}},{employeeId:'E2',record:{...record,id:'BATCH-E2',updatedAt:'stale'},expectedUpdatedAt:'wrong'}]),e=>e.code==='certificate-conflict');assert.deepEqual(s.db.employees,before,'Conflicting recipient prevents a partial batch commit');
+ for(const contractType of ['Subcontractor','',undefined,'Unknown']){
+  const ineligible={...employee,contractType};s=await setup([ineligible]);await assert.rejects(s.service.saveCertificate('E1',record),e=>e.code==='employee-not-permanent');assert.equal(s.db.employees[0].certifications,undefined);
+ }
+ s=await setup([{...employee,contractType:' พนักงานประจำ '}]);await s.service.saveCertificate('E1',record);assert.equal(s.db.employees[0].certifications.length,1);
+ s=await setup([employee],db=>{db.employees[0].contractType='Subcontractor'});await assert.rejects(s.service.saveCertificate('E1',record),e=>e.code==='employee-not-permanent');assert.equal(s.db.employees[0].certifications,undefined,'Concurrent contract change blocks a stale save');
+ s=await setup([employee,{...employee,id:'SUB',contractType:'Subcontractor'}]);await assert.rejects(s.service.saveCertificates([{employeeId:'E1',record},{employeeId:'SUB',record}]),e=>e.code==='employee-not-permanent');assert(s.db.employees.every(e=>!e.certifications),'A mixed batch is rejected before writing any certificate');
  console.log('PASS certificate CAS retries, concurrent course and profile preservation, idempotence, stale-edit conflict, keyed rosters and deletion guards.');
 })().catch(e=>{console.error(e);process.exitCode=1});

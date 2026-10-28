@@ -83,3 +83,8 @@ Validation: `NODE_PATH=<jsdom module directory> node tests/bulk-skills.cjs`; `no
 - Skill Cards include a course/status strip while retaining CR80 dimensions. Skill Matrix shows each person's courses and a separate course-by-employee matrix, including planned, trained, certified and expired states. Assessment scores and numeric skill levels remain unchanged.
 - Matrix print/PDF appendices and Matrix/Card Excel workbooks include training records for the displayed employees. Employee profile edits continue preserving certificates, and concurrent same-record edits require reopening the form.
 - Validation: certificate save and batch atomicity tests; synthetic browser tests for multi-person selection, individual numbers, evidence, card dimensions, course matrices, Excel sheets, offline reload/retry and division isolation; employee-save regressions.
+
+## V938 Permanent employee training eligibility
+- Course selection, histories shown in course views, card course strips and training exports are restricted to employees explicitly recorded as Permanent or พนักงานประจำ. Existing stored history is retained.
+- Conditional single/batch saves recheck the latest employee contract type, including after a concurrent-write retry. Subcontractors and unspecified contract types cannot receive a course through these save paths; an invalid batch is rejected before any partial write.
+- Certificate service, UI selection and synthetic browser regressions pass, including mixed-type batches and a contract change during a conditional write.

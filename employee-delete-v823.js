@@ -127,6 +127,7 @@ async function upsert(data,originalId='',options={}){
 async function saveCertificate(employeeId,record,expectedUpdatedAt=''){
  return saveCertificates([{employeeId,record,expectedUpdatedAt}]);
 }
+function isPermanent(employee){return /^(permanent|พนักงานประจำ)$/i.test(String(employee?.contractType||'').trim())}
 async function saveCertificates(changes){
  if(!Array.isArray(changes)||!changes.length)throw Error('กรุณาเลือกพนักงาน');
  const seen=new Set();
@@ -143,6 +144,7 @@ async function saveCertificates(changes){
   const people=new Map(records(value).map(e=>[String(e.id),e])),patched=new Map();
   for(const {employeeId,record,expectedUpdatedAt=''} of changes){
    const id=String(employeeId),employee=patched.get(id)||people.get(id);if(!employee)throw missing(id);
+   if(!isPermanent(employee)){const error=Error('หลักสูตรอบรมและใบเซอร์สำหรับพนักงานประจำเท่านั้น');error.code='employee-not-permanent';error.employeeId=id;error.existing=employee;throw error}
    const list=Array.isArray(employee.certifications)?employee.certifications:[],old=list.find(r=>r.id===record.id);
    if(old?.updatedAt===record.updatedAt)continue;
    if((old?.updatedAt||'')!==expectedUpdatedAt){const error=Error('รายการอบรมนี้ถูกแก้ไขจากเครื่องอื่น กรุณาเปิดรายการใหม่');error.code='certificate-conflict';error.existing=employee;error.employeeId=id;throw error}
@@ -159,7 +161,7 @@ async function saveCertificates(changes){
  }
  return {employees:roster.value,deletedEmployeeIds:Object.values(tombstones.value||{}).map(String)};
 }
-window.PPMS_EMPLOYEE_SAVE_SERVICE={upsert,saveCertificate,saveCertificates};
+window.PPMS_EMPLOYEE_SAVE_SERVICE={upsert,saveCertificate,saveCertificates,isPermanent};
 // A small REST read still reaches other devices when the large root socket stalls.
 let deletionPollRunning=false;
 async function pollDeletions(){
