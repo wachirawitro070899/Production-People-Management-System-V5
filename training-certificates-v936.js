@@ -32,9 +32,10 @@
   return [...groups.values()];
  }
  function summary(employee){return courseRecords(employee).map(r=>r.course+' · '+label(r)+(pending(employee.id,r.id)?' (รอซิงก์)':'')).join('; ')}
+ function names(employee){return courseRecords(employee).map(r=>r.course).join(', ')}
  function cardMarkup(employee){
   const list=courseRecords(employee);if(!list.length)return '';
-  const short={certified:'มีเซอร์',completed:'อบรมแล้ว',expired:'หมดอายุ',planned:'แผนอบรม'},text=list.slice(0,3).map(r=>r.course+' ('+short[state(r)]+')'+(pending(employee.id,r.id)?' *':'' )).join(' · ')+(list.length>3?' · +'+(list.length-3)+' หลักสูตร':'');
+  const text=list.slice(0,3).map(r=>r.course+(pending(employee.id,r.id)?' *':'' )).join(', ')+(list.length>3?' · +'+(list.length-3)+' หลักสูตร':'');
   return '<div class="wallet-course-strip" data-course-card="'+esc(employee.id)+'" title="'+esc(summary(employee))+'"><b>COURSES</b><span data-i18n-ignore>'+esc(text)+'</span></div>';
  }
  function matrixModel(list){
@@ -189,5 +190,5 @@
  window.addEventListener('focus',()=>void sync());
  setInterval(()=>void sync(),15000);
  ready.then(()=>{refresh();void sync()});
- window.PPMSCertificates={page,panel,records,state,safeUrl,sync,exportCsv,summary,cardMarkup,courseRecords,matrixModel,matrixMarkup,matrixPages,label};
+ window.PPMSCertificates={page,panel,records,state,safeUrl,sync,exportCsv,summary,names,cardMarkup,courseRecords,matrixModel,matrixMarkup,matrixPages,label};
 })();

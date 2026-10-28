@@ -98,3 +98,8 @@ Validation: `NODE_PATH=<jsdom module directory> node tests/bulk-skills.cjs`; `no
 - Training attendee selection, course history, course matrices and their exports use the existing Skill Matrix position order, highest position first. Employees in the same position follow the existing employment/seniority and employee-ID tie-breakers.
 - Skill Card employee choices, all-employee card views, duplex output and A4 PDF output follow the same order. Sorting copies the displayed list and does not rewrite employee records.
 - The synthetic browser regression checks attendee, training-history and card-selector order using a deliberately unsorted roster. Existing training, permanent-only eligibility, 5 MB evidence and export checks also pass.
+
+## V941 Compact course labels
+- Skill Matrix employee rows show course names after the update date on the same line, such as `Update: 2026-10-15 · CQI-15`. Compact matrix and card summaries omit certificate-status wording.
+- Matrix print/PDF and Excel employee summaries use the same compact course names. The update date remains a separate model value, and detailed course status/history remains available in the training records.
+- The browser regression verifies the inline label, reduced row lines, unchanged export date and course-only card text; existing course, file and workbook checks pass.
