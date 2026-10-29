@@ -176,7 +176,12 @@
   document.head.appendChild(style);
 
   hydrateCompanyLogos();
-  new MutationObserver(()=>hydrateCompanyLogos()).observe(document.getElementById('app')||document.body,{childList:true,subtree:true});
+  new MutationObserver(records=>{
+    // Images added to a logo holder are our own work; translate/table updates
+    // do not require searching the whole page for the same logos again.
+    const selector='.matrix-report,.report-logo,.matrix-print-logo,.matrix-table-head-logo';
+    if(records.some(record=>[...record.addedNodes].some(node=>node.nodeType===1&&(node.matches(selector)||node.querySelector(selector)))))hydrateCompanyLogos();
+  }).observe(document.getElementById('app')||document.body,{childList:true,subtree:true});
 
   window.addEventListener('beforeprint',prepare);
   window.addEventListener('afterprint',cleanup);

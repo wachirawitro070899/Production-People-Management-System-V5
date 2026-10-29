@@ -153,7 +153,7 @@
  function mount(){
   const report=document.querySelector('#app .matrix-report');if(!report)return;report.classList.add('matrix-document-screen');
   const table=report.querySelector('.skill-matrix-table');if(!table||table.querySelector('colgroup[data-matrix-columns]'))return;
-  let model;try{model=snapshot()}catch{return}
+  const headings=table.tHead?.rows[table.tHead.rows.length-1];if(!headings)return;const model={skills:[...headings.cells].slice(4,-2).map(cell=>cell.textContent)};
   const group=document.createElement('colgroup');group.dataset.matrixColumns='1';const w=weights(model),sum=w.reduce((a,b)=>a+b,0);w.forEach(n=>{const c=document.createElement('col');c.style.width=n*100/sum+'%';group.append(c)});table.prepend(group);
  }
  document.addEventListener('click',event=>{

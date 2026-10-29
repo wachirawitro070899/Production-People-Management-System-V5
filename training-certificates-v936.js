@@ -153,7 +153,7 @@
   return syncTask;
  }
  async function runSync(){
-  await ready;if(running||navigator.onLine===false||!context().isAdmin||!window.PPMS_EMPLOYEE_SAVE_SERVICE)return;
+  await ready;if(running||!Object.keys(jobs).length||navigator.onLine===false||!context().isAdmin||!window.PPMS_EMPLOYEE_SAVE_SERVICE)return;
   running=true;
   try{
    const eligible=new Set(people().map(e=>String(e.id))),groups=new Map();

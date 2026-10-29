@@ -31,7 +31,7 @@ const sectionKey=(division,plant)=>division+'::'+(plant||master.plants[0]);
 const sectionsFor=(division,plant)=>(master.sectionMap&&master.sectionMap[sectionKey(division,plant)])||[];
 const positionKey=(division,plant,section)=>sectionKey(division,plant)+'::'+String(section||'');
 const db=()=>{try{if(!firebase.apps.length&&window.PPMS_FIREBASE_CONFIG)firebase.initializeApp(window.PPMS_FIREBASE_CONFIG);return firebase.apps.length?firebase.database():null}catch{return null}};
-function saveMaster(){master._updatedAt=Date.now();localStorage.setItem(MK,JSON.stringify(master));db()?.ref('settings/organizationMaster').set(master).catch(console.warn)}
+function saveMaster(){if(window.PPMSAccess?.readOnly())return;master._updatedAt=Date.now();localStorage.setItem(MK,JSON.stringify(master));db()?.ref('settings/organizationMaster').set(master).catch(console.warn)}
 function pendingMasterPositions(){const value=read(POSITION_OUTBOX,[]);return Array.isArray(value)?value.filter(job=>job?.type==='position'&&job.scope?.division&&job.name):[]}
 function hasPendingMasterJobs(){return sectionJobs.length>0||pendingMasterPositions().length>0||window.PPMSPositionSlots?.hasPending()}
 function replayPendingMaster(value){
@@ -204,7 +204,7 @@ if(FACTORY_PAGE){setInterval(refreshFactoryRoster,10000);window.addEventListener
 function factoryLink(){document.querySelector('#nav [data-factory-organization]')?.remove()}
 
 // V836: Create a Section from the main system and share it through the organization master.
-function sectionAdmin(){return sessionStorage.getItem('ppms_admin')==='1'}
+function sectionAdmin(){return sessionStorage.getItem('ppms_admin')==='1'&&window.PPMSAccess?.canEdit()!==false}
 function sectionControls(){
  document.querySelectorAll('#employeeForm [data-create-section]').forEach(button=>button.remove());
  if(!sectionAdmin())return;

@@ -37,6 +37,6 @@ for(const [i,[section]]of sections.entries())employees.push({id:'CAST-'+i,name:'
    for(const [en,th]of [['Human Resources Section','แผนกทรัพยากรบุคคล'],['Safety Section','แผนกความปลอดภัย'],['Accounting Section','แผนกบัญชี'],['Planning Section','แผนกวางแผน'],['Purchasing Section','แผนกจัดซื้อ'],['Marketing Section','แผนกการตลาด']]){assert.equal(api.translate(en,'th'),th);assert.equal(api.translate(th,'en'),en)}
    assert.equal(w.localStorage.getItem('ppms_v3_employees'),roster);assert.equal(w.localStorage.getItem('ppms_organization_master_v1'),settings);assert.deepEqual(errors,[]);
    await wait(80);console.log('Passed Section TH/EN headings, scoped renamed labels, stable selections and roster, print copies:',entry);
-  }finally{dom.window.close()}
+  }finally{w.requestAnimationFrame=()=>0;w.queueMicrotask=()=>{};await wait(150);dom.window.close()}
  }
 })().catch(e=>{console.error(e);process.exitCode=1});

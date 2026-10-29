@@ -3146,13 +3146,15 @@ Layout โรงงาน|Factory Layout
   safe=safe.replace(/https?:\/\/[^\s<>]+|\b[\w.-]+\.(?:js|json|csv|xlsx?|pdf|png|jpe?g|html)\b/gi,hold);
   return translate(safe).replace(/\uE000(\d+)\uE001/g,(_,i)=>protectedValues[Number(i)]);
  }
+ let translationEpoch=0;
  function textNode(node){
-  if(ignored(node.parentElement))return;
+  if(!/[A-Za-zก-๙]/.test(node.nodeValue)||ignored(node.parentElement))return;
   const current=node.nodeValue,state=texts.get(node);
+  if(state?.epoch===translationEpoch&&current===state.rendered)return;
   const original=state&&current===state.rendered?state.original:current;
   if(node.parentElement.tagName==='OPTION'&&!node.parentElement.hasAttribute('value'))node.parentElement.setAttribute('value',node.parentElement.value);
   const rendered=displayText(original,node.parentElement);
-  texts.set(node,{original,rendered});
+  texts.set(node,{original,rendered,epoch:translationEpoch});
   if(current!==rendered)node.nodeValue=rendered;
  }
  function elementAttributes(el){
@@ -3160,12 +3162,21 @@ Layout โรงงาน|Factory Layout
   let states=attributes.get(el);if(!states){states={};attributes.set(el,states)}
   for(const name of ['placeholder','title','aria-label','alt',...(el.matches('input[type=button],input[type=submit],input[type=reset]')?['value']:[])]){
    if(!el.hasAttribute(name))continue;
-   const current=el.getAttribute(name),state=states[name],original=state&&current===state.rendered?state.original:current;
-   const rendered=displayText(original,el);states[name]={original,rendered};
+   const current=el.getAttribute(name),state=states[name];if(state?.epoch===translationEpoch&&current===state.rendered)continue;const original=state&&current===state.rendered?state.original:current;
+   const rendered=displayText(original,el);states[name]={original,rendered,epoch:translationEpoch};
    if(current!==rendered)el.setAttribute(name,rendered);
   }
  }
- const observer=new MutationObserver(()=>queue());
+ // Translate only changed content during normal use. Explicit language/scope
+ // changes still refresh the complete document and preserve original text.
+ const dirtyRoots=new Set();let fullTranslation=true;
+ const observer=new MutationObserver(records=>{
+  for(const record of records){
+   if(record.type==='childList')for(const node of record.addedNodes){if(node.nodeType===1||node.nodeType===3)dirtyRoots.add(node)}
+   else dirtyRoots.add(record.target);
+  }
+  if(dirtyRoots.size)queue(false);
+ });
  function watch(){if(document.body)observer.observe(document.body,{childList:true,subtree:true,characterData:true,attributes:true,attributeFilter:['placeholder','title','aria-label','alt']})}
  function controls(){
   let host=document.getElementById('ppmsLanguageControl');
@@ -3179,20 +3190,32 @@ Layout โรงงาน|Factory Layout
   host.querySelectorAll('button').forEach(b=>{b.setAttribute('aria-pressed',String(b.dataset.language===language));b.classList.toggle('selected',b.dataset.language===language)});
  }
  let dragTranslationTimer=0;
- function apply(){
+ function translateRoot(root){
+  if(root.nodeType===3){textNode(root);return}
+  if(root.nodeType!==1||ignored(root))return;
+  elementAttributes(root);
+  const walker=document.createTreeWalker(root,NodeFilter.SHOW_TEXT);
+  let node;while((node=walker.nextNode()))textNode(node);
+  root.querySelectorAll('[placeholder],[title],[aria-label],[alt],input[type=button],input[type=submit],input[type=reset]').forEach(elementAttributes);
+ }
+ function apply(incremental=false){
   if(!document.body||applying)return;
-  if(window.PPMSOrganizationEditor?.dragging||window.PPMSSectionTeams?.dragging){scheduled=false;clearTimeout(dragTranslationTimer);dragTranslationTimer=setTimeout(queue,120);return}
+  const complete=incremental!==true||fullTranslation;
+  if(window.PPMSOrganizationEditor?.dragging||window.PPMSSectionTeams?.dragging){scheduled=false;clearTimeout(dragTranslationTimer);dragTranslationTimer=setTimeout(()=>queue(false),120);return}
   applying=true;scheduled=false;observer.disconnect();
   try{
-   refreshProtectedNames();sectionDisplayCache.clear();document.documentElement.lang=language;controls();
-   const walker=document.createTreeWalker(document.body,NodeFilter.SHOW_TEXT);
-   let node;while((node=walker.nextNode()))textNode(node);
-   document.body.querySelectorAll('[placeholder],[title],[aria-label],[alt],input[type=button],input[type=submit],input[type=reset]').forEach(elementAttributes);
+   refreshProtectedNames();sectionDisplayCache.clear();
+   if(complete){translationEpoch++;document.documentElement.lang=language;controls();translateRoot(document.body)}
+   else{
+    const roots=[...dirtyRoots].filter(node=>node.isConnected);
+    for(const root of roots){let parent=root.parentNode,covered=false;while(parent){if(dirtyRoots.has(parent)){covered=true;break}parent=parent.parentNode}if(!covered)translateRoot(root)}
+   }
+   dirtyRoots.clear();fullTranslation=false;
    // Browser title is UI too; it has no effect on data.
    document.title=language==='th'?'PPMS — ระบบจัดการพนักงานและการผลิต':'PPMS — People & Production Management';
   }finally{applying=false;watch()}
  }
- function queue(){if(!scheduled){scheduled=true;requestAnimationFrame(apply)}}
+ function queue(full=true){if(full!==false)fullTranslation=true;if(!scheduled){scheduled=true;requestAnimationFrame(()=>apply(true))}}
  function setLanguage(next,persist=true){
   language=next==='en'?'en':'th';
   if(persist)try{localStorage.setItem(KEY,language)}catch{}

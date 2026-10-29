@@ -4,7 +4,7 @@
 const CACHE='ppms_job_descriptions_v1',MASTER='ppms_organization_master_v1',ORG='ppms_employee_organization_v1';
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const read=(key,fallback)=>{try{return JSON.parse(localStorage.getItem(key))||fallback}catch{return fallback}};
-const admin=()=>sessionStorage.getItem('ppms_admin')==='1';
+const admin=()=>sessionStorage.getItem('ppms_admin')==='1'&&window.PPMSAccess?.canEdit()!==false;
 const normalize=value=>String(value||'').trim().replace(/\s+/g,' ');
 const url=value=>{if(!String(value||'').trim())return '';try{const parsed=new URL(String(value).trim());return ['https:','http:'].includes(parsed.protocol)?parsed.href:null}catch{return null}};
 let activeViewerId=null,viewerRevision='';

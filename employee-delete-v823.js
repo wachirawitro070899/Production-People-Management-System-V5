@@ -165,8 +165,9 @@ async function saveCertificates(changes){
 window.PPMS_EMPLOYEE_SAVE_SERVICE={upsert,saveCertificate,saveCertificates,isPermanent};
 // A small REST read still reaches other devices when the large root socket stalls.
 let deletionPollRunning=false;
+function realtimeRosterActive(){const health=window.getAppHealth?.();return health?.cloudReady===true&&health?.cloudConnected===true}
 async function pollDeletions(){
- if(deletionPollRunning||navigator.onLine===false||!window.PPMS_RUNTIME?.applyEmployeeDeletionSnapshot)return;
+ if(document.visibilityState==='hidden'||realtimeRosterActive()||deletionPollRunning||navigator.onLine===false||!window.PPMS_RUNTIME?.applyEmployeeDeletionSnapshot)return;
  deletionPollRunning=true;
  try{const result=await request('deletedEmployeeIds');window.PPMS_RUNTIME.applyEmployeeDeletionSnapshot(Object.values(result.value||{}).map(String))}
  catch(_){/* Retry without replacing confirmed data with an offline cache. */}
@@ -174,7 +175,8 @@ async function pollDeletions(){
 }
 let rosterPollRunning=false;
 async function pollRoster(){
- if(rosterPollRunning||navigator.onLine===false||!window.PPMS_RUNTIME?.applyEmployeeRosterSnapshot)return;
+ if(document.visibilityState==='hidden'||realtimeRosterActive()||rosterPollRunning||navigator.onLine===false||!window.PPMS_RUNTIME?.applyEmployeeRosterSnapshot)return;
+ if(document.querySelector('#modal:not(.hidden) #employeeForm,#app #employeeForm,#certificateDialog,#modal:not(.hidden) #bulkSkillForm')||window.PPMSOrganizationEditor?.dragging||window.PPMSSectionTeams?.dragging)return;
  rosterPollRunning=true;
  const revision=window.PPMS_RUNTIME.employeeRosterRevision();
  try{const [roster,deleted]=await Promise.all([request('employees'),request('deletedEmployeeIds')]);window.PPMS_RUNTIME.applyEmployeeRosterSnapshot({employees:roster.value,deletedEmployeeIds:Object.values(deleted.value||{}).map(String)},revision)}
