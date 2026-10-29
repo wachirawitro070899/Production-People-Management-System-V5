@@ -26,8 +26,9 @@
   return {section,group,title:section+(group?' · '+group:''),skills,rows,date,documentNo:'JR-HR-SM-001',revision:'00',logo:document.querySelector('header .logo img')?.src||'',ranges:ranges(skills.length)};
  }
  function paginate(rows,opt){
-  const capacity=Math.max(1,Math.floor((opt.h-12-76)/13)),count=Math.max(1,Math.ceil(rows.length/capacity)),pages=[];
-  let cursor=0;for(let p=0;p<count;p++){const length=Math.ceil((rows.length-cursor)/(count-p));pages.push(rows.slice(cursor,cursor+length));cursor+=length}return pages;
+  const capacity=Math.max(1,Math.floor((opt.h-12-76)/13)),pages=[];
+  for(let cursor=0;cursor<rows.length;cursor+=capacity)pages.push(rows.slice(cursor,cursor+capacity));
+  return pages.length?pages:[[]];
  }
  function weights(model){return [.65,1.05,1.25,3.4,...model.skills.map(()=>1),.9,1.15]}
  function columns(model){const values=weights(model),sum=values.reduce((a,b)=>a+b,0);return '<colgroup>'+values.map(w=>'<col style="width:'+(w*100/sum)+'%">').join('')+'</colgroup>'}
@@ -54,17 +55,29 @@
  }
  async function resolvePages(model,opt){
   const holder=document.createElement('div');holder.className='matrix-document-render';holder.style.cssText='position:absolute;left:-15000px;top:0';document.body.append(holder);
-  try{let count=paginate(model.rows,opt).length;
-   while(true){let cursor=0;model.pages=Array.from({length:count},(_,i)=>{const n=Math.ceil((model.rows.length-cursor)/(count-i)),chunk=model.rows.slice(cursor,cursor+n);cursor+=n;return chunk});holder.innerHTML=makePages(model,opt);await document.fonts?.ready;
-    await Promise.all([...holder.querySelectorAll('img')].map(img=>img.decode?.().catch(()=>{})||Promise.resolve()));
-    if([...holder.children].every(page=>page.getBoundingClientRect().height*25.4/96<=opt.h-11.7))return;
-    if(count>=Math.max(1,model.rows.length))throw Error('ข้อความในแถวหนึ่งยาวเกินหน้ากระดาษ กรุณาเลือก A3');count++;
+  try{
+   await document.fonts?.ready;
+   const pages=[],limit=opt.h-11.7,maxRows=Math.max(1,Math.ceil((opt.h-12)/12.5));
+   // Measure each page with its header, criteria and signatures. Fill that page
+   // before starting the next; long names can reduce its capacity independently.
+   const fits=async rows=>{
+    holder.innerHTML='<section class="matrix-document-page" style="width:'+(opt.w-12)+'mm;min-height:'+(opt.h-12)+'mm">'+pageHTML(model,rows,pages.length+1,model.rows.length||1)+'</section>';
+    return holder.firstElementChild.getBoundingClientRect().height*25.4/96<=limit;
+   };
+   let cursor=0;
+   while(cursor<model.rows.length){
+    let low=1,high=Math.min(maxRows,model.rows.length-cursor),best=0;
+    while(low<=high){const count=Math.floor((low+high)/2);if(await fits(model.rows.slice(cursor,cursor+count))){best=count;low=count+1}else high=count-1}
+    if(!best)throw Error('ข้อความในแถวหนึ่งยาวเกินหน้ากระดาษ กรุณาเลือก A3');
+    pages.push(model.rows.slice(cursor,cursor+best));cursor+=best;
    }
+   model.pages=pages.length?pages:[[]];
   }finally{holder.remove()}
  }
+
  async function printFrame(model,opt){
   const frame=document.createElement('iframe');frame.title='Section Skill Matrix';frame.style.cssText='position:fixed;left:-15000px;top:0;width:1200px;height:900px;border:0';document.body.append(frame);
-  const doc=frame.contentDocument;doc.open();doc.write('<!doctype html><html lang="th"><head><meta charset="utf-8"><title>Skill Matrix '+esc(model.title)+'</title><link rel="stylesheet" href="'+new URL('matrix-layout-v924.css?v=937',location.href).href+'"><link rel="stylesheet" href="'+new URL('training-certificates-v936.css?v=942',location.href).href+'"><style>@page{size:'+opt.size+' '+opt.orientation+';margin:6mm}body{margin:0}.matrix-document-page{margin:0!important;box-shadow:none!important;border:0!important;break-after:page}.matrix-document-page:last-child{break-after:auto}</style></head><body>'+makePages(model,opt)+'</body></html>');doc.close();
+  const doc=frame.contentDocument;doc.open();doc.write('<!doctype html><html lang="th"><head><meta charset="utf-8"><title>Skill Matrix '+esc(model.title)+'</title><link rel="stylesheet" href="'+new URL('matrix-layout-v924.css?v=947',location.href).href+'"><link rel="stylesheet" href="'+new URL('training-certificates-v936.css?v=942',location.href).href+'"><style>@page{size:'+opt.size+' '+opt.orientation+';margin:6mm}body{margin:0}.matrix-document-page{margin:0!important;box-shadow:none!important;border:0!important;break-after:page}.matrix-document-page:last-child{break-after:auto}</style></head><body>'+makePages(model,opt)+'</body></html>');doc.close();
   await Promise.race([new Promise(resolve=>{if(doc.readyState==='complete')resolve();else frame.onload=resolve}),new Promise(resolve=>setTimeout(resolve,5000))]);
   await doc.fonts?.ready;await Promise.all([...doc.images].map(img=>img.decode?.().catch(()=>{})||Promise.resolve()));return frame;
  }
@@ -165,5 +178,5 @@
  },true);
  const init=()=>{const app=document.getElementById('app');if(app)new MutationObserver(mount).observe(app,{childList:true,subtree:true});mount()};
  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();
- window.PPMSMatrixReport={snapshot,options,ranges,rank,paginate,pageHTML,makePages,workbook,run};
+ window.PPMSMatrixReport={snapshot,options,ranges,rank,paginate,resolvePages,pageHTML,makePages,workbook,run};
 })();
