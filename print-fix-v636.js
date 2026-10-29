@@ -100,7 +100,7 @@
 
       const link=printWindow.document.createElement('link');
       link.rel='stylesheet';
-      link.href=new URL('app.css?v=926',location.href).href;
+      link.href=new URL('app.css?v=949',location.href).href;
       printWindow.document.head.appendChild(link);
       const certificates=printWindow.document.createElement('link');certificates.rel='stylesheet';certificates.href=new URL('training-certificates-v936.css?v=942',location.href).href;printWindow.document.head.appendChild(certificates);
 
