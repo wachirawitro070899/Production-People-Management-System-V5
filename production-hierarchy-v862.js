@@ -16,7 +16,8 @@
  function isCastingSpecialist(value){return /^die[\s-]*casting\s+specialist$/i.test(String(value||'').trim())}
  function castingSectionIndex(section){const key=sectionKey(section);return castingSections.findIndex(names=>names.some(name=>sectionKey(name)===key))}
  function castingOwns(section){return castingSectionIndex(section)>=0}
- function scopedRoles(test){try{const people=JSON.parse(localStorage.getItem('ppms_v3_employees')||'[]');return window.PPMSOrganizationScope.employees(Array.isArray(people)?people:Object.values(people||{})).filter(e=>test(e.position))}catch{return []}}
+ let rolesRosterRaw=null,rolesRoster=[];
+ function scopedRoles(test){try{const raw=localStorage.getItem('ppms_v3_employees')||'[]';if(raw!==rolesRosterRaw){const people=JSON.parse(raw);rolesRoster=Array.isArray(people)?people:Object.values(people||{});rolesRosterRaw=raw}return window.PPMSOrganizationScope.employees(rolesRoster).filter(e=>test(e.position))}catch{return []}}
  const scopedHeads=()=>scopedRoles(isHead);
  function hasSpecialist(section,division='Production Division'){
   const key=sectionKey(section).replace(/[-_]/g,'');return division==='Production Division'&&['cnc','diecasting','welding','stamping'].includes(key)&&!(key==='stamping'&&scopedHeads().length)&&!(key==='diecasting'&&scopedRoles(isCastingSpecialist).length);

@@ -19,6 +19,7 @@ async function setup(admin=true,entry='index.html',seed={}){
  if(admin){w.sessionStorage.setItem('ppms_admin','1');w.sessionStorage.setItem('ppms_admin_user','tester')}
  for(const [key,value]of Object.entries(seed.session||{}))w.sessionStorage.setItem(key,value);
  for(const [key,value]of Object.entries(seed.local||{}))w.localStorage.setItem(key,value);
+ seed.beforeScripts?.(w);
  await wait(0);
  for(const script of scripts){try{w.eval(fs.readFileSync(script,'utf8')+'\n//# sourceURL='+script)}catch(e){errors.push(script+': '+e.stack)}}
  w.document.dispatchEvent(new w.Event('DOMContentLoaded'));

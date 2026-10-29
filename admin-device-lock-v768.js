@@ -298,5 +298,20 @@
   showDeviceOwner();
   enhancePasswordFields();
   enhancePasswordResetForms();
-  new MutationObserver(()=>{showDeviceOwner();enhancePasswordFields();enhancePasswordResetForms()}).observe(document.body,{childList:true,subtree:true});
+  new MutationObserver(changes=>{
+    const selector='input[type="password"]:not([data-password-toggle-ready]),#resetAdminPasswordForm';
+    let ownerChanged=false;
+    for(const change of changes){
+      if(change.target.id==='modeBadge')ownerChanged=true;
+      for(const node of change.addedNodes){
+        if(node.nodeType!==1)continue;
+        if(node.id==='modeBadge'||node.querySelector('#modeBadge'))ownerChanged=true;
+        if(node.matches(selector)||node.querySelector(selector)){
+          // The enhancement helpers include the inserted node via its parent.
+          const root=node.parentElement;if(root){enhancePasswordFields(root);enhancePasswordResetForms(root)}
+        }
+      }
+    }
+    if(ownerChanged)showDeviceOwner();
+  }).observe(document.body,{childList:true,subtree:true});
 })();

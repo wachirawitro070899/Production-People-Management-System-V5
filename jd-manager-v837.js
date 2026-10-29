@@ -3,7 +3,10 @@
 'use strict';
 const CACHE='ppms_job_descriptions_v1',MASTER='ppms_organization_master_v1',ORG='ppms_employee_organization_v1';
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const read=(key,fallback)=>{try{return JSON.parse(localStorage.getItem(key))||fallback}catch{return fallback}};
+// These sources are read-only here. Compare the stored value so same-tab edits,
+// remote updates and cross-tab changes invalidate the cache immediately.
+const sourceCache=new Map();
+const read=(key,fallback)=>{try{const raw=localStorage.getItem(key),cached=sourceCache.get(key);if(cached&&cached.raw===raw)return cached.value;const value=JSON.parse(raw)||fallback;sourceCache.set(key,{raw,value});return value}catch{return fallback}};
 const admin=()=>sessionStorage.getItem('ppms_admin')==='1'&&window.PPMSAccess?.canEdit()!==false;
 const normalize=value=>String(value||'').trim().replace(/\s+/g,' ');
 const url=value=>{if(!String(value||'').trim())return '';try{const parsed=new URL(String(value).trim());return ['https:','http:'].includes(parsed.protocol)?parsed.href:null}catch{return null}};
@@ -13,6 +16,12 @@ let remoteRecords={...records},offlineBound=false;
 function database(){try{if(!window.firebase)return null;if(!firebase.apps.length&&window.PPMS_FIREBASE_CONFIG)firebase.initializeApp(window.PPMS_FIREBASE_CONFIG);return firebase.apps.length?firebase.database():null}catch{return null}}
 function master(){return read(MASTER,{plants:['โรง 1'],divisions:['Production Division'],sectionMap:{},sectionPositions:{},positions:['Manager','Engineer','Supervisor','Leader','Technician','Operator']})}
 function roster(){return read('ppms_v3_employees',[])}
+let indexedRoster=null,rosterById=new Map(),deletedSource=null,deletedIds=new Set();
+function rosterEmployee(id){
+ const list=roster();if(list!==indexedRoster){indexedRoster=list;rosterById=new Map();for(const employee of list)if(employee&&!rosterById.has(String(employee.id)))rosterById.set(String(employee.id),employee)}
+ return rosterById.get(String(id));
+}
+function deletedEmployees(){const list=read('ppms_v3_deleted_employee_ids',[]);if(list!==deletedSource){deletedSource=list;deletedIds=new Set(list.map(String))}return deletedIds}
 function scope(){const form=document.getElementById('employeeForm'),m=master(),division=form?.elements.organizationDivision?.value||document.getElementById('factoryDivisionChart')?.value||sessionStorage.getItem('ppms_scope_division')||m.divisions[0],plant=division==='Production Division'?(form?.elements.organizationPlant?.value||document.getElementById('factoryPlantChart')?.value||sessionStorage.getItem('ppms_scope_plant')||m.plants[0]):'รวม';return {division,plant,section:form?.elements.section?.value||document.getElementById('sectionSelect')?.value||'',position:form?.elements.position?.value||'',employeeId:String(form?.elements.originalId?.value||form?.elements.id?.value||'')}}
 function sectionList(division,plant){const map=read(ORG,{});return [...new Set([...(master().sectionMap?.[division+'::'+plant]||[]),...roster().filter(e=>{const org=map[String(e.id)]||{};return (org.division||e.organizationDivision||'Production Division')===division&&(division!=='Production Division'||(org.plant||e.organizationPlant||'โรง 1')===plant)}).map(e=>e.section),...Object.values(records).filter(r=>r.division===division&&r.plant===plant).map(r=>r.section)].filter(Boolean))].filter(section=>!(master().removedSections?.[division+'::'+plant]||[]).includes(section))}
 function positionList(division,plant,section){return [...new Set([...(master().sectionPositions?.[division+'::'+plant+'::'+section]||[]),...(master().positions||[]),...roster().filter(e=>e.section===section).map(e=>e.position)].filter(Boolean))]}
@@ -108,7 +117,7 @@ function positionTitle(record,card=false){
 }
 function refreshPositionTitles(){
  document.querySelectorAll('[data-employee-position-id]').forEach(el=>{
-  const employee=roster().find(e=>String(e.id)===el.dataset.employeePositionId);
+  const employee=rosterEmployee(el.dataset.employeePositionId);
   if(employee){const next=positionTitle({...employee,...employeeJDContext(employee.id)},Boolean(el.closest('.person,.factory-chart-person')));if(el.textContent!==next)el.textContent=next;}
  });
  document.querySelectorAll('#jdDialog [data-jd-position-title]').forEach(el=>{
@@ -280,8 +289,7 @@ function bindOfflineJD(){
 }
 function subscribe(){if(subscribed)return;const instance=database();if(!instance)return;subscribed=true;instance.ref('.info/connected').on('value',s=>{connected=s.val()===true;drawList();flushJDQueue();seedMissingJDs();seedPositionJDs();upgradeSectionJDs()});instance.ref('settings/jobDescriptions').on('value',s=>{remoteRecords=s.val()||{};jdLoaded=true;loadError='';applyOfflineRecords();refreshActiveViewer();drawList();flushJDQueue();seedMissingJDs();seedPositionJDs();upgradeSectionJDs()},error=>{loadError='โหลด JD ไม่สำเร็จ: '+error.message;drawList()})}
 function employeeJDContext(id){
- const key=String(id||'').trim(),deleted=new Set(read('ppms_v3_deleted_employee_ids',[]).map(String));
- const employee=roster().find(e=>String(e.id)===key&&!deleted.has(key));if(!employee)return null;
+ const key=String(id||'').trim(),employee=rosterEmployee(key);if(!employee||deletedEmployees().has(key))return null;
  const organization=read(ORG,{})[key]||{},division=organization.division||employee.organizationDivision||'Production Division';
  return {employeeId:key,division,plant:division==='Production Division'?(organization.plant||employee.organizationPlant||master().plants[0]):'รวม',section:employee.section||'',position:employee.position||''};
 }
@@ -346,7 +354,12 @@ window.addEventListener('ppms-organization-changed',controls);
 window.addEventListener('ppms-employees-changed',()=>{seedMissingJDs();seedPositionJDs();upgradeSectionJDs();if(document.querySelector('#jdDialog [data-jd-list]'))manager(filters)});
 window.addEventListener('online',()=>{subscribe();flushJDQueue()});
 setInterval(flushJDQueue,15000);
-let timer;new MutationObserver(()=>{clearTimeout(timer);timer=setTimeout(controls,100)}).observe(document.getElementById('app')||document.body,{childList:true,subtree:true});
+let timer;
+const controlNodes='[data-employee-position-id],.division-org,.factory-summary,.person[data-edit],.factory-chart-person[data-edit],#employeeForm';
+new MutationObserver(changes=>{
+ if(!changes.some(change=>[...change.addedNodes].some(node=>node.nodeType===1&&(node.matches(controlNodes)||node.querySelector(controlNodes)))))return;
+ clearTimeout(timer);timer=setTimeout(controls,100);
+}).observe(document.getElementById('app')||document.body,{childList:true,subtree:true});
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',controls);else controls();
 })();
 
