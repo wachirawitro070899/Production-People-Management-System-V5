@@ -21,7 +21,7 @@
    const score=levels.reduce((a,b)=>a+b,0),image=cells[1].querySelector('img');
    return {no:i+1,id,name:cells[3].querySelector('b')?.textContent.trim()||person.name||'',position:cells[3].querySelector('small:not(.skill-updated):not(.cert-matrix-summary)')?.textContent.trim()||person.position||'',updated:cells[3].querySelector('.skill-updated')?.getAttribute('data-skill-updated-date')||cells[3].querySelector('.skill-updated')?.textContent.replace(/^Update:\s*/,'').trim()||'',levels,score,level:rank(score,skills.length),photo:image?.currentSrc||image?.src||'',person:{...person},courseSummary:window.PPMSCertificates?.names(person)||'',failed:false};
   });
-  const section=document.getElementById('matrixSection')?.value||'',group=document.getElementById('matrixSortingGroup')?.value||'';
+  const section=document.getElementById('matrixSection')?.value||'',groupValue=document.getElementById('matrixSortingGroup')?.value||'',group=groupValue==='__UNASSIGNED__'?'ยังไม่ระบุ Sorting 1 / 2':groupValue;
   const date=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Bangkok',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
   return {section,group,title:section+(group?' · '+group:''),skills,rows,date,documentNo:'JR-HR-SM-001',revision:'00',logo:document.querySelector('header .logo img')?.src||'',ranges:ranges(skills.length)};
  }

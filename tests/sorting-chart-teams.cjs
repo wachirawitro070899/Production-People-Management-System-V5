@@ -32,13 +32,23 @@ async function select(w,id,value){const node=w.document.getElementById(id);asser
    const saved=JSON.parse(w.localStorage.getItem('ppms_v3_employees')),old=before.find(e=>e.id==='SORT-DIRECT-2'),current=saved.find(e=>e.id==='SORT-DIRECT-2');assert.equal(current.section,old.section);assert.deepEqual(current.skillLevels,old.skillLevels);assert.equal(saved.length,before.length);
    await w.PPMS_RUNTIME.assignSectionChartTeam('SORT-UNGROUPED','Team A',{...w.PPMS_RUNTIME.organizationScope(),section:'Sorting Section',sortingGroup:'',targetSortingGroup:''});
    await nav(w,'matrix');w.sessionStorage.setItem('matrixSortingGroup','Sorting 1');await select(w,'matrixSection','Sorting Section');
-   assert.equal(w.document.querySelector('#matrixSortingGroup'),null,'No legacy group filter');for(const id of ids)assert([...w.document.querySelectorAll('.skill-matrix-table tbody tr')].some(row=>row.textContent.includes(id)),id+' included in combined matrix');
-   w.document.querySelector('[data-action="bulkSkills"]').click();for(const id of ids)assert(w.document.querySelector('[name="bulkEmployee"][value="'+id+'"]'));w.document.querySelector('[data-action="close"]').click();
+   const groups={'Sorting 1':['OP5','SORT-DIRECT-1','SORT-LEADER'],'Sorting 2':['OP6','SORT-DIRECT-2','SORT-THAI'],'__UNASSIGNED__':['SORT-UNGROUPED']};
+   for(const [group,expected]of Object.entries(groups)){
+    await select(w,'matrixSortingGroup',group);
+    const visible=[...w.document.querySelectorAll('.skill-matrix-table tbody tr')].filter(row=>row.cells.length>2).map(row=>row.cells[2].textContent.trim());
+    assert.deepEqual(visible.slice().sort(),expected.slice().sort(),group+' contains only its original employees');
+    const model=w.PPMSMatrixReport.snapshot();assert.deepEqual(Array.from(model.rows,r=>r.id).sort(),expected.slice().sort(),'PDF/Excel/print snapshot follows filter');assert(model.title.includes(group==='__UNASSIGNED__'?'ยังไม่ระบุ':group));
+    const pages=w.PPMSMatrixReport.makePages(model,w.PPMSMatrixReport.options('A4','landscape'));for(const id of expected)assert(pages.includes('data-matrix-doc-employee="'+id+'"'));for(const id of ids.filter(id=>!expected.includes(id)))assert(!pages.includes('data-matrix-doc-employee="'+id+'"'));
+    w.document.querySelector('[data-action="bulkSkills"]').click();assert.deepEqual([...w.document.querySelectorAll('[name="bulkEmployee"]')].map(n=>n.value).sort(),expected.slice().sort(),'Bulk editor follows group');w.document.querySelector('[data-action="close"]').click();
+    w.document.querySelector('[data-action="baselineSkills"]').click();assert.deepEqual([...w.document.querySelector('#baselineEmployee').options].map(n=>n.value).sort(),expected.slice().sort(),'Individual editor follows group');w.document.querySelector('[data-action="close"]').click();
+   }
+   await select(w,'matrixSortingGroup','Sorting 2');await nav(w,'dashboard');await nav(w,'matrix');assert.equal(w.document.querySelector('#matrixSortingGroup').value,'Sorting 2','Selection persists on navigation');
+   w.sessionStorage.setItem('matrixSec','Sorting 1');await nav(w,'dashboard');await nav(w,'matrix');assert.equal(w.document.querySelector('#matrixSortingGroup').value,'Sorting 1','Legacy Sorting selection preserved');
    await nav(w,'cards');await select(w,'cardSection','Sorting Section');for(const id of ids)assert([...w.document.querySelector('#cardEmployee').options].some(o=>o.value===id));
    await nav(w,'sectionChart');assert.equal(w.document.querySelector('#sectionSelect').value,'Sorting Section');
    const leader=employees.find(e=>e.id==='SORT-LEADER');assert(w.PPMSSectionAccess.sameSection(leader,employees.find(e=>e.id==='SORT-DIRECT-2')));assert(!w.PPMSSectionAccess.sameSection(leader,employees.find(e=>e.id==='SORT-OTHER-PLANT')));
   }
-  assert.deepEqual(errors,[],entry+' errors');console.log('PASS',entry,'merged Sorting, complete roster, scoped counts'+(factory?'':', unified print, teams, skills and cards'));
+  assert.deepEqual(errors,[],entry+' errors');console.log('PASS',entry,'merged Sorting, complete roster, scoped counts'+(factory?'':', unified organization print and teams, separate skill documents and cards'));
  }
  process.exit(0);
 })().catch(error=>{console.error(error);process.exit(1)});
