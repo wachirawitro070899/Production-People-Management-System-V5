@@ -33,12 +33,15 @@
  function weights(model){return [.65,1.05,1.25,3.4,...model.skills.map(()=>1),.9,1.15]}
  function columns(model){const values=weights(model),sum=values.reduce((a,b)=>a+b,0);return '<colgroup>'+values.map(w=>'<col style="width:'+(w*100/sum)+'%">').join('')+'</colgroup>'}
  function photo(row){return row.photo?'<img src="'+esc(row.photo)+'" alt="'+esc(row.name)+'" decoding="sync">':'<span class="matrix-doc-initials">'+esc(row.failed?'รูปโหลดไม่ได้':row.name.split(/\s+/).map(s=>s[0]||'').slice(0,2).join(''))+'</span>'}
+ const tenureForRow=(row,date)=>window.PPMSSkillTenure?.forEmployee(row.person||{},date);
+ const tenureLegend=()=>window.PPMSSkillTenure?.legendMarkup()||'';
+ function tenureRowAttributes(row,date){const t=tenureForRow(row,date);return t?' data-tenure-band="'+t.key+'" style="--tenure-tint:'+t.tint+'"':''}
  function pageHTML(model,rows,index,total){
   const title='<header class="matrix-doc-header">'+(model.logo?'<img src="'+esc(model.logo)+'" alt="JR">':'<strong>JR</strong>')+'<div><small>JINRONG ELECTRONICS TECHNOLOGY (THAILAND) CO., LTD.</small><h2>SECTION SKILL MATRIX</h2><p>'+esc(model.title)+'</p></div><aside>Document No. '+esc(model.documentNo)+'<br>Revision '+esc(model.revision)+'<br>Effective Date '+esc(model.date)+'</aside></header>';
   const head=['No.','Photo','Emp.ID','Employee / Position',...model.skills,'Score','Level'];
-  const table='<table class="matrix-doc-table">'+columns(model)+'<thead><tr>'+head.map(h=>'<th>'+esc(h)+'</th>').join('')+'</tr></thead><tbody>'+rows.map(r=>'<tr data-matrix-doc-employee="'+esc(r.id)+'"><td>'+r.no+'</td><td class="matrix-doc-photo">'+photo(r)+'</td><td class="matrix-doc-id">'+esc(r.id)+'</td><td class="matrix-doc-name"><b>'+esc(r.name)+'</b><span>'+esc(r.position)+'</span><small class="matrix-doc-update"><span class="skill-update-date">Update: '+esc(r.updated||'—')+'</span>'+(r.courseSummary?' <span class="cert-matrix-summary" title="'+esc(r.courseSummary)+'"><span>·</span>'+window.PPMSCertificates.previewMarkup(r.person)+'</span>':'')+'</small>'+'</td>'+r.levels.map((v,i)=>'<td><button type="button" data-skill-edit="'+esc(r.id)+'" data-skill-name="'+esc(model.skills[i])+'" class="matrix-doc-level level-'+v+'">'+v+'</button></td>').join('')+'<td><b>'+r.score+'</b></td><td><b class="matrix-doc-rank level-'+r.level+'">Level '+r.level+'</b></td></tr>').join('')+(rows.length?'':'<tr><td colspan="'+head.length+'">ไม่มีข้อมูลพนักงานตามตัวกรองนี้</td></tr>')+'</tbody></table>';
+  const table='<table class="matrix-doc-table">'+columns(model)+'<thead><tr>'+head.map(h=>'<th>'+esc(h)+'</th>').join('')+'</tr></thead><tbody>'+rows.map(r=>'<tr data-matrix-doc-employee="'+esc(r.id)+'"'+tenureRowAttributes(r,model.date)+'><td>'+r.no+'</td><td class="matrix-doc-photo">'+photo(r)+'</td><td class="matrix-doc-id">'+esc(r.id)+'</td><td class="matrix-doc-name"><b>'+esc(r.name)+'</b><span>'+esc(r.position)+'</span><small class="matrix-doc-update"><span class="skill-update-date">Update: '+esc(r.updated||'—')+'</span>'+(r.courseSummary?' <span class="cert-matrix-summary" title="'+esc(r.courseSummary)+'"><span>·</span>'+window.PPMSCertificates.previewMarkup(r.person)+'</span>':'')+'</small>'+'</td>'+r.levels.map((v,i)=>'<td><button type="button" data-skill-edit="'+esc(r.id)+'" data-skill-name="'+esc(model.skills[i])+'" class="matrix-doc-level level-'+v+'">'+v+'</button></td>').join('')+'<td><b>'+r.score+'</b></td><td><b class="matrix-doc-rank level-'+r.level+'">Level '+r.level+'</b></td></tr>').join('')+(rows.length?'':'<tr><td colspan="'+head.length+'">ไม่มีข้อมูลพนักงานตามตัวกรองนี้</td></tr>')+'</tbody></table>';
   const criteria='<section class="matrix-doc-footer"><div class="matrix-doc-criteria">'+model.ranges.map(r=>'<div class="level-'+r.level+'"><b>Level '+r.level+' · '+r.min+'–'+r.max+' คะแนน</b><span>'+descriptions[r.level-1]+'</span><small>'+ (r.level===1?'เริ่มต้น / Baseline':'สอบปรับเป็น Level '+r.level+' ผ่าน ≥80%')+'</small></div>').join('')+'</div><p class="matrix-doc-note">'+esc(examNote)+'<br>'+model.skills.length+' หัวข้อ · คะแนนรวมเต็ม '+model.skills.length*4+' · คะแนนรวมเป็นผลรวมระดับทักษะ ไม่ใช่เปอร์เซ็นต์คะแนนสอบ</p><div class="matrix-doc-signatures">'+['Prepared by / ผู้จัดทำ','Checked by / ผู้ตรวจสอบ','Approved by / ผู้อนุมัติ'].map(s=>'<div><b>'+s+'</b><span></span><small>Signature / Date</small></div>').join('')+'</div><p class="matrix-doc-number">'+esc(model.title)+' · '+model.rows.length+' คน <span>Page '+index+' / '+total+'</span></p></section>';
-  return title+table+criteria;
+  return title+tenureLegend()+table+criteria;
  }
  async function loadScript(src,key){if(window[key])return;await new Promise((resolve,reject)=>{const s=document.createElement('script'),timer=setTimeout(()=>reject(Error('โหลดระบบส่งออกไม่สำเร็จ')),20000);s.src=src;s.onload=()=>{clearTimeout(timer);window[key]?resolve():reject(Error('โหลดระบบส่งออกไม่ครบ'))};s.onerror=()=>{clearTimeout(timer);s.remove();reject(Error('โหลดระบบส่งออกไม่ได้'))};document.head.append(s)})}
  async function excelDependency(){if(!loading)loading=loadScript('vendor/exceljs-4.4.0.min.js','ExcelJS').catch(e=>{loading=null;throw e});return loading}
@@ -77,7 +80,7 @@
 
  async function printFrame(model,opt){
   const frame=document.createElement('iframe');frame.title='Section Skill Matrix';frame.style.cssText='position:fixed;left:-15000px;top:0;width:1200px;height:900px;border:0';document.body.append(frame);
-  const doc=frame.contentDocument;doc.open();doc.write('<!doctype html><html lang="th"><head><meta charset="utf-8"><title>Skill Matrix '+esc(model.title)+'</title><link rel="stylesheet" href="'+new URL('matrix-layout-v924.css?v=947',location.href).href+'"><link rel="stylesheet" href="'+new URL('training-certificates-v936.css?v=942',location.href).href+'"><style>@page{size:'+opt.size+' '+opt.orientation+';margin:6mm}body{margin:0}.matrix-document-page{margin:0!important;box-shadow:none!important;border:0!important;break-after:page}.matrix-document-page:last-child{break-after:auto}</style></head><body>'+makePages(model,opt)+'</body></html>');doc.close();
+  const doc=frame.contentDocument;doc.open();doc.write('<!doctype html><html lang="th"><head><meta charset="utf-8"><title>Skill Matrix '+esc(model.title)+'</title><link rel="stylesheet" href="'+new URL('matrix-layout-v924.css?v=950',location.href).href+'"><link rel="stylesheet" href="'+new URL('training-certificates-v936.css?v=942',location.href).href+'"><style>@page{size:'+opt.size+' '+opt.orientation+';margin:6mm}body{margin:0}.matrix-document-page{margin:0!important;box-shadow:none!important;border:0!important;break-after:page}.matrix-document-page:last-child{break-after:auto}</style></head><body>'+makePages(model,opt)+'</body></html>');doc.close();
   await Promise.race([new Promise(resolve=>{if(doc.readyState==='complete')resolve();else frame.onload=resolve}),new Promise(resolve=>setTimeout(resolve,5000))]);
   await doc.fonts?.ready;await Promise.all([...doc.images].map(img=>img.decode?.().catch(()=>{})||Promise.resolve()));return frame;
  }
@@ -99,18 +102,24 @@
    merge(row,last-2,row+1,last,'Document No. '+model.documentNo+'\nRevision '+model.revision+'\nEffective Date '+model.date,{fill:'194E82',color:'FFFFFF',size:8,align:'left'});
    sheet.getRow(row).height=24;sheet.getRow(row+1).height=24;row+=2;
    ['No.','Photo','Emp.ID','Employee / Position',...model.skills,'Score','Level'].forEach((h,i)=>{const c=sheet.getCell(row,i+1);c.value=h;fmt(c,{fill:'DAE9F7',bold:true,size:8})});sheet.getRow(row++).height=29;
-   const rowHeight=Math.min(36,((opt.h-12)*72/25.4-220)/Math.max(1,...groups.map(g=>g.length)));
+   const rowHeight=Math.min(36,((opt.h-12)*72/25.4-260)/Math.max(1,...groups.map(g=>g.length)));
    staff.forEach(person=>{
+    const tenure=tenureForRow(person,model.date),rowFill=tenure?.tint.slice(1)||'FFFFFF';
     const data=[person.no,person.photo?'':person.failed?'รูปโหลดไม่ได้':'ไม่มีรูป',String(person.id),person.name+'\n'+person.position+'\nUpdate: '+(person.updated||'—'),...person.levels,person.score,'Level '+person.level];
-    data.forEach((value,i)=>{const c=sheet.getCell(row,i+1);c.value=value;fmt(c,{align:i===3?'left':'center',bold:i===3||i===last-2,size:i===3?8:9});if(i===2)c.numFmt='@';if(i>=4&&i<last-2){fmt(c,{fill:colors[value-1],color:ink[value-1],bold:true})}});
+    data.forEach((value,i)=>{const c=sheet.getCell(row,i+1);c.value=value;fmt(c,{fill:rowFill,align:i===3?'left':'center',bold:i===3||i===last-2,size:i===3?8:9});if(i===2)c.numFmt='@';if(i>=4&&i<last-2){fmt(c,{fill:rowFill,color:ink[value-1],bold:true})}});
     sheet.getRow(row).height=rowHeight;const nameCell=sheet.getCell(row,4);nameCell.value={richText:[{font:{name:'Tahoma',size:8,bold:true},text:person.name+'\n'},{font:{name:'Tahoma',size:6.5},text:person.position+'\n'},{font:{name:'Tahoma',size:6},text:'Update: '+(person.updated||'—')+(person.courseSummary?' · '+person.courseSummary:'')}]};addImage(person.photo,2,row,32,32);
     const score=sheet.getCell(row,scoreCol),level=sheet.getCell(row,last);score.value={formula:'SUM(E'+row+':'+sheet.getColumn(scoreCol-1).letter+row+')',result:person.score};
-    fmt(level,{fill:colors[person.level-1],color:ink[person.level-1],bold:true});const ref=score.address;level.value={formula:'IF('+ref+'>='+model.ranges[3].min+',"Level 4",IF('+ref+'>='+model.ranges[2].min+',"Level 3",IF('+ref+'>='+model.ranges[1].min+',"Level 2","Level 1")))',result:'Level '+person.level};
+    fmt(level,{fill:rowFill,color:ink[person.level-1],bold:true});const ref=score.address;level.value={formula:'IF('+ref+'>='+model.ranges[3].min+',"Level 4",IF('+ref+'>='+model.ranges[2].min+',"Level 3",IF('+ref+'>='+model.ranges[1].min+',"Level 2","Level 1")))',result:'Level '+person.level};
     // Native conditional formatting follows edits to the numeric skill cells.
     const skillStart='E'+row,skillEnd=sheet.getColumn(scoreCol-1).letter+row;
-    sheet.addConditionalFormatting({ref:skillStart+':'+skillEnd,rules:[1,2,3,4].map(n=>({type:'cellIs',operator:'equal',formulae:[String(n)],style:{fill:{type:'pattern',pattern:'solid',fgColor:{argb:'FF'+colors[n-1]}},font:{bold:true,color:{argb:'FF'+ink[n-1]}}}}))});
-    sheet.addConditionalFormatting({ref:level.address,rules:[1,2,3,4].map(n=>({type:'expression',formulae:[level.address+'="Level '+n+'"'],style:{fill:{type:'pattern',pattern:'solid',fgColor:{argb:'FF'+colors[n-1]}},font:{bold:true,color:{argb:'FF'+ink[n-1]}}}}))});row++;
+    sheet.addConditionalFormatting({ref:skillStart+':'+skillEnd,rules:[1,2,3,4].map(n=>({type:'cellIs',operator:'equal',formulae:[String(n)],style:{font:{bold:true,color:{argb:'FF'+ink[n-1]}}}}))});
+    sheet.addConditionalFormatting({ref:level.address,rules:[1,2,3,4].map(n=>({type:'expression',formulae:[level.address+'="Level '+n+'"'],style:{font:{bold:true,color:{argb:'FF'+ink[n-1]}}}}))});row++;
    });
+   const bands=window.PPMSSkillTenure?.bands;
+   if(bands){
+    bands.forEach((band,i)=>merge(row,Math.floor(i*last/bands.length)+1,row,Math.floor((i+1)*last/bands.length),'อายุงาน '+band.label,{fill:band.tint.slice(1),color:'173C63',bold:true,size:8}));sheet.getRow(row++).height=26;
+    merge(row,1,row,last,'สีพื้นแถว / แถบล่างบัตร = อายุงาน · สีเทารวมผู้ที่ยังไม่เริ่มงานหรือไม่ระบุวันที่ · นับตามวันเริ่มอายุงานในระบบ',{size:8,align:'left'});sheet.getRow(row++).height=14;
+   }
    for(let n=0;n<4;n++){const c=Math.floor(n*last/4)+1,end=Math.floor((n+1)*last/4),r=model.ranges[n];merge(row,c,row+1,end,'Level '+(n+1)+' · '+r.min+'–'+r.max+' คะแนน\n'+descriptions[n]+'\n'+(n?'สอบปรับระดับ ผ่าน ≥80%':'เริ่มต้น / Baseline'),{fill:colors[n],color:ink[n],bold:true,size:8})}
    sheet.getRow(row).height=22;sheet.getRow(row+1).height=22;row+=2;
    merge(row,1,row+1,last,examNote+'\n'+model.skills.length+' หัวข้อ · คะแนนเต็ม '+model.skills.length*4+' · คะแนนรวมเป็นผลรวมระดับทักษะ ไม่ใช่เปอร์เซ็นต์คะแนนสอบ',{fill:'F4F8FC',size:8,align:'left'});sheet.getRow(row).height=14;sheet.getRow(row+1).height=14;row+=2;
@@ -165,7 +174,14 @@
  }
  function mount(){
   const report=document.querySelector('#app .matrix-report');if(!report)return;report.classList.add('matrix-document-screen');
-  const table=report.querySelector('.skill-matrix-table');if(!table||table.querySelector('colgroup[data-matrix-columns]'))return;
+  const table=report.querySelector('.skill-matrix-table');if(!table)return;
+  if(window.PPMSSkillTenure&&!table.dataset.tenurePainted){
+   table.dataset.tenurePainted='1';
+   const ctx=window.PPMS_RUNTIME?.monthReportContext?.(),people=new Map((ctx?.employees||[]).map(e=>[String(e.id),e]));
+   for(const row of table.tBodies[0]?.rows||[]){const person=people.get(row.cells[2]?.textContent.trim());if(!person)continue;const t=window.PPMSSkillTenure.forEmployee(person);row.dataset.tenureBand=t.key;row.style.setProperty('--tenure-tint',t.tint)}
+   if(!report.querySelector('.matrix-tenure-legend'))table.closest('.table-wrap').insertAdjacentHTML('beforebegin',tenureLegend());
+  }
+  if(table.querySelector('colgroup[data-matrix-columns]'))return;
   const headings=table.tHead?.rows[table.tHead.rows.length-1];if(!headings)return;const model={skills:[...headings.cells].slice(4,-2).map(cell=>cell.textContent)};
   const group=document.createElement('colgroup');group.dataset.matrixColumns='1';const w=weights(model),sum=w.reduce((a,b)=>a+b,0);w.forEach(n=>{const c=document.createElement('col');c.style.width=n*100/sum+'%';group.append(c)});table.prepend(group);
  }

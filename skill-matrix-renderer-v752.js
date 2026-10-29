@@ -41,12 +41,12 @@
  function supervisionLegend(){return '<div class="wallet-back-footer wallet-supervision-legend" role="list" aria-label="ความสามารถและการควบคุมดูแล ระดับ 1–4">'+supervisionLevels.map((description,index)=>`<div class="wallet-supervision-level" role="listitem"><b class="level-${index+1}">${index+1}</b><span>${html(description)}</span></div>`).join('')+'</div>'}
  // Completed calendar months in Thailand; clamp anniversaries at month end.
  const tenureBands=[
-  {key:'under1',min:0,label:'< 1 เดือน',color:'#64748b'},
-  {key:'month1',min:1,label:'1–<2 เดือน',color:'#dc2626'},
-  {key:'month2',min:2,label:'2–<4 เดือน',color:'#ea580c'},
-  {key:'month4',min:4,label:'4–<6 เดือน',color:'#ca8a04'},
-  {key:'month6',min:6,label:'6–<12 เดือน',color:'#2563eb'},
-  {key:'year1',min:12,label:'1 ปีขึ้นไป',color:'#15803d'}
+  {key:'under1',min:0,label:'< 1 เดือน',color:'#64748b',tint:'#f1f5f9',ink:'#ffffff'},
+  {key:'month1',min:1,label:'1–<2 เดือน',color:'#dc2626',tint:'#fee2e2',ink:'#ffffff'},
+  {key:'month2',min:2,label:'2–<4 เดือน',color:'#ea580c',tint:'#ffedd5',ink:'#111827'},
+  {key:'month4',min:4,label:'4–<6 เดือน',color:'#ca8a04',tint:'#fef3c7',ink:'#111827'},
+  {key:'month6',min:6,label:'6–<12 เดือน',color:'#2563eb',tint:'#dbeafe',ink:'#ffffff'},
+  {key:'year1',min:12,label:'1 ปีขึ้นไป',color:'#15803d',tint:'#dcfce7',ink:'#ffffff'}
  ];
  function tenureDate(value){
   const match=/^(\d{4})-(\d{2})-(\d{2})$/.exec(String(value||''));if(!match)return null;
@@ -56,7 +56,7 @@
  function tenureFor(employee,asOf){
   const startValue=window.PPMS_RUNTIME?.employeeSeniorityStart(employee)??(employee.contractType==='Subcontractor'?employee.startDate:(employee.permanentStartDate||employee.startDate));
   if(!asOf){const parts=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Bangkok',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date());const part=type=>parts.find(p=>p.type===type).value;asOf=part('year')+'-'+part('month')+'-'+part('day')}
-  const start=tenureDate(startValue),today=tenureDate(asOf),unknown=label=>({key:'unknown',label,color:'#64748b',months:null,startDate:String(startValue||''),actual:label});
+  const start=tenureDate(startValue),today=tenureDate(asOf),unknown=label=>({key:'unknown',label,color:'#64748b',tint:'#f1f5f9',ink:'#ffffff',months:null,startDate:String(startValue||''),actual:label});
   if(!start||!today)return unknown('ไม่ระบุวันที่');
   if(String(startValue)>asOf)return unknown('ยังไม่เริ่มงาน');
   let months=(today.year-start.year)*12+today.month-start.month;
@@ -66,17 +66,20 @@
   const actual=months===0?'ไม่ครบ 1 เดือน':(years?years+' ปี':'')+(years&&remainder?' ':'')+(remainder?remainder+' เดือน':'');
   return {...band,months,startDate:String(startValue),actual};
  }
- function tenureMarkup(employee){
-  const t=tenureFor(employee),title='อายุงาน '+t.actual+(t.startDate?' · นับจาก '+t.startDate:'');
-  return `<div class="wallet-tenure" data-tenure-band="${t.key}" data-tenure-months="${t.months??''}" data-i18n-ignore title="${html(title)}" aria-label="${html(title)}"><small>อายุงาน</small><span><i aria-hidden="true" style="background:${t.color};border-color:${t.color}"></i><b>${html(t.label)}</b></span></div>`;
+ function tenureFooterAttributes(employee){
+  const t=tenureFor(employee);
+  return `data-tenure-band="${t.key}" style="background:${t.color};color:${t.ink}"`;
  }
- window.PPMSSkillTenure={forEmployee:tenureFor,bands:tenureBands.map(b=>({...b}))};
+ function tenureLegend(){
+  return '<section class="matrix-tenure-legend" data-i18n-ignore><b>สีอายุงาน / Tenure</b><div>'+tenureBands.map(t=>'<span><i aria-hidden="true" style="background:'+t.color+'"></i>'+html(t.label)+'</span>').join('')+'</div><small>สีพื้นแถวและแถบล่างสกิลการ์ดแสดงอายุงาน · สีเทาใช้กับผู้ที่ยังไม่เริ่มงานหรือไม่ระบุวันที่ด้วย · นับตามวันเริ่มอายุงานในระบบ</small></section>';
+ }
+ window.PPMSSkillTenure={forEmployee:tenureFor,bands:tenureBands.map(b=>({...b})),legendMarkup:tenureLegend};
  window.walletCardMarkup=function walletCardMarkup(employee,side='front'){
   if(!employee||typeof employee!=='object')return '<div class="panel">ไม่พบข้อมูลพนักงาน</div>';
   const skills=skillsFor(employee.section),values=skills.map(skill=>levelFor(employee,skill)),score=scoreFor(employee,skills),rank=rankFor(score,skills.length),dates=datesFor(employee),logo=logoSrc(),logoHtml=logo?`<img src="${html(logo)}" alt="JR">`:'';
   if(side==='back'){const rows=skills.map((skill,index)=>`<div class="wallet-skill-row"><span>${html(skill)}</span><b class="level-box level-${values[index]}">${values[index]}</b></div>`).join('');return `<section class="employee-skill-card wallet-card wallet-back wallet-back-supervision" data-employee-id="${html(employee.id)}"><div class="wallet-banner"><div class="wallet-logo">${logoHtml}</div><div><strong>SKILL LEVEL</strong><small>${html(employee.id)} · ${html(employee.name)}</small></div></div><div class="wallet-skills">${rows}</div>${supervisionLegend()}</section>`}
   const courses=window.PPMSCertificates?.cardMarkup(employee)||'';
-  return `<section class="employee-skill-card wallet-card wallet-front ${courses?'wallet-with-courses':''}" data-employee-id="${html(employee.id)}"><div class="wallet-banner"><div class="wallet-logo">${logoHtml}</div><div><strong>EMPLOYEE COMPETENCY CARD</strong><small>Production Division</small></div><span>LEVEL ${rank.level}</span></div><div class="wallet-main">${employeeAvatar(employee)}<div class="wallet-person"><h2>${html(employee.name)}</h2><p>${html(employee.thaiName||'')}</p><dl><dt>Emp.ID</dt><dd>${html(employee.id)}</dd><dt>Position</dt><dd>${html(employee.position)}</dd><dt>Section</dt><dd>${html(employee.section)}</dd><dt>Updated</dt><dd>${html(dates.last)}</dd></dl></div><div class="wallet-side"><div class="wallet-score"><small>SCORE</small><b>${score}</b><span>/${skills.length*4}</span></div>${tenureMarkup(employee)}</div></div>${courses}<div class="wallet-footer"><b>${rank.label}</b><span>Next: ${html(dates.next)}</span></div></section>`;
+  return `<section class="employee-skill-card wallet-card wallet-front ${courses?'wallet-with-courses':''}" data-employee-id="${html(employee.id)}"><div class="wallet-banner"><div class="wallet-logo">${logoHtml}</div><div><strong>EMPLOYEE COMPETENCY CARD</strong><small>Production Division</small></div><span>LEVEL ${rank.level}</span></div><div class="wallet-main">${employeeAvatar(employee)}<div class="wallet-person"><h2>${html(employee.name)}</h2><p>${html(employee.thaiName||'')}</p><dl><dt>Emp.ID</dt><dd>${html(employee.id)}</dd><dt>Position</dt><dd>${html(employee.position)}</dd><dt>Section</dt><dd>${html(employee.section)}</dd><dt>Updated</dt><dd>${html(dates.last)}</dd></dl></div><div class="wallet-side"><div class="wallet-score"><small>SCORE</small><b>${score}</b><span>/${skills.length*4}</span></div></div></div>${courses}<div class="wallet-footer" ${tenureFooterAttributes(employee)}><b>${rank.label}</b><span>Next: ${html(dates.next)}</span></div></section>`;
  };
 })();
 

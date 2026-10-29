@@ -1088,10 +1088,6 @@ input[id*="exam"][id*="Emp"], input[id*="Exam"][id*="Emp"] {
 /* Multi-employee skill assessment */
 #bulkSkillForm fieldset{border:1px solid #cbd5e1;border-radius:10px;padding:12px;margin:12px 0;min-width:0}#bulkSkillForm legend{font-weight:700;color:#173b68}#bulkSkillForm .bulk-skill-roster{max-height:270px;overflow:auto;border-top:1px solid #e2e8f0;margin-top:10px}#bulkSkillForm .bulk-skill-person{display:flex;gap:10px;align-items:center;padding:10px;border-bottom:1px solid #e2e8f0}.bulk-skill-person[hidden]{display:none!important}.bulk-skill-person input{width:18px;height:18px;flex:0 0 18px}.bulk-skill-person span{display:grid;gap:3px}.bulk-skill-person small{color:#64748b}.bulk-skill-preview{max-height:280px;overflow:auto}.bulk-skill-preview th{position:sticky;top:0;background:#e5eef9}#bulkSkillStatus{color:#173b68;font-weight:600}#bulkSkillForm .skill-single-editor select{min-width:95px}
 
-/* Skill Card tenure: shared by screen, PDF, Excel images and duplex print. */
-.wallet-tenure{box-sizing:border-box;width:18.5mm;max-width:100%;border:.2mm solid #cbd5e1;border-radius:1mm;background:#fff;padding:.5mm .3mm;text-align:center;line-height:1.15;color:#17324d}
-.wallet-tenure>small{display:block;font-size:1.7mm;margin:0 0 .35mm}
-.wallet-tenure>span{display:flex;align-items:center;justify-content:center;gap:.65mm;white-space:nowrap}
-.wallet-tenure i{display:inline-block;flex:0 0 2mm;width:2mm;height:2mm;border:.2mm solid;border-radius:50%;box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact}
-.wallet-tenure b{font-size:1.8mm;line-height:1.2;font-weight:700}
-@media print{.wallet-tenure{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
+/* The entire card footer identifies tenure; the Section matrix explains colors. */
+.wallet-footer[data-tenure-band] b,.wallet-footer[data-tenure-band] span{color:inherit!important}
+.wallet-footer[data-tenure-band]{-webkit-print-color-adjust:exact;print-color-adjust:exact}
