@@ -18,6 +18,6 @@ assert.equal(tenure('2020-01-01','2026-10-29',{contractType:'Subcontractor',perm
 window.PPMS_RUNTIME={employeeSeniorityStart:e=>e.startDate};
 assert.equal(tenure('2020-01-01','2026-10-29',{permanentStartDate:'2026-09-29'}).key,'year1');
 const employee={id:'TEST',name:'<QA>',position:'Operator',section:'Stamping Section',startDate:'2020-01-01'};
-const card=window.walletCardMarkup(employee);assert(card.includes('data-tenure-band="year1"'));assert(!card.includes('1 ปีขึ้นไป'));assert(card.includes('class="wallet-footer" data-tenure-band="year1"'));assert(!card.includes('wallet-tenure'));assert(card.includes('background:#15803d')); assert(card.includes('&lt;QA&gt;'));assert(!card.includes('นับจาก 2020-01-01'));assert(window.PPMSSkillTenure.legendMarkup().includes('1 ปีขึ้นไป'));
+const card=window.walletCardMarkup(employee);assert(card.includes('data-tenure-band="year1"'));assert(!card.includes('1 ปีขึ้นไป'));assert(card.includes('class="wallet-footer" data-tenure-band="year1"'));assert(!card.includes('wallet-tenure'));assert(card.includes('background:#f1fcf5')); assert(card.includes('&lt;QA&gt;'));assert(!card.includes('นับจาก 2020-01-01'));assert(window.PPMSSkillTenure.legendMarkup().includes('1 ปีขึ้นไป'));
 assert(!window.walletCardMarkup(employee,'back').includes('wallet-tenure'));
 console.log('PASS: calendar anniversaries, all bands, leap/month ends, missing/invalid/future dates, seniority policy and shared front-card markup.');

@@ -68,7 +68,7 @@
  }
  function tenureFooterAttributes(employee){
   const t=tenureFor(employee);
-  return `data-tenure-band="${t.key}" style="background:${t.color};color:${t.ink}"`;
+  return `data-tenure-band="${t.key}" style="background:${t.tint};color:#173c63"`;
  }
  function tenureLegend(){
   return '<section class="matrix-tenure-legend" data-i18n-ignore><b>สีอายุงาน / Tenure</b><div>'+tenureBands.map(t=>'<span><i aria-hidden="true" style="background:'+t.color+'"></i>'+html(t.label)+'</span>').join('')+'</div><small>สีพื้นแถวและแถบล่างสกิลการ์ดแสดงอายุงาน · สีเทาใช้กับผู้ที่ยังไม่เริ่มงานหรือไม่ระบุวันที่ด้วย · นับตามวันเริ่มอายุงานในระบบ</small></section>';
