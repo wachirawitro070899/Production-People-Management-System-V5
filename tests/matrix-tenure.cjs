@@ -18,7 +18,7 @@ assert.equal((html.match(/data-tenure-band=/g)||[]).length,7);assert(html.includ
   for(let col=1;col<=13;col++)assert.equal(sheet.getCell(i+4,col).fill.fgColor.argb,expected,'Entire row including skills and rank');
  }
  assert(sheet.conditionalFormattings.every(c=>c.rules.every(r=>!r.style.fill)),'Skill edits preserve the tenure row background');
- const saved=new ExcelJS.Workbook();await saved.xlsx.load(await book.xlsx.writeBuffer());assert.equal(saved.worksheets[0].getCell('A5').fill.fgColor.argb,'FFfee2e2');
+ const saved=new ExcelJS.Workbook();await saved.xlsx.load(await book.xlsx.writeBuffer());assert.equal(saved.worksheets[0].getCell('A5').fill.fgColor.argb,'FFfff4f4');
  assert.equal(sheet.getCell('A11').value,'อายุงาน < 1 เดือน');assert.equal(sheet.getCell('K11').value,'อายุงาน 1 ปีขึ้นไป');
  console.log('PASS: full employee rows, matching document legends, complete native XLSX row fills, retained colors after skill edits and XLSX round-trip.');
 })().catch(e=>{console.error(e);process.exitCode=1});

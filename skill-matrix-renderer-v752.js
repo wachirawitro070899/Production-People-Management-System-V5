@@ -41,12 +41,12 @@
  function supervisionLegend(){return '<div class="wallet-back-footer wallet-supervision-legend" role="list" aria-label="ความสามารถและการควบคุมดูแล ระดับ 1–4">'+supervisionLevels.map((description,index)=>`<div class="wallet-supervision-level" role="listitem"><b class="level-${index+1}">${index+1}</b><span>${html(description)}</span></div>`).join('')+'</div>'}
  // Completed calendar months in Thailand; clamp anniversaries at month end.
  const tenureBands=[
-  {key:'under1',min:0,label:'< 1 เดือน',color:'#64748b',tint:'#f1f5f9',ink:'#ffffff'},
-  {key:'month1',min:1,label:'1–<2 เดือน',color:'#dc2626',tint:'#fee2e2',ink:'#ffffff'},
-  {key:'month2',min:2,label:'2–<4 เดือน',color:'#ea580c',tint:'#ffedd5',ink:'#111827'},
-  {key:'month4',min:4,label:'4–<6 เดือน',color:'#ca8a04',tint:'#fef3c7',ink:'#111827'},
-  {key:'month6',min:6,label:'6–<12 เดือน',color:'#2563eb',tint:'#dbeafe',ink:'#ffffff'},
-  {key:'year1',min:12,label:'1 ปีขึ้นไป',color:'#15803d',tint:'#dcfce7',ink:'#ffffff'}
+  {key:'under1',min:0,label:'< 1 เดือน',color:'#64748b',tint:'#f8fafc',ink:'#ffffff'},
+  {key:'month1',min:1,label:'1–<2 เดือน',color:'#dc2626',tint:'#fff4f4',ink:'#ffffff'},
+  {key:'month2',min:2,label:'2–<4 เดือน',color:'#ea580c',tint:'#fff8ef',ink:'#111827'},
+  {key:'month4',min:4,label:'4–<6 เดือน',color:'#ca8a04',tint:'#fffbed',ink:'#111827'},
+  {key:'month6',min:6,label:'6–<12 เดือน',color:'#2563eb',tint:'#f2f7ff',ink:'#ffffff'},
+  {key:'year1',min:12,label:'1 ปีขึ้นไป',color:'#15803d',tint:'#f1fcf5',ink:'#ffffff'}
  ];
  function tenureDate(value){
   const match=/^(\d{4})-(\d{2})-(\d{2})$/.exec(String(value||''));if(!match)return null;
@@ -56,7 +56,7 @@
  function tenureFor(employee,asOf){
   const startValue=window.PPMS_RUNTIME?.employeeSeniorityStart(employee)??(employee.contractType==='Subcontractor'?employee.startDate:(employee.permanentStartDate||employee.startDate));
   if(!asOf){const parts=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Bangkok',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date());const part=type=>parts.find(p=>p.type===type).value;asOf=part('year')+'-'+part('month')+'-'+part('day')}
-  const start=tenureDate(startValue),today=tenureDate(asOf),unknown=label=>({key:'unknown',label,color:'#64748b',tint:'#f1f5f9',ink:'#ffffff',months:null,startDate:String(startValue||''),actual:label});
+  const start=tenureDate(startValue),today=tenureDate(asOf),unknown=label=>({key:'unknown',label,color:'#64748b',tint:'#f8fafc',ink:'#ffffff',months:null,startDate:String(startValue||''),actual:label});
   if(!start||!today)return unknown('ไม่ระบุวันที่');
   if(String(startValue)>asOf)return unknown('ยังไม่เริ่มงาน');
   let months=(today.year-start.year)*12+today.month-start.month;
