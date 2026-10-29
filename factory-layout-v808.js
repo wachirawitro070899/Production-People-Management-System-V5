@@ -198,7 +198,7 @@
   let rosterCleanupPending = false;
   function syncRoster(force = false) {
     if (!root?.isConnected) return;
-    const sig = JSON.stringify({people:roster(),deleted:[...deletedIds()]});
+    const sig = JSON.stringify({people:roster().map(e=>[e.id,e.name,e.thaiName,e.position,e.section,e.organizationDivision,e.organizationPlant,e.organizationTeam,e.stampingShift,e.updatedAt,e.photoUrl]),deleted:[...deletedIds()]});
     if (force || sig !== rosterSignature) { rosterSignature = sig; rosterCleanupPending = true; remotePending = true; }
     if (remotePending && !editingControl() && !busy) { remotePending = false; refresh(); }
     if (rosterCleanupPending && ready && !busy && admin()) {
@@ -223,7 +223,7 @@
     try {
       const r = await fetch(base() + '/' + PATH + '.json', {...options, signal:controller.signal, cache:'no-store'});
       if (!r.ok && r.status !== 412) throw Error(r.status === 401 || r.status === 403 ? 'ฐานข้อมูลไม่อนุญาตให้เปิดหรือบันทึก Layout' : 'เชื่อมต่อ Layout ไม่สำเร็จ (' + r.status + ')');
-      return r;
+      const body=await r.json();return {ok:r.ok,status:r.status,headers:r.headers,json:async()=>body};
     } catch (e) { if (e.name === 'AbortError') throw Error('เชื่อมต่อ Layout หมดเวลา กรุณาลองอีกครั้ง'); throw e; }
     finally { clearTimeout(timer); }
   }
@@ -440,7 +440,7 @@
   }
 
   async function pollLayout() {
-    if (!root?.isConnected || !ready || busy || uploading || layoutPollRunning || navigator.onLine === false) return;
+    if (document.visibilityState==='hidden' || !root?.isConnected || !ready || busy || uploading || layoutPollRunning || navigator.onLine === false) return;
     const page = root, revision = layoutRevision;
     layoutPollRunning = true;
     try {
@@ -554,7 +554,7 @@
     canvas.addEventListener('pointercancel', () => { areaStart = null; areaPointer = null; drawArea(null); });
     root.addEventListener('focusout', () => setTimeout(() => { if (root?.isConnected && !editingControl() && !busy && remotePending) { remotePending = false; refresh(); }; },100));
     rosterSignature = ''; rosterCleanupPending = true;
-    rosterTimer = setInterval(() => { syncRoster(); void pollLayout(); },5000);
+    rosterTimer = setInterval(() => { if(document.visibilityState==='hidden')return;syncRoster(); void pollLayout(); },5000);
     refresh(); void load();
   }
   window.PPMS_FACTORY_LAYOUT = {

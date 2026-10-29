@@ -24,6 +24,7 @@ async function setup(admin=true,entry='index.html',seed={}){
  w.document.dispatchEvent(new w.Event('DOMContentLoaded'));
  await wait(400);return {dom,w,errors,warnings};
 }
+async function dispose(dom){const w=dom.window;w.requestAnimationFrame=()=>0;w.queueMicrotask=()=>{};await wait(150);dom.window.close()}
 module.exports={setup,employees};
 if(require.main===module)(async()=>{
  const {dom,w,errors,warnings}=await setup();
@@ -44,8 +45,8 @@ if(require.main===module)(async()=>{
   w.document.querySelector('[data-jd-close]').click();jdButton.click();assert(w.PPMSLanguage.sourceText(w.document.querySelector('#jdDialog')).includes('Offline JD integration test'),'Reopening the card retains the saved JD');w.document.querySelector('#jdDialog [data-jd-edit]').click();form=w.document.querySelector('#jdForm');assert.equal(form.elements.responsibilities.value,'Offline JD integration test');form.elements.responsibilities.value='Second offline edit';form.dispatchEvent(new w.Event('submit',{bubbles:true,cancelable:true}));await wait(400);assert.equal(w.PPMS_JD_OFFLINE.count(),1);assert(w.PPMSLanguage.sourceText(w.document.querySelector('#jdDialog')).includes('Second offline edit'));
   Object.defineProperty(w.navigator,'onLine',{value:true,configurable:true});await w.PPMS_JD_OFFLINE.sync({ref:()=>({transaction:async()=>({committed:false,snapshot:{val:()=>({version:7,position:'Engineer',section:'CNC Section',division:'Production Division',responsibilities:'Shared revised JD'})}})})});await wait(100);w.document.querySelector('[data-jd-review-conflict]').click();assert(w.PPMSLanguage.sourceText(w.document.querySelector('#jdDialog')).includes('Second offline edit'));assert(w.PPMSLanguage.sourceText(w.document.querySelector('#jdDialog')).includes('Shared revised JD'));w.document.querySelector('[data-jd-resolve]').click();await wait(200);assert(w.document.querySelector('[data-jd-sync-state="pending"]'),'Reviewed conflict returns to the locally saved pending JD');w.document.querySelector('[data-jd-close]').click();console.log('PASSED offline JD form submission, reopen/edit, durable pending state, and conflict review');
   assert.deepEqual(errors,[],errors.join('\n'));console.log('PASSED admin pages, stable Section charts, JD controls, dates, language. Warnings:',warnings.length);
- }finally{dom.window.close()}
- const publicPage=await setup(false);try{assert(publicPage.w.document.querySelector('#app').textContent.trim());assert.deepEqual(publicPage.errors,[]);console.log('PASSED public attendance startup')}finally{publicPage.dom.window.close()}
- const factory=await setup(true,'factory-organization.html');try{await wait(900);assert(factory.w.document.querySelector('.factory-chart-person [data-jd-employee-id]'),'Factory employee cards include JD');assert.deepEqual(factory.errors,[]);console.log('PASSED Factory Organization startup and employee JD actions')}finally{factory.dom.window.close()}
- const fallback=await setup(false,'404.html');try{assert(fallback.w.document.querySelector('#app').textContent.trim());assert.deepEqual(fallback.errors,[]);console.log('PASSED fallback-page startup')}finally{fallback.dom.window.close()}
+ }finally{await dispose(dom)}
+ const publicPage=await setup(false);try{assert(publicPage.w.document.querySelector('#app').textContent.trim());assert.deepEqual(publicPage.errors,[]);console.log('PASSED public attendance startup')}finally{await dispose(publicPage.dom)}
+ const factory=await setup(true,'factory-organization.html');try{await wait(900);assert(factory.w.document.querySelector('.factory-chart-person [data-jd-employee-id]'),'Factory employee cards include JD');assert.deepEqual(factory.errors,[]);console.log('PASSED Factory Organization startup and employee JD actions')}finally{await dispose(factory.dom)}
+ const fallback=await setup(false,'404.html');try{assert(fallback.w.document.querySelector('#app').textContent.trim());assert.deepEqual(fallback.errors,[]);console.log('PASSED fallback-page startup')}finally{await dispose(fallback.dom)}
 })().catch(e=>{console.error(e);process.exitCode=1});

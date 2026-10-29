@@ -54,7 +54,8 @@
  const API='https://machine-part-kpi.jinrong-tl-1709.chatgpt.site/api/employee-skill-history';
  const CLASS_NAME='ppms-daily-production-kpi';
  const STYLE_ID='ppms-daily-production-kpi-style';
- let activeCode='',history=[],requestNo=0,debounce=0,timer=0;
+ let activeCode='',history=[],requestNo=0,debounce=0,timer=0,pendingCode='',requestController=null,lastAttemptCode='',lastAttemptAt=0;
+ const renderedCells=new WeakMap();
 
  const esc=value=>String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
  const fmt=value=>Number(value||0).toLocaleString('th-TH',{maximumFractionDigits:1});
@@ -120,18 +121,20 @@
    const cell=row.cells[9];
    if(!cell)continue;
    const wanted=items.map(markup).join('');
-   const existing=[...cell.querySelectorAll('.'+CLASS_NAME)];
-   const current=existing.map(node=>node.outerHTML).join('');
-   if(current===wanted)continue;
-   existing.forEach(node=>node.remove());
+   // Compare source markup, because the language layer changes rendered labels.
+   if(renderedCells.get(cell)===wanted)continue;
+   renderedCells.set(cell,wanted);
+   cell.querySelectorAll('.'+CLASS_NAME).forEach(node=>node.remove());
    if(wanted)cell.insertAdjacentHTML('beforeend',wanted);
   }
  }
 
  async function loadHistory(code){
-  const current=++requestNo;
+  if(pendingCode===code)return;requestController?.abort();
+  const controller=new AbortController();requestController=controller;pendingCode=code;lastAttemptCode=code;lastAttemptAt=Date.now();
+  const deadline=setTimeout(()=>controller.abort(),15000),current=++requestNo;
   try{
-   const response=await fetch(API+'?code='+encodeURIComponent(code),{cache:'no-store',mode:'cors'});
+   const response=await fetch(API+'?code='+encodeURIComponent(code),{cache:'no-store',mode:'cors',signal:controller.signal});
    const data=await response.json();
    if(!response.ok)throw new Error(data?.error||'โหลดผล KPI ไม่สำเร็จ');
    const card=monthlyCard();
@@ -140,16 +143,16 @@
    history=Array.isArray(data?.history)?data.history:[];
    render(card);
   }catch(error){
-   console.warn('PPMS daily production KPI:',error);
-  }
+   if(error.name!=='AbortError')console.warn('PPMS daily production KPI:',error);
+  }finally{clearTimeout(deadline);if(requestController===controller){requestController=null;pendingCode=''}}
  }
 
  function sync(){
   const card=monthlyCard();
-  if(!card){activeCode='';history=[];return}
+  if(!card){if(requestController){requestController.abort();requestController=null;pendingCode='';requestNo++}activeCode='';history=[];return}
   const code=employeeCode(card);
   if(!code){activeCode='';history=[];return}
-  if(code!==activeCode)loadHistory(code);
+  if(code!==activeCode){if(lastAttemptCode!==code||Date.now()-lastAttemptAt>=15000)void loadHistory(code);}
   else render(card);
  }
 
@@ -165,7 +168,8 @@
   if(app)new MutationObserver(schedule).observe(app,{childList:true,subtree:true});
   document.addEventListener('change',event=>{
    if(['attendanceKpiEmployee','attendanceYear','attendanceMonth'].includes(event.target?.id)){
-    activeCode='';history=[];schedule();
+    if(event.target.id==='attendanceKpiEmployee'){activeCode='';history=[];lastAttemptCode=''}
+    schedule();
    }
   });
   clearInterval(timer);

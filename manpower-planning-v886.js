@@ -117,7 +117,7 @@
  async function request(options={}){
   const base=String(window.PPMS_FIREBASE_CONFIG?.databaseURL||'').replace(/\/$/,'');if(!base)throw Error('ไม่พบการตั้งค่าฐานข้อมูล');
   const controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),12000);
-  try{const r=await fetch(base+'/'+PATH+'.json',{...options,signal:controller.signal,cache:'no-store'});if(!r.ok&&r.status!==412)throw Error('เชื่อมต่อข้อมูลไม่สำเร็จ ('+r.status+')');return r}finally{clearTimeout(timeout)}
+  try{const r=await fetch(base+'/'+PATH+'.json',{...options,signal:controller.signal,cache:'no-store'});if(!r.ok&&r.status!==412)throw Error('เชื่อมต่อข้อมูลไม่สำเร็จ ('+r.status+')');const body=await r.json();return {ok:r.ok,status:r.status,headers:r.headers,json:async()=>body}}finally{clearTimeout(timeout)}
  }
  function remember(){try{localStorage.setItem(CACHE,JSON.stringify(data))}catch{}}
  async function load(){
@@ -348,7 +348,7 @@
    const destination=dropTarget(e.target);if(picked&&destination&&!e.target.closest('button,input,select,textarea,summary,.mp-card-detail')){await dropPerson(picked,destination);return}
    const dissolve=e.target.closest('[data-mp-dissolve]'),quick=e.target.closest('[data-mp-small-group],[data-mp-add-support]');if(dissolve){const id=dissolve.dataset.mpDissolve;await save(d=>dissolveGroup(d,id));return}if(quick){const sec=quick.dataset.mpSmallGroup,ids=smallMachineIds(sec);await save(d=>saveGroup(d,'',sec,'เครื่องเล็ก 1–6',ids,3));return}
    const remove=e.target.closest('[data-mp-remove]'),choice=e.target.closest('[data-mp-section]'),person=e.target.closest('[data-mp-new-person]');if(person&&!busy&&admin())rt()?.openManpowerEmployeeForm?.(person.dataset.mpNewPerson);if(remove){const {machine,mpRemove:id}=remove.dataset;await save(d=>unassignPoint(d,machine,id))}if(choice){section=choice.dataset.mpSection;rememberSection();draw()}});
-  root.addEventListener('focusout',()=>setTimeout(()=>{if(refreshPending)drawSafe()},0));draw();void load();timer=setInterval(()=>void load(),15000);
+  root.addEventListener('focusout',()=>setTimeout(()=>{if(refreshPending)drawSafe()},0));draw();void load();timer=setInterval(()=>{if(document.visibilityState!=='hidden')void load()},15000);
  }
  window.addEventListener('ppms-workplace-team-filter-changed',()=>{picked=null;draw()});window.addEventListener('ppms-workplace-team-status',e=>note(e.detail.text));
  window.addEventListener('ppms-employees-changed',drawSafe);window.addEventListener('ppms-organization-scope-changed',()=>{section=sessionStorage.getItem(sectionPreferenceKey())||'';endPointer();dragState=null;picked=null;drawSafe()});

@@ -31,7 +31,7 @@
   async function rest(path,options={},timeout=7000){
     const controller=new AbortController();
     const timer=setTimeout(()=>controller.abort(),timeout);
-    try{return await fetch(`${baseUrl()}/${path}.json`,{...options,signal:controller.signal,cache:'no-store'})}
+    try{const response=await fetch(`${baseUrl()}/${path}.json`,{...options,signal:controller.signal,cache:'no-store'}),body=await response.json();return {ok:response.ok,status:response.status,headers:response.headers,json:async()=>body}}
     catch(error){if(error?.name==='AbortError')throw Error('การตรวจสอบใช้เวลานานเกินไป กรุณากด Login อีกครั้ง');throw error}
     finally{clearTimeout(timer)}
   }
