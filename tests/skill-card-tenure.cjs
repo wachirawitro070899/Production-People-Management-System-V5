@@ -21,3 +21,12 @@ const employee={id:'TEST',name:'<QA>',position:'Operator',section:'Stamping Sect
 const card=window.walletCardMarkup(employee);assert(card.includes('data-tenure-band="year1"'));assert(!card.includes('1 ปีขึ้นไป'));assert(card.includes('class="wallet-footer" data-tenure-band="year1"'));assert(!card.includes('wallet-tenure'));assert(card.includes('background:#e8faee')); assert(card.includes('&lt;QA&gt;'));assert(!card.includes('นับจาก 2020-01-01'));assert(window.PPMSSkillTenure.legendMarkup().includes('1 ปีขึ้นไป'));
 assert(!window.walletCardMarkup(employee,'back').includes('wallet-tenure'));
 console.log('PASS: calendar anniversaries, all bands, leap/month ends, missing/invalid/future dates, seniority policy and shared front-card markup.');
+
+const thaiName='นายเกียรติศักดิ์ จูปะนะ';
+const named=window.walletCardMarkup({...employee,name:thaiName,thaiName});
+assert.equal((named.match(new RegExp('>'+thaiName+'</h2>','g'))||[]).length,1,'The visible name is printed once');
+assert(!named.includes('<p>'),'No second name row');
+assert(window.walletCardMarkup({...employee,name:'English Name',thaiName}).includes('>'+thaiName+'</h2>'),'Prefer the complete Thai name on the card');
+assert(window.walletCardMarkup({...employee,name:'',thaiName}).includes('>'+thaiName+'</h2>'),'Thai-only employee');
+assert(window.walletCardMarkup({...employee,name:'English Name'}).includes('>English Name</h2>'),'English-only employee');
+console.log('PASS: one full name, Thai-name preference, English-name fallback and safe name markup.');

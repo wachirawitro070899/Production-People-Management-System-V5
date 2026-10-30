@@ -148,7 +148,8 @@ function positionRank(name){const x=String(name||'').toLowerCase();if(window.PPM
 function positionClass(name){const x=String(name||'').toLowerCase();if(window.PPMSProductionHierarchy?.isHead(name))return'head';if(/specialist/.test(x))return'specialist';if(/leader/.test(x))return'leader';if(/supervisor/.test(x))return'supervisor';if(/engineer/.test(x))return'engineer';if(/technician/.test(x))return'technician';if(/\b(?:operator|opeartor|operater)\b|^op(?:\b|\d)|พนักงานทั่วไป|พนักงานผลิต/.test(x.trim()))return'operator';return'other'}
 function renderDivisionChart(select,detail){
  const division=select.value,plant=division==='Production Division'?(document.getElementById('factoryPlantChart')?.value||master.plants[0]):'รวม',hierarchy=window.PPMSProductionHierarchy;
- const members=chartPeople().filter(e=>{const x=divisionOf(e);return x.division===division&&(division!=='Production Division'||x.plant===plant)});
+ const scopedMembers=chartPeople().filter(e=>{const x=divisionOf(e);return x.division===division&&(division!=='Production Division'||x.plant===plant)});
+ const members=window.PPMSProductionLines?.filter(scopedMembers,{division,plant})||scopedMembers;
  const managers=members.filter(e=>/manager/i.test(String(e.position||''))),supervisors=division==='Production Division'&&hierarchy?members.filter(e=>hierarchy.isSupervisor(e.position)).sort(seniorityCompare):[];
  const heads=division==='Production Division'&&hierarchy?members.filter(e=>hierarchy.isHead(e.position)).sort(seniorityCompare):[];
  const castingSpecialists=division==='Production Division'&&hierarchy?members.filter(e=>hierarchy.isCastingSpecialist(e.position)).sort(seniorityCompare):[];
@@ -158,7 +159,7 @@ function renderDivisionChart(select,detail){
  const sections=[...new Set(names.map(window.PPMSOrganizationScope.combinedSection))].filter((name,index,values)=>values.findIndex(value=>canonical(value)===canonical(name))===index).map(section=>({section,title:section,sortingGroup:''})).filter(item=>!(master.removedSections?.[sectionKey(division,plant)]||[]).some(name=>canonical(name)===canonical(item.title))||workers.some(e=>canonical(e.section)===canonical(item.section)));
  const front=['Engineering Support','Support Production','Machine Maintenance','Tooling Maintenance'];
  sections.sort((a,b)=>{const rank=value=>{const index=front.indexOf(value.replace(/\s+Section$/i,''));return index<0?front.length:index};return rank(a.title)-rank(b.title)});
- const chart=sections.map(item=>{
+ const chart=sections.filter(item=>window.PPMSProductionLines?.visibleSection(item.section,members,{division,plant})!==false).map(item=>{
   const section=item.section,sectionMembers=workers.filter(e=>canonical(e.section)===canonical(section)&&(!item.sortingGroup||e.sortingGroup===item.sortingGroup));
   const specialist=hierarchy?.hasSpecialist(section,division)&&!sectionMembers.some(e=>positionClass(e.position)==='specialist')?['Specialist']:[];
   const vacancies=hierarchy?.positionVacancies?.(item.sortingGroup||section,{division,plant})||[],saved=Object.entries(master.sectionPositions).filter(([key])=>key.startsWith(sectionKey(division,plant)+'::')&&canonical(key.split('::').at(-1))===canonical(section)).flatMap(([,values])=>values),positions=[...new Set([...saved,...specialist,...vacancies.map(target=>target.position),...sectionMembers.map(e=>String(e.position||'')).filter(Boolean)].map(value=>positionClass(value)==='operator'?'Operator':value))].sort((a,b)=>positionRank(a)-positionRank(b)||String(a).localeCompare(String(b)));
@@ -167,7 +168,7 @@ function renderDivisionChart(select,detail){
  });
  const managerHtml=managers.length?'<div class="factory-manager"><div class="factory-people">'+managers.map(personCard).join('')+'</div></div>':'';
  const organization=division==='Production Division'&&hierarchy?hierarchy.chartMarkup(chart,supervisors.map(personCard).join(''),{factory:true,heads:heads.map(personCard).join(''),castingSpecialists:castingSpecialists.map(personCard).join('')}):'<div class="factory-org-sections">'+(chart.map(item=>item.html).join('')||'<div class="factory-chart-empty">ยังไม่มี Section — กด “+ เพิ่ม Section”</div>')+'</div>';
- detail.innerHTML=(window.PPMSPositionSlots?.summaryMarkup({division,plant})||'')+'<div class="org-config-head"><h3 class="factory-chart-title">'+esc(division)+(division==='Production Division'?' — '+esc(plant):'')+'</h3><button type="button" data-add-factory-section>+ เพิ่ม Section</button></div>'+managerHtml+organization;
+ detail.innerHTML=(window.PPMSProductionLines?.controlsMarkup({division,plant})||'')+(window.PPMSPositionSlots?.summaryMarkup({division,plant})||'')+'<div class="org-config-head"><h3 class="factory-chart-title">'+esc(division)+(division==='Production Division'?' — '+esc(plant):'')+'</h3><button type="button" data-add-factory-section>+ เพิ่ม Section</button></div>'+managerHtml+organization;
  deleteSectionControls();scopeTitle();
 }
 function chartPicker(){const box=document.querySelector('.factory-summary');if(!box||box.querySelector('.factory-chart-picker'))return;chartStyle();const area=document.createElement('section');area.className='factory-chart-picker';area.innerHTML='<div class="org-config-add"><label>Division<select id="factoryDivisionChart">'+master.divisions.map(x=>'<option>'+esc(x)+'</option>').join('')+'</select></label><label id="factoryPlantChartLabel">โรงงาน<select id="factoryPlantChart">'+master.plants.map(x=>'<option>'+esc(x)+'</option>').join('')+'</select></label></div><div id="factoryDivisionChartDetail"></div>';box.append(area);const select=area.querySelector('#factoryDivisionChart'),plant=area.querySelector('#factoryPlantChart'),plantLabel=area.querySelector('#factoryPlantChartLabel'),detail=area.querySelector('#factoryDivisionChartDetail');select.value=sessionStorage.getItem('ppms_scope_division')||master.divisions[0];if(!master.divisions.includes(select.value))select.selectedIndex=0;plant.value=master.plants.includes(sessionStorage.getItem('ppms_scope_plant'))?sessionStorage.getItem('ppms_scope_plant'):master.plants[0];const draw=()=>{plantLabel.style.display=select.value==='Production Division'?'':'none';renderDivisionChart(select,detail)};select.addEventListener('change',()=>{window.PPMSOrganizationScope.activate({division:select.value,plant:plant.value});draw();scopeTitle()});plant.addEventListener('change',()=>{window.PPMSOrganizationScope.activate({division:select.value,plant:plant.value});draw();scopeTitle()});draw()}
@@ -182,6 +183,7 @@ function redrawLiveEmployeeChart(){
  if(select&&detail)renderDivisionChart(select,detail);
 }
 window.addEventListener('ppms-employees-changed',redrawLiveEmployeeChart);
+window.addEventListener('ppms-production-lines-changed',redrawLiveEmployeeChart);
 window.addEventListener('storage',event=>{if(event.key==='ppms_v3_employees'||event.key==='ppms_v3_deleted_employee_ids')redrawLiveEmployeeChart()});
 // The separate Factory Organization page does not load the main app runtime.
 let factoryRosterLoading=false;
