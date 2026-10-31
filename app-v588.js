@@ -1610,9 +1610,9 @@ function orgFixedLeadershipLevels(list){
  }).join('');
  return levels?`<div class="org-fixed-leadership">${levels}</div>`:'';
 }
-function orgDepartmentLevels(list,section,sortingGroup=''){
+function orgDepartmentLevels(list,section,sortingGroup='',byLine=false){
  const vacancyAPI=window.PPMSProductionHierarchy,vacancies=typeof current!=='undefined'&&current==='ngDashboard'?[]:(vacancyAPI?.positionVacancies?.(sortingGroup||section,organizationScope())||[]);
- const order=['manager','head','supervisor','specialist','leader','engineer','technician','other','operator'];
+ const order=byLine?['manager','head','engineer','supervisor','specialist','leader','technician','other','operator']:['manager','head','supervisor','specialist','leader','engineer','technician','other','operator'];
  return order.map(r=>{
   const group=list.filter(e=>rank(e.position)===r).sort(orgSeniorityCompare),slots=vacancies.filter(target=>rank(target.position)===r).map(target=>vacancyAPI.positionVacancyMarkup(target)).join('');
   if(r==='specialist'&&!group.length&&!slots&&window.PPMSProductionHierarchy?.hasSpecialist(section,organizationScope().division))return `<div class="level rank-level-specialist"><h4>Specialist</h4><div class="people">${window.PPMSProductionHierarchy.specialistVacancyMarkup()}</div></div>`;
@@ -1635,18 +1635,20 @@ function dashboard(historyPage=false){
  const managerTop=managers.length?`<div class="division-manager-top"><div class="people">${managers.map(e=>person(e,true)).join('')}</div><div class="manager-line"></div><h4 class="manager-pill">Manager</h4><div class="manager-line manager-line-bottom"></div></div>`:'';
  const today=thaiDateKey(),production=organizationScope().division==='Production Division',hierarchy=window.PPMSProductionHierarchy;
  const supervisors=production&&hierarchy?chartEmployees.filter(e=>hierarchy.isSupervisor(e.position)).sort(orgSeniorityCompare):[];
- const sectionCards=orgSectionDescriptors(chartEmployees).filter(d=>historyPage||window.PPMSProductionLines?.visibleSection(d.section,chartEmployees,organizationScope())!==false).map(d=>{
+ const descriptors=orgSectionDescriptors(chartEmployees);
+ const sectionMarkup=(d,list)=>`<section class="division-section" data-org-section="${esc(d.title)}"><div class="division-section-head"><h3>${esc(d.title)}</h3><small>${list.length} Employees</small></div>${orgDepartmentLevels(list,d.section,d.sortingGroup,true)}</section>`;
+ const sectionCards=descriptors.filter(d=>historyPage||window.PPMSProductionLines?.visibleSection(d.section,chartEmployees,organizationScope())!==false).map(d=>{
   const list=orgEmployeesForDescriptor(d,chartEmployees).filter(e=>!production||(!hierarchy?.isHead(e.position)&&!hierarchy?.isCastingSpecialist(e.position)));
   return {...d,html:`<section class="division-section ${d.sortingGroup?'division-sorting-split':''}" data-org-section="${esc(d.title)}"><div class="division-section-head"><h3>${esc(d.title)}</h3><small>${list.length} Employees</small></div>${!historyPage&&isAdmin?`<button type="button" class="secondary position-slot-add no-print" data-org-add-slot data-section="${esc(d.sortingGroup||d.section)}">+ เพิ่มตำแหน่งว่าง</button>`:''}${orgDepartmentLevels(list,d.section,d.sortingGroup)}</section>`};
  });
  const chart=production&&hierarchy?hierarchy.chartMarkup(sectionCards,supervisors.map(e=>person(e,true)).join(''),{assign:isAdmin,heads:chartEmployees.filter(e=>hierarchy.isHead(e.position)).map(e=>person(e,true)).join(''),castingSpecialists:chartEmployees.filter(e=>hierarchy.isCastingSpecialist(e.position)).map(e=>person(e,true)).join('')}):`<div class="division-sections">${sectionCards.map(item=>item.html).join('')}</div>`;
- const tree=!historyPage&&window.PPMSOrganizationEditor?.isTreeView(),organizationChart=tree?window.PPMSOrganizationEditor.chartMarkup(chartEmployees,e=>person(e,true)):managerTop+chart;
+ const lineView=!historyPage&&window.PPMSProductionLines?.isLineView(),tree=!lineView&&!historyPage&&window.PPMSOrganizationEditor?.isTreeView(),organizationChart=lineView?window.PPMSProductionLines.chartMarkup(chartEmployees,descriptors,e=>person(e,true),sectionMarkup):tree?window.PPMSOrganizationEditor.chartMarkup(chartEmployees,e=>person(e,true)):managerTop+chart;
  const newThisMonth=chartEmployees.filter(e=>{const d=new Date(e.startDate),n=new Date();return !Number.isNaN(d.getTime())&&d.getMonth()===n.getMonth()&&d.getFullYear()===n.getFullYear()}).length;
  const positionCount=new Set(chartEmployees.map(e=>String(e.position||'').trim()).filter(Boolean)).size;
  const employment=organizationEmploymentCounts(chartEmployees);
  return head(historyPage?'ประวัติการขาดลามาสายและงานเสีย':window.PPMSOrganizationScope.title('en'),historyPage?`ยอดสะสมจากประวัติที่บันทึกถึงวันที่ ${esc(today)} · ลารวมลากิจและลาป่วย`:'โครงสร้างพนักงานตามตำแหน่งและแผนก',printBtn()+reportButtons())+
  (!historyPage?`<div class="panel no-print organization-chart-controls">${window.PPMSProductionLines?.controlsMarkup(organizationScope())||''}${window.PPMSOrganizationEditor?.controlsMarkup()||''}</div>${window.PPMSPositionSlots?.summaryMarkup()||''}`:'')+`<div class="cards"><div class="card metric">พนักงานทั้งหมด<b>${chartEmployees.length}</b></div><div class="card metric">แผนก<b>${sectionCards.length}</b></div><div class="card metric">ตำแหน่ง<b>${positionCount}</b></div><div class="card metric">พนักงานใหม่เดือนนี้<b>${newThisMonth}</b></div>${!historyPage?`<div class="card metric">พนักงานประจำ<b data-employment-count="permanent">${employment.permanent}</b></div><div class="card metric">พนักงานซัพคอนแทรค<b data-employment-count="subcontractor">${employment.subcontractor}</b></div>${window.PPMSSubcontractSummary?.markup(employment)||''}`:''}</div>`+
- `<div class="division-org${historyPage?' employee-history-report':''}" ${!historyPage?`data-organization-mode="${tree?'tree':'departments'}"`:''}>${organizationChart}</div>`;
+ `<div class="division-org${historyPage?' employee-history-report':''}" ${!historyPage?`data-organization-mode="${lineView?'lines':tree?'tree':'departments'}"`:''}>${organizationChart}</div>`;
 }
 function ngDashboardPage(){
  employeeHistoryAttendanceIndex=new Map();

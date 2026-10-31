@@ -16,7 +16,7 @@ async function setup(entry){
  w.alert=()=>{};w.confirm=()=>false;w.prompt=()=>null;w.print=()=>{};w.scrollTo=()=>{};w.HTMLElement.prototype.scrollTo=()=>{};w.HTMLElement.prototype.scrollIntoView=()=>{};w.HTMLDialogElement.prototype.showModal=function(){this.open=true};w.HTMLDialogElement.prototype.close=function(){this.open=false;this.remove()};w.matchMedia=()=>({matches:false,addEventListener(){},removeEventListener(){},addListener(){},removeListener(){}});
  w.Blob=Blob;const blobs=new Map();w.URL.createObjectURL=blob=>{const url='blob:test-'+blobs.size;blobs.set(url,blob);return url};w.URL.revokeObjectURL=()=>{};w.HTMLAnchorElement.prototype.click=function(){if(this.download)downloads.push({name:this.download,blob:blobs.get(this.href)})};
  const remoteLines={};let lineFailure=false;w.setLineFailure=value=>lineFailure=value;
- w.fetch=async (url,options={})=>{if(String(url).includes('/settings/productionLines/')&&options.method==='PATCH'){const address=String(url),patch=JSON.parse(options.body);writes.push({url:address,patch});if(lineFailure)throw Error('offline test');remoteLines[address]||={sections:{},employees:{}};for(const [path,value]of Object.entries(patch)){const [group,id]=path.split('/');if(value===null)delete remoteLines[address][group][id];else remoteLines[address][group][id]=value}return {ok:true,json:async()=>patch}}requests.push(String(url));return {ok:true,status:200,headers:{get:()=>null},json:async()=>String(url).includes('/settings/productionLines/')?(remoteLines[String(url)]||null):String(url).includes('ppmsFactoryLayout/v1.json')?layout:String(url).includes('/api/ppms/employee-kpi')?{month:new URL(url).searchParams.get('month'),histories:new URL(url).searchParams.get('codes').split(',').map(employeeCode=>({employeeCode,history:[],online:true})),online:true}:String(url).includes('adminAccounts')?[{username:'tester',passwordHash:'test',active:true,owner:false}]:String(url).includes('/employees.json')?employees:String(url).includes('/deletedEmployeeIds.json')?[]:null}};
+ w.fetch=async (url,options={})=>{if(String(url).includes('/settings/productionLines/')&&options.method==='PATCH'){const address=String(url),patch=JSON.parse(options.body);writes.push({url:address,patch});if(lineFailure)throw Error('offline test');remoteLines[address]||={sections:{},employees:{}};for(const [path,value]of Object.entries(patch)){const [group,id]=path.split('/');if(value===null)delete remoteLines[address][group][id];else (remoteLines[address][group]||={})[id]=value}return {ok:true,json:async()=>patch}}requests.push(String(url));return {ok:true,status:200,headers:{get:()=>null},json:async()=>String(url).includes('/settings/productionLines/')?(remoteLines[String(url)]||null):String(url).includes('ppmsFactoryLayout/v1.json')?layout:String(url).includes('/api/ppms/employee-kpi')?{month:new URL(url).searchParams.get('month'),histories:new URL(url).searchParams.get('codes').split(',').map(employeeCode=>({employeeCode,history:[],online:true})),online:true}:String(url).includes('adminAccounts')?[{username:'tester',passwordHash:'test',active:true,owner:false}]:String(url).includes('/employees.json')?employees:String(url).includes('/deletedEmployeeIds.json')?[]:null}};
  for(const [key,value] of Object.entries({ppms_v3_employees:employees,ppms_organization_master_v1:master,ppms_v3_attendance:attendance,ppms_v3_exam_results:examResults,ppms_factory_layout_v1:layout}))w.localStorage.setItem(key,JSON.stringify(value));
  w.localStorage.setItem('ppms_v768_admin_device_id','test-device');w.sessionStorage.setItem('ppms_device_lock_verified','test-device');w.sessionStorage.setItem('ppms_admin','1');w.sessionStorage.setItem('ppms_admin_user','tester');w.sessionStorage.setItem('ppms_scope_division',divisions[0]);w.sessionStorage.setItem('ppms_scope_plant','โรง 1');
  await wait(0);for(const script of scripts)w.eval(fs.readFileSync(script,'utf8')+'\n//# sourceURL='+script);w.document.dispatchEvent(new w.Event('DOMContentLoaded'));await wait(450);
@@ -61,11 +61,35 @@ function row(w,path,value){const select=Array.from(w.document.querySelectorAll('
   // Removing an override returns to the section assignment without changing employee records.
   api.saveAssignments({['employees/'+api.personKey('S2')]:null},scope);await wait(80);assert.deepEqual(ids(w),['M','S1','S2','X']);
   await line(w,'all');assert.deepEqual(ids(w),['C1','M','S1','S2','U','W1','X']);
+  // Lines beyond 1–3 are created through the same UI used by administrators.
+  w.document.querySelector('[data-org-line-manage]').click();
+  for(let n=4;n<=8;n++)w.document.querySelector('[data-line-add]').click();
+  w.document.querySelector('[data-line-name="8"]').value='Assembly & Packing';
+  w.document.querySelector('#productionLineNamesDialog form').dispatchEvent(new w.Event('submit',{bubbles:true,cancelable:true}));await wait(100);
+  assert.equal(api.lineIds().length,8);assert.equal(api.label('8'),'Assembly & Packing');assert.equal(api.pending.length,0);
+  api.saveAssignments({['sections/'+api.sectionKey('Stamping Section')]:'8',['employees/'+api.personKey('S2')]:'6'},scope);await wait(100);
+  w.document.querySelector('[data-org-line-view]').click();await wait(100);
+  assert.equal(w.document.querySelector('.division-org').dataset.organizationMode,'lines');
+  assert.equal(w.document.querySelectorAll('.production-lines-grid>[data-production-line]').length,8);
+  assert(w.document.querySelector('[data-production-line="8"] [data-edit="S1"]'));
+  assert(w.document.querySelector('[data-production-line="6"] [data-edit="S2"]'));
+  assert(w.document.querySelector('[data-production-line="shared"] [data-edit="M"]'));
+  assert.equal(w.document.querySelectorAll('.production-lines-chart .person[data-edit]').length,7,'No duplicated shared people in all-lines layout');
+  assert.equal(w.PPMSOrgPoster.context().counts.total,7);
+  await line(w,'8');assert.deepEqual(ids(w),['M','S1','X']);assert(w.PPMSOrgPoster.context().title.endsWith('Assembly & Packing'));
+  assert.throws(()=>api.saveAssignments({'lines/8':{deleted:true}},scope),/Move all/);
+  api.saveAssignments({'lines/4':{deleted:true}},scope);await wait(80);assert(!api.lineIds().includes('4'));
+  assert.throws(()=>api.saveAssignments({['employees/'+api.personKey('S1')]:'4'},scope));
+  await select(w,divisions[0],'โรง 2');assert.deepEqual(Array.from(api.lineIds()),['1','2','3']);
+  await select(w,divisions[0],'โรง 1');assert.equal(api.selection(),'8');assert.deepEqual(ids(w),['M','S1','X']);
+  w.document.querySelector('[data-org-line-view]').click();await wait(100);assert.equal(w.document.querySelector('.division-org').dataset.organizationMode,'departments');
+  assert.deepEqual(ids(w),['M','S1','X']);
+  console.log('PASS add/name eight lines, grouping, split assignments, no duplicate people, scoped persistence, print counts, deletion guards and view toggle');
   w.sessionStorage.removeItem('ppms_admin');assert.throws(()=>api.saveAssignments({['employees/'+api.personKey('U')]:'3'},scope));assert(!api.controlsMarkup(scope).includes('data-org-line-settings'));
   assert.deepEqual(run.errors,[],run.errors.join('\n'));console.log('PASS line/section assignments, split sections, shared staff, counts, PDF context, Excel, scope isolation, unrelated pages, translations, queued retry, inherited assignments and write permissions');
  }finally{w.close()}
  const standalone=await setup('factory-organization.html');try{
   const {w}=standalone,api=w.PPMSProductionLines,scope={division:divisions[0],plant:'โรง 1'};
-  api.saveAssignments({['sections/'+api.sectionKey('Stamping Section')]:'1',['employees/'+api.personKey('S2')]:'2'},scope);await wait(80);await line(w,'2');assert.deepEqual(ids(w),['M','S2']);assert(w.document.querySelector('header h1').textContent.endsWith('ไลน์ 2'));assert.equal(w.PPMSOrgPoster.context().counts.total,2);assert.deepEqual(standalone.errors,[]);console.log('PASS standalone factory line selector, split assignment, title and print summary');
+  api.saveAssignments({'lines/7':{name:'Line Seven'},['sections/'+api.sectionKey('Stamping Section')]:'1',['employees/'+api.personKey('S2')]:'2'},scope);await wait(80);await line(w,'2');assert.deepEqual(ids(w),['M','S2']);assert(w.document.querySelector('header h1').textContent.endsWith('ไลน์ 2'));assert.equal(w.PPMSOrgPoster.context().counts.total,2);w.document.querySelector('[data-org-line-view]').click();await wait(80);assert(w.document.querySelector('.production-lines-chart'));await line(w,'all');assert(w.document.querySelector('[data-production-line=\"7\"]'));assert.equal(w.PPMSOrgPoster.context().counts.total,7);assert.deepEqual(standalone.errors,[]);console.log('PASS standalone factory line selector, split assignment, title and print summary');
  }finally{standalone.w.close()}
 })().catch(error=>{console.error(error);process.exitCode=1});

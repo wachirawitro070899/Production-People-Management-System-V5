@@ -108,3 +108,10 @@ Validation: `NODE_PATH=<jsdom module directory> node tests/bulk-skills.cjs`; `no
 - Compact employee/card summaries show the first course and a remaining-course count. Full course names are available in the tooltip and detailed history.
 - Matrix update lines use constrained flex children and ellipsis, preserving the existing employee-column and table widths. The print/PDF summary uses the same bounded preview; full export data remains available in the training worksheet.
 - Browser verification adds 20 long course titles and confirms unchanged table/employee-column widths, one-line height, the remaining count and complete tooltip names. Existing date, card, file and workbook checks pass.
+
+
+## V955 Organization layout by configurable production lines
+- Organization Chart → Layout by line groups sections and people under each line. Shared staff appear once above the lines; unassigned staff remain visible below. A selected-line view includes shared staff in its overall total.
+- Admins use Add / name lines to create any needed additional lines, rename them, or remove unused lines. Assign sections / employees supports section defaults and individual overrides. Existing line 1–3 assignments remain compatible; line definitions share the existing scoped Firebase cache/outbox.
+- The main chart and Factory Organization support the same line model, scope, filtered exports and unique-person print totals. Existing employee records are not rewritten by line changes.
+- Validation: production-line-organization regression passes with eight lines, custom names, split sections, shared staff, scope isolation, pending sync, deletion guards, permission checks and standalone rendering. Synthetic browser QA verifies add/name UI and grouped cards. The older organization-editor regression still fails on its subcontract nationality count assertion; the same failure was reproduced on the unchanged base commit.
