@@ -115,3 +115,9 @@ Validation: `NODE_PATH=<jsdom module directory> node tests/bulk-skills.cjs`; `no
 - Admins use Add / name lines to create any needed additional lines, rename them, or remove unused lines. Assign sections / employees supports section defaults and individual overrides. Existing line 1–3 assignments remain compatible; line definitions share the existing scoped Firebase cache/outbox.
 - The main chart and Factory Organization support the same line model, scope, filtered exports and unique-person print totals. Existing employee records are not rewritten by line changes.
 - Validation: production-line-organization regression passes with eight lines, custom names, split sections, shared staff, scope isolation, pending sync, deletion guards, permission checks and standalone rendering. Synthetic browser QA verifies add/name UI and grouped cards. The older organization-editor regression still fails on its subcontract nationality count assertion; the same failure was reproduced on the unchanged base commit.
+
+
+## V956 Direct production supervisor assignment
+- The Supervisor Production dialog lists current assignees with Remove from position, plus a direct Add to position action. Removal requires a destination section/position, defaulting to the saved previous role when available. Employee records and histories remain intact.
+- Role changes use conditional narrow employee patches and the existing offline queue, retain concurrent profile edits, update the organization index, and safely retry after a partial acknowledgement. Main and 404 entry pages request updated assets.
+- Validation: direct role add/remove, previous-role restore, offline queue, cloud confirmation, concurrent name/photo/skills preservation, role conflicts, idempotent retry, scope and permissions; production hierarchy and line regressions pass. The existing supervisor-scope-lock test fails on disabled supplemental form fields on both the unchanged base and updated source.

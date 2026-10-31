@@ -68,7 +68,7 @@ async function remove(id,snapshot=null){
 }
 // Save the employee collection independently of the large ppms root socket.
 async function upsert(data,originalId='',options={}){
- const id=String(data.id),oldId=String(originalId||''),patchFields=Array.isArray(options.patchFields)?options.patchFields.filter(field=>['stampingShift','organizationTeam','updatedAt','skillLevels','currentSkillLevel','skillUpdatedAt','skillRevisionAt','skillQuarter','skillEvaluator','skillHistory'].includes(field)):null;
+ const id=String(data.id),oldId=String(originalId||''),patchFields=Array.isArray(options.patchFields)?options.patchFields.filter(field=>['stampingShift','organizationTeam','updatedAt','skillLevels','currentSkillLevel','skillUpdatedAt','skillRevisionAt','skillQuarter','skillEvaluator','skillHistory',...(options.organizationScopeUpdate?['section','position','organizationDivision','organizationPlant','productionSupervisorPreviousRole']:[])].includes(field)):null;
  if(options.organizationScopeUpdate&&(!data.organizationDivision||!data.organizationPlant))throw Error('กรุณาเลือกฝ่ายและโรงงานก่อนบันทึก');
  const deleted=await request('deletedEmployeeIds');
  if(oldId===id&&Object.values(deleted.value||{}).map(String).includes(id)){const error=Error('พนักงานถูกลบแล้ว กรุณาโหลดรายชื่อใหม่');if(patchFields)error.code='employee-missing';throw error}
@@ -76,7 +76,9 @@ async function upsert(data,originalId='',options={}){
   const existing=records(value).find(e=>String(e.id)===id);
   if(options.createOnly&&existing){const error=Error('รหัสพนักงานนี้มีอยู่แล้ว');error.code='employee-exists';error.existing=existing;throw error}
   if(patchFields){
+   if(existing&&options.organizationScopeUpdate&&existing.updatedAt===data.updatedAt&&patchFields.every(field=>field==='productionSupervisorPreviousRole'?((existing[field]||null)===(data[field]||null)||existing[field]?.section===data[field]?.section&&existing[field]?.position===data[field]?.position):JSON.stringify(existing[field])===JSON.stringify(data[field])))return value;
    if(!existing){const error=Error('พนักงานถูกลบแล้ว กรุณาโหลดรายชื่อใหม่');error.code='employee-missing';throw error}
+   if(Object.hasOwn(options,'expectedPosition')&&existing.position!==options.expectedPosition){const error=Error('ตำแหน่งพนักงานเปลี่ยนแล้ว กรุณาโหลดรายชื่อใหม่');error.code='employee-section-changed';error.existing=existing;throw error}
    if(options.expectedSection&&existing.section!==options.expectedSection){const error=Error('แผนกพนักงานเปลี่ยนแล้ว กรุณาโหลดรายชื่อใหม่');error.code='employee-section-changed';error.existing=existing;throw error}
    if(Object.hasOwn(options,'expectedSortingGroup')&&String(existing.sortingGroup||'')!==options.expectedSortingGroup){const error=Error('กลุ่ม Sorting ของพนักงานเปลี่ยนแล้ว กรุณาโหลดรายชื่อใหม่');error.code='employee-section-changed';error.existing=existing;throw error}
    let patched={...existing,...Object.fromEntries(patchFields.map(field=>[field,data[field]]))};

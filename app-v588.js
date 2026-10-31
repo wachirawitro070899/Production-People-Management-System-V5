@@ -438,7 +438,7 @@ function acknowledgeEmployeeDeletes(value){const deleted=new Set((Array.isArray(
 
 function persistPendingEmployeeSaves(){localStorage.setItem(EMPLOYEE_SAVE_PENDING_KEY,JSON.stringify(pendingEmployeeSaves))}
 function queueEmployeeSave(data,originalId='',options={}){window.PPMSAccess?.assertWrite();
- const next={...pendingEmployeeSaves,[String(data.id)]:{data:{...data},originalId:String(originalId||''),createOnly:options.createOnly===true,...(options.organizationScopeUpdate?{organizationScopeUpdate:true}:{}),...(options.patchFields?{patchFields:options.patchFields,expectedSection:options.expectedSection,...(Object.hasOwn(options,'expectedSortingGroup')?{expectedSortingGroup:options.expectedSortingGroup}:{})}:{})}};
+ const next={...pendingEmployeeSaves,[String(data.id)]:{data:{...data},originalId:String(originalId||''),createOnly:options.createOnly===true,...(options.organizationScopeUpdate?{organizationScopeUpdate:true}:{}),...(options.patchFields?{patchFields:options.patchFields,expectedSection:options.expectedSection,...(Object.hasOwn(options,'expectedPosition')?{expectedPosition:options.expectedPosition}:{}),...(Object.hasOwn(options,'expectedSortingGroup')?{expectedSortingGroup:options.expectedSortingGroup}:{})}:{})}};
  localStorage.setItem(EMPLOYEE_SAVE_PENDING_KEY,JSON.stringify(next));pendingEmployeeSaves=next;employeeMasterWriteRevision++;
 }
 function withPendingEmployeeSaves(list,deleted=[]){
@@ -448,7 +448,7 @@ function withPendingEmployeeSaves(list,deleted=[]){
   const id=String(job.data.id);
   if(pendingEmployeeDeletes.has(id)||(job.originalId===id&&removed.has(id)))continue;
   if(job.originalId&&job.originalId!==id)map.delete(job.originalId);
-  if(job.patchFields){const existing=map.get(id);if(existing&&(!job.expectedSection||existing.section===job.expectedSection)&&(!Object.hasOwn(job,'expectedSortingGroup')||String(existing.sortingGroup||'')===job.expectedSortingGroup))map.set(id,{...existing,...Object.fromEntries(job.patchFields.map(field=>[field,job.data[field]]))});}else {const existing=map.get(id);map.set(id,{...job.data,...(existing?.certifications?{certifications:existing.certifications}:{})});}
+  if(job.patchFields){const existing=map.get(id);if(existing&&(!job.expectedSection||existing.section===job.expectedSection)&&(!Object.hasOwn(job,'expectedPosition')||existing.position===job.expectedPosition)&&(!Object.hasOwn(job,'expectedSortingGroup')||String(existing.sortingGroup||'')===job.expectedSortingGroup))map.set(id,{...existing,...Object.fromEntries(job.patchFields.map(field=>[field,job.data[field]]))});}else {const existing=map.get(id);map.set(id,{...job.data,...(existing?.certifications?{certifications:existing.certifications}:{})});}
  }
  return [...map.values()];
 }
@@ -2888,21 +2888,48 @@ async function employeeQuickShiftModal(employeeId){
  setTimeout(()=>{const f=document.querySelector('#employeeQuickShiftForm');if(!f)return;f.onsubmit=async ev=>{ev.preventDefault();const fd=new FormData(f),now=new Date().toISOString();for(const r of rounds){const id=shiftRuleId(section,'employee',String(emp.id),r.start,r.end),shift=String(fd.get(`quick_r${r.no}`)||'');if(shift){shiftSchedules[id]={id,section,scope:'employee',employeeId:String(emp.id),startDate:r.start,endDate:r.end,roundNo:r.no,shift,createdAt:shiftSchedules[id]?.createdAt||now,updatedAt:now,deleted:false,v527QuickCard:true};}else if(shiftSchedules[id]){delete shiftSchedules[id];}}
  localStorage.setItem(SHIFT_CLOUD_DIRTY_KEY,'1');save();try{const ready=await ensureCloudReady(12000);if(ready)await publishShiftSchedulesAuthoritative(shiftSchedules,'V527 employee card quick shift plan');closeModal();render();alert(`บันทึกแผนกะ 4 รอบของ ${emp.id} เรียบร้อย`+(ready?' • ซิงก์ Firebase แล้ว':' • บันทึกในเครื่องแล้ว รอซิงก์ Firebase'));}catch(err){alert('บันทึกในเครื่องแล้ว แต่ Firebase ซิงก์ไม่สำเร็จ: '+err.message)}}},0);
 }
-document.addEventListener('click',event=>{
- if(!event.target.closest?.('[data-assign-production-supervisor]'))return;
- event.preventDefault();event.stopImmediatePropagation();
- if(!isAdmin||organizationScope().division!=='Production Division')return;
- const candidates=organizationScopedEmployees(employees).filter(e=>rank(e.position)!=='manager').sort(orgSeniorityCompare);
- modal('<h2>เลือกพนักงานสำหรับ Supervisor Production</h2><p>เปิดข้อมูลพนักงานเพื่อกำหนดตำแหน่ง Supervisor Production</p><form id="productionSupervisorAssignmentForm"><label>พนักงาน<select name="employeeId" required><option value="">กรุณาเลือกพนักงาน</option>'+candidates.map(e=>'<option value="'+esc(e.id)+'">'+esc(e.id)+' · '+esc(e.name||e.thaiName||'')+'</option>').join('')+'</select></label><div class="actions"><button type="submit">แก้ไขข้อมูลพนักงาน</button><button type="button" class="secondary" data-action="close">ยกเลิก</button></div></form>');
+async function assignProductionSupervisor(id,captured,returnRole=null){
+ if(!isAdmin||sessionStorage.getItem('ppms_admin')!=='1')throw Error('กรุณาเข้าสู่ระบบ Admin');
+ window.PPMSAccess?.assertWrite();
+ const scope=organizationScope(),hierarchy=window.PPMSProductionHierarchy;
+ if(scope.division!=='Production Division'||captured?.division!==scope.division||captured?.plant!==scope.plant)throw Error('ฝ่ายหรือโรงงานเปลี่ยนแล้ว กรุณาเปิดหน้าจัดตำแหน่งใหม่');
+ const employee=organizationScopedEmployees(organizationRenderMaster?.employees||employees).find(e=>String(e.id)===String(id)&&!deletedEmployeeIds.has(String(e.id)));
+ if(!employee||rank(employee.position)==='manager')throw Error('ไม่พบพนักงานที่สามารถจัดตำแหน่งได้ในโรงงานนี้');
+ const assigned=hierarchy.isSupervisor(employee.position);
+ if(!returnRole&&assigned)return {changed:false,pending:!!pendingEmployeeSaves[String(id)]};
+ if(returnRole&&!assigned)throw Error('ตำแหน่งพนักงานเปลี่ยนแล้ว กรุณาเปิดหน้าจัดตำแหน่งใหม่');
+ const section=String(returnRole?.section||hierarchy.supervisorSection).trim(),position=String(returnRole?.position||hierarchy.position).trim();
+ if(returnRole&&(!position||position.length>100||hierarchy.isSupervisor(position)||!productionSupervisorSections().includes(section)))throw Error('กรุณาเลือกแผนกและตำแหน่งที่จะย้ายกลับ');
+ const data={...employee,section,position,organizationDivision:scope.division,organizationPlant:scope.plant,productionSupervisorPreviousRole:returnRole?null:{section:employee.section,position:employee.position},updatedAt:new Date().toISOString()};
+ const pending=pendingEmployeeSaves[String(id)],fields=[...new Set([...(pending?.patchFields||[]),'section','position','organizationDivision','organizationPlant','productionSupervisorPreviousRole','updatedAt'])],options=pending&&!pending.patchFields?{organizationScopeUpdate:true}:{organizationScopeUpdate:true,patchFields:fields,expectedSection:pending?.expectedSection||employee.section,expectedPosition:pending?.expectedPosition??employee.position},originalId=pending?.originalId??String(id);
+ const payload=options.patchFields?{id:String(id),...Object.fromEntries(fields.map(field=>[field,data[field]]))}:data;
+ queueEmployeeSave(payload,originalId,options);Object.assign(employee,data);window.PPMSOrganizationManager?.applyEmployeeScope(data);persistCloudToLocal();window.dispatchEvent(new Event('ppms-employees-changed'));
+ if(navigator.onLine===false)return {changed:true,pending:true};
+ try{await syncEmployeeCloudNow(payload,originalId,options);return {changed:true,pending:!!pendingEmployeeSaves[String(id)]}}catch(error){if(['employee-missing','employee-section-changed','read-only'].includes(error.code))throw error;return {changed:true,pending:true,error:String(error.message||error)}}
+}
+function productionSupervisorSections(){return [...new Set(window.PPMSOrganizationScope.sections(organizationRenderMaster?.employees||employees,organizationScope(),baseSections))].filter(section=>section&&section!==window.PPMSProductionHierarchy.supervisorSection)}
+function productionSupervisorAssignmentModal(){
+ if(!isAdmin||window.PPMSAccess?.canEdit()===false||organizationScope().division!=='Production Division')return;
+ const captured={...organizationScope()},hierarchy=window.PPMSProductionHierarchy,roster=organizationScopedEmployees(organizationRenderMaster?.employees||employees).filter(e=>!deletedEmployeeIds.has(String(e.id))).sort(orgSeniorityCompare),assigned=roster.filter(e=>hierarchy.isSupervisor(e.position)),candidates=roster.filter(e=>rank(e.position)!=='manager'&&!hierarchy.isSupervisor(e.position)),en=window.PPMSLanguage?.language==='en',t=(th,english)=>en?english:th;
+ modal(`<div data-i18n-ignore><h2>${t('จัดพนักงานตำแหน่งหัวหน้างานฝ่ายผลิต','Manage Supervisor Production')} — ${esc(captured.plant)}</h2><h3>${t('พนักงานในตำแหน่งนี้','Assigned employees')}</h3>${assigned.length?assigned.map(e=>`<div class="production-role-assignee"><span><b>${esc(e.id)} · ${esc(e.name||e.thaiName||'')}</b><small>${esc(e.position)}</small></span><button type="button" class="secondary" data-remove-production-supervisor="${esc(e.id)}">${t('นำออกจากตำแหน่ง','Remove from position')}</button></div>`).join(''):`<p>${t('ยังไม่มีพนักงานในตำแหน่งนี้','No employees assigned')}</p>`}<h3>${t('เพิ่มพนักงานเข้าตำแหน่ง','Add an employee to this position')}</h3><form id="productionSupervisorAssignmentForm"><label>${t('พนักงาน','Employee')}<select name="employeeId" required><option value="">${t('กรุณาเลือกพนักงาน','Choose an employee')}</option>${candidates.map(e=>`<option value="${esc(e.id)}">${esc(e.id)} · ${esc(e.name||e.thaiName||'')} · ${esc(e.section)}</option>`).join('')}</select></label><p role="status" data-production-role-status></p><div class="actions"><button type="submit" ${candidates.length?'':'disabled'}>${t('เพิ่มเข้าตำแหน่ง','Add to position')}</button><button type="button" class="secondary" data-action="close">${t('ปิด','Close')}</button></div></form></div>`);
  const form=document.getElementById('productionSupervisorAssignmentForm');
- form.onsubmit=ev=>{
-  ev.preventDefault();if(!isAdmin)return;
-  const id=form.elements.employeeId.value;if(!candidates.some(e=>String(e.id)===id))return;
-  openEmployeeEditor(id);
-  const position=document.getElementById('employeeForm')?.elements.position;
-  if(position){position.value=window.PPMSProductionHierarchy.position;position.dispatchEvent(new Event('change',{bubbles:true}))}
- };
-},true);
+ form.onsubmit=async event=>{event.preventDefault();const id=new FormData(form).get('employeeId');if(!id)return;await productionSupervisorSubmit(form,()=>assignProductionSupervisor(id,captured))};
+ document.querySelectorAll('[data-remove-production-supervisor]').forEach(button=>button.onclick=()=>productionSupervisorRemovalModal(button.dataset.removeProductionSupervisor,captured));
+}
+function productionSupervisorRemovalModal(id,captured){
+ const employee=organizationScopedEmployees(organizationRenderMaster?.employees||employees).find(e=>String(e.id)===String(id));if(!employee)return;
+ const sections=productionSupervisorSections(),previous=employee.productionSupervisorPreviousRole||{},section=sections.includes(previous.section)?previous.section:sections.includes(employee.section)?employee.section:'',position=previous.position||'Supervisor',en=window.PPMSLanguage?.language==='en',t=(th,english)=>en?english:th;
+ modal(`<div data-i18n-ignore><h2>${t('นำออกจากตำแหน่งหัวหน้างานฝ่ายผลิต','Remove from Supervisor Production')}</h2><p><b>${esc(employee.id)} · ${esc(employee.name||employee.thaiName||'')}</b></p><p>${t('เลือกแผนกและตำแหน่งที่จะย้ายกลับ รายชื่อและประวัติพนักงานยังคงอยู่ในระบบ','Choose the destination section and position. The employee record and history are retained.')}</p><form id="productionSupervisorRemovalForm"><label>${t('ย้ายกลับแผนก','Destination section')}<select name="section" required><option value="">${t('กรุณาเลือกแผนก','Choose a section')}</option>${sections.map(value=>`<option value="${esc(value)}" ${value===section?'selected':''}>${esc(value)}</option>`).join('')}</select></label><label>${t('ตำแหน่งหลังนำออก','Destination position')}<input name="position" required maxlength="100" value="${esc(position)}"></label><p role="status" data-production-role-status></p><div class="actions"><button type="submit">${t('ยืนยันนำออกจากตำแหน่ง','Confirm removal from position')}</button><button type="button" class="secondary" data-production-role-back>${t('กลับ','Back')}</button></div></form></div>`);
+ const form=document.getElementById('productionSupervisorRemovalForm');form.querySelector('[data-production-role-back]').onclick=productionSupervisorAssignmentModal;
+ form.onsubmit=async event=>{event.preventDefault();const fields=new FormData(form);await productionSupervisorSubmit(form,()=>assignProductionSupervisor(id,captured,{section:fields.get('section'),position:fields.get('position')}))};
+}
+async function productionSupervisorSubmit(form,submit){
+ if(form.dataset.submitting==='1')return;form.dataset.submitting='1';form.querySelectorAll('button').forEach(button=>button.disabled=true);
+ try{const result=await submit();closeModal();renderFromUserControlChange();status(result.pending?'บันทึกในเครื่องแล้ว รอซิงก์ Firebase':'บันทึกตำแหน่งพนักงานเรียบร้อยแล้ว',result.pending?'warn':'ok')}
+ catch(error){form.querySelector('[data-production-role-status]').textContent=error.message}
+ finally{form.dataset.submitting='0';form.querySelectorAll('button').forEach(button=>button.disabled=false)}
+}
+document.addEventListener('click',event=>{if(!event.target.closest?.('[data-assign-production-supervisor]'))return;event.preventDefault();event.stopImmediatePropagation();productionSupervisorAssignmentModal()},true);
 function openEmployeeEditor(id){return withAttendanceReadScope(()=>openEmployeeEditorInScope(id))}
 function openEmployeeEditorInScope(id){
  const returnView=employeeViewContext();
@@ -3162,6 +3189,7 @@ window.PPMS_RUNTIME={
   const form=document.getElementById('employeeForm'),select=form?.elements.section;if(form)form.ppmsReturnView=returnView;
   if(select&&[...select.options].some(o=>o.value===section)){select.value=section;select.dispatchEvent(new Event('change',{bubbles:true}))}
  },
+ assignProductionSupervisor,
  MAX_SKILL_LEVEL,skillLevel,skillScoreRanges,
  employeeEmploymentRank,employeeSeniorityStart,orgSeniorityCompare,sortEmployees:sortSkillMatrixEmployees,
  employeePhotoData:imageToData,
