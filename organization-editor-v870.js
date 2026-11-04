@@ -32,14 +32,15 @@
  function model(value,list,valueScope=scope(),repair=true){
   const sorted=[...list].sort((a,b)=>priority(a.position)-priority(b.position)||seniority(a,b)),byId=new Map(sorted.map(e=>[String(e.id),e]));
   const manager=sorted.find(e=>priority(e.position)===0),supervisor=valueScope.division==='Production Division'?sorted.find(e=>window.PPMSProductionHierarchy?.isSupervisor(e.position)):null,parents=new Map();
+  const lineSupervisorFor=employee=>{const line=window.PPMSProductionLines?.assignment(employee,valueScope);return sorted.find(other=>window.PPMSProductionHierarchy?.supervisorGroup(other)?.lines.includes(line))||null};
   for(const e of sorted){
-   const id=String(e.id);let parent='';
+   const employeeLine=window.PPMSProductionLines?.assignment(e,valueScope),supervisor=lineSupervisorFor(e),id=String(e.id);let parent='';
    if(priority(e.position)!==0){
     if(window.PPMSProductionHierarchy?.isSupervisor(e.position))parent=manager?String(manager.id):'';
     else if(valueScope.division==='Production Division'&&window.PPMSProductionHierarchy?.isCastingSpecialist(e.position))parent=String(manager?.id||'');
     else if(valueScope.division==='Production Division'&&window.PPMSProductionHierarchy?.isHead(e.position))parent=String(supervisor?.id||manager?.id||'');
     else{
-     const higher=sorted.filter(other=>String(other.id)!==id&&sectionOf(other)===sectionOf(e)&&priority(other.position)<priority(e.position)&&priority(other.position)!==0&&!window.PPMSProductionHierarchy?.isSupervisor(other.position)).sort((a,b)=>priority(b.position)-priority(a.position)||seniority(a,b));
+     const higher=sorted.filter(other=>String(other.id)!==id&&sectionOf(other)===sectionOf(e)&&(!/^\d+$/.test(employeeLine)||[employeeLine,'shared'].includes(window.PPMSProductionLines?.assignment(other,valueScope)))&&priority(other.position)<priority(e.position)&&priority(other.position)!==0&&!window.PPMSProductionHierarchy?.isSupervisor(other.position)).sort((a,b)=>priority(b.position)-priority(a.position)||seniority(a,b));
      const head=valueScope.division==='Production Division'&&window.PPMSProductionHierarchy?.headOwns(e.section)?sorted.find(other=>window.PPMSProductionHierarchy.isHead(other.position)):null;
      const casting=valueScope.division==='Production Division'&&window.PPMSProductionHierarchy?.castingOwns(e.section)?sorted.find(other=>window.PPMSProductionHierarchy.isCastingSpecialist(other.position)):null;
      const chief=higher[0]||head||casting||(supervisor&&window.PPMSProductionHierarchy.reportsToSupervisor(e.sortingGroup||e.section)?supervisor:manager);

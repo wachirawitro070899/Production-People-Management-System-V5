@@ -98,7 +98,7 @@ function positionTitle(record,card=false){
  const special={'Store':['พนักงานห้องเบิกจ่ายของ','Store'],'Production Planning':['เจ้าหน้าที่วางแผนการผลิต','Production Planning'],'Document Control':['เจ้าหน้าที่ควบคุมเอกสาร','Document Control']};
  if(window.PPMSProductionHierarchy?.isCastingSpecialist(p))return language==='en'?'Die Casting Specialist':'ผู้เชี่ยวชาญงานหล่ออลูมิเนียม';
  if(window.PPMSProductionHierarchy?.isHead(p))return window.PPMSProductionHierarchy.headTitle(language);
- if(window.PPMSProductionHierarchy?.isSupervisor(p))return language==='en'?'Supervisor Production':'หัวหน้างานฝ่ายผลิต';
+ if(window.PPMSProductionHierarchy?.isSupervisor(p))return window.PPMSProductionHierarchy.supervisorTitle(p,language);
   if(special[p])return special[p][language==='en'?1:0];
  const role=roles.find(([pattern])=>pattern.test(p));
  if(!role)return translate(p)+(card?'':(section?' · '+subject(section):''));

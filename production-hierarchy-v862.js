@@ -1,7 +1,9 @@
-/* Production Manager -> four direct sections and Sup Production -> seven production sections. */
+/* Plant-scoped line supervision: one role for lines 1–2 and one for line 3. */
 (()=>{
  'use strict';
- const position='Supervisor Production',supervisorSection='Production Division';
+ const position='Supervisor Line 1–2',supervisorSection='Production Division';
+ const supervisorGroups=[{id:'12',position,lines:['1','2']},{id:'3',position:'Supervisor Line 3',lines:['3']}];
+ const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
  const headPosition='Stamping Specialist',headSections=['Bending Section','Stamping Section','Tapping Section','Tooling Maintenance Section'];
  const sectionOrder=['stamping','bending','tapping','welding','cnc','sorting'];
  const sectionKey=value=>window.PPMSOrganizationScope?.sectionGroupKey(value)||String(value||'').trim().toLowerCase().replace(/\s+section$/,'').replace(/\s+/g,'').replace(/^taping$/,'tapping');
@@ -39,12 +41,29 @@
   const esc=value=>String(value||'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char])),pe=vacancyPositionKey(target.position)==='productionengineer';
   return Array.from({length:target.count},()=>'<div class="person '+(pe?'engineer':'other')+' organization-position-vacancy" data-vacant-position="'+esc(target.position)+'" data-position-vacancy-id="'+esc(target.id)+'"><div class="avatar">—</div><b>ว่าง</b><small>'+esc(target.position)+(pe?' (PE)':'')+'</small><small class="position-recruiting">รอสรรหา / HR</small></div>').join('');
  }
- function isSupervisor(value){return /^(?:sup\.?\s+production|production\s+(?:sup\.?|supervisor)|supervisor\s+production|หัวหน้างานฝ่ายผลิต)$/i.test(String(value||'').trim())}
+ function isLegacySupervisor(value){return /^(?:sup\.?\s+production|production\s+(?:sup\.?|supervisor)|supervisor\s+production|หัวหน้างานฝ่ายผลิต)$/i.test(String(value||'').trim())}
+ function supervisorGroup(value){
+  const p=String(value?.position??value??'').trim();
+  if(isLegacySupervisor(p)||/^(?:Supervisor(?:\s+ประจำ)?|หัวหน้างาน)\s*(?:Lines?|ไลน์)\s*1\s*[–—&/,-]\s*2$/i.test(p))return supervisorGroups[0];
+  if(/^(?:Supervisor(?:\s+ประจำ)?|หัวหน้างาน)\s*(?:Lines?|ไลน์)\s*3$/i.test(p))return supervisorGroups[1];return null;
+ }
+ function isSupervisor(value){return !!supervisorGroup(value)}
+ function supervisorTitle(value,language=window.PPMSLanguage?.language||'th'){const group=supervisorGroup(value);return group?(language==='en'?'Supervisor — Line'+(group.id==='12'?'s 1 & 2':' 3'):'Supervisor ประจำไลน์ '+(group.id==='12'?'1–2':'3')):String(value?.position??value??'')}
+ function normalizePosition(value){return supervisorGroup(value)?.position||value}
+ function leadershipMarkup(list,person,valueScope=window.PPMSOrganizationScope.current(),options={}){
+  if(valueScope.division!=='Production Division')return '';const en=window.PPMSLanguage?.language==='en',selected=window.PPMSProductionLines?.selection(valueScope)||'all';
+  const groups=supervisorGroups.filter(group=>options.all||(options.group?group.id===options.group:selected==='all'||group.lines.includes(selected)));
+  return '<div class="line-supervisor-slots" data-i18n-ignore>'+groups.map(group=>{
+   const members=list.filter(e=>supervisorGroup(e)?.id===group.id);
+   return '<section class="production-supervisor-top line-supervisor-slot" data-supervisor-group="'+group.id+'"><h4>'+esc(supervisorTitle(group.position))+'</h4><div class="'+(options.factory?'factory-people':'people')+'">'+(members.map(person).join('')||'<div class="line-supervisor-vacancy">'+(en?'Vacant — 1 person':'ว่าง — 1 คน')+'</div>')+'</div><small>'+(en?'Responsible for line'+(group.id==='12'?'s 1 and 2':' 3'):'รับผิดชอบไลน์ '+(group.id==='12'?'1 และ 2':'3'))+'</small>'+(members.length>1?'<p class="line-supervisor-conflict">'+(en?'One person per role. Remove extra assignments.':'ตำแหน่งละ 1 คน กรุณานำรายชื่อที่เกินออก')+'</p>':'')+(options.assign?'<button type="button" class="secondary compact no-print" data-assign-production-supervisor="'+group.id+'">'+(en?'Assign / change supervisor':'กำหนด / เปลี่ยน Supervisor')+'</button>':'')+'</section>';
+  }).join('')+'</div>';
+ }
  function reportsToSupervisor(section){return sectionOrder.includes(sectionKey(section))||sectionKey(section)==='sorting'}
  function withPosition(source){
   const positions=Array.isArray(source.positions)?source.positions:[],divisionPositions=source.positionMap?.['Production Division']||[];
-  if(positions.includes(position)&&divisionPositions.includes(position))return source;
-  return {...source,positions:[...new Set([...positions,position])],positionMap:{...source.positionMap,'Production Division':[...new Set([...divisionPositions,position])]}};
+  const normalize=rows=>[...new Set([...rows.filter(value=>!isSupervisor(value)),...supervisorGroups.map(group=>group.position)])],next=normalize(positions),division=normalize(divisionPositions);
+  if(JSON.stringify(positions)===JSON.stringify(next)&&JSON.stringify(divisionPositions)===JSON.stringify(division))return source;
+  return {...source,positions:next,positionMap:{...source.positionMap,'Production Division':division}};
  }
  function chartMarkup(sections,supervisors,options={}){
   const hasCasting=Boolean(options.castingSpecialists),castingOwned=hasCasting?sections.filter(item=>castingOwns(item.title)).sort((a,b)=>castingSectionIndex(a.title)-castingSectionIndex(b.title)):[];
@@ -59,7 +78,7 @@
   const remaining=production.filter(item=>!owned.includes(item)),content=hasHead?'<div class="production-supervised-content">'+head+(remaining.length?'<div class="'+sectionClass+' production-other-sections">'+remaining.map(item=>item.html).join('')+'</div>':'')+'</div>':'<div class="'+sectionClass+'">'+production.map(item=>item.html).join('')+'</div>';
   return '<div class="production-reporting-tree'+(hasHead?' has-forming-tooling-head':'')+(hasCasting?' has-casting-specialist':'')+'">'+
    ((direct.length||hasCasting)?'<section class="production-reporting-branch production-direct-sections" data-reports-to="Manager"><div class="production-branch-heading"><small>'+direct.length+' แผนก</small></div>'+directContent+'</section>':'')+
-   '<section class="production-reporting-branch production-supervised-sections" data-reports-to="Supervisor Production"><div class="production-supervisor-top"><h4>Supervisor Production</h4><div class="'+peopleClass+'">'+(supervisors||'<div class="production-supervisor-empty">ยังไม่มีพนักงานในตำแหน่งนี้</div>')+'</div><small>ดูแลแผนกผลิต · '+production.length+' แผนก</small>'+(options.assign?'<button type="button" class="secondary compact no-print" data-assign-production-supervisor>กำหนดพนักงาน</button>':'')+'</div>'+content+'</section></div>';
+   '<section class="production-reporting-branch production-supervised-sections" data-reports-to="Line Supervisors">'+leadershipMarkup(options.supervisorRoster||scopedRoles(isSupervisor),options.personRenderer||(()=>supervisors),options.scope||window.PPMSOrganizationScope.current(),options)+content+'</section></div>';
  }
  function headJD(scope){
   const duties=[
@@ -69,7 +88,7 @@
    ['ตรวจการปฏิบัติตาม WI และ Control Plan ประสานวิศวกรรมและคุณภาพเพื่อแก้ไขปัญหากระบวนการ','Verify WI and control-plan compliance and coordinate process issues with Engineering and Quality.'],
    ['พัฒนาหัวหน้าทีมและพนักงานทั้ง 4 แผนก ติดตาม KPI และรายงานผลต่อผู้บังคับบัญชาตามผังองค์กร','Develop the four section teams, monitor KPIs, and report to the supervisor defined in the organization chart.']
   ];
-  return {...scope,employeeId:'',employeeName:'',documentNo:'',revision:'DRAFT',effectiveDate:'',reportsTo:'หัวหน้างานฝ่ายผลิต / Supervisor Production',jobPurpose:'บริหารงานขึ้นรูปโลหะและแม่พิมพ์ ครอบคลุม Bending, Stamping, Tapping และ Tooling Maintenance\nLead forming and tooling across Bending, Stamping, Tapping, and Tooling Maintenance.',responsibilities:duties.map((item,index)=>(index+1)+'. '+item.join('\n   ')).join('\n'),qualifications:'มีความรู้กระบวนการพับ ปั๊ม ต๊าป การซ่อมบำรุงแม่พิมพ์ และการบริหารทีม\nKnowledge of bending, stamping, tapping, tooling maintenance, and team leadership.',documentUrl:'',status:'draft',templateSource:'PPMS Stamping Specialist four-section lead V899',templateVersion:1,version:1};
+  return {...scope,employeeId:'',employeeName:'',documentNo:'',revision:'DRAFT',effectiveDate:'',reportsTo:'Supervisor ประจำไลน์ / Line Supervisor',jobPurpose:'บริหารงานขึ้นรูปโลหะและแม่พิมพ์ ครอบคลุม Bending, Stamping, Tapping และ Tooling Maintenance\nLead forming and tooling across Bending, Stamping, Tapping, and Tooling Maintenance.',responsibilities:duties.map((item,index)=>(index+1)+'. '+item.join('\n   ')).join('\n'),qualifications:'มีความรู้กระบวนการพับ ปั๊ม ต๊าป การซ่อมบำรุงแม่พิมพ์ และการบริหารทีม\nKnowledge of bending, stamping, tapping, tooling maintenance, and team leadership.',documentUrl:'',status:'draft',templateSource:'PPMS Stamping Specialist four-section lead V899',templateVersion:1,version:1};
  }
  function castingJD(scope){
   const duties=[
@@ -81,20 +100,8 @@
   return {...scope,employeeId:'',employeeName:'',documentNo:'',revision:'DRAFT',effectiveDate:'',reportsTo:'ผู้จัดการฝ่ายผลิต / Production Manager',jobPurpose:'ดูแลกระบวนการแม่พิมพ์ หล่ออลูมิเนียม และตกแต่ง/ตรวจ X-Ray ครอบคลุมทั้ง 3 แผนก\nOversee die maintenance, die casting, and finishing/X-Ray across the three sections.',responsibilities:duties.map((item,index)=>(index+1)+'. '+item.join('\n   ')).join('\n'),qualifications:'มีความรู้ด้านแม่พิมพ์หล่ออลูมิเนียม กระบวนการหล่อ การตกแต่งผิว และการตรวจ X-Ray\nKnowledge of die-casting molds, casting processes, surface finishing, and X-Ray inspection.',documentUrl:'',status:'draft',templateSource:'PPMS Die Casting Specialist V898',templateVersion:1,version:1};
  }
  function supervisorJD(scope){
-  const headMode=scopedHeads().length>0;
-  const duties=[
-   ['กำกับดูแล Stamping, Bending, Tapping, Welding, CNC, Sorting 1 และ Sorting 2 ตามสายบังคับบัญชาของฝ่ายผลิต','Supervise Stamping, Bending, Tapping, Welding, CNC, Sorting 1, and Sorting 2 under the Production Division.'],
-   ['รับแผนผลิตจาก Manager และจัดสรรกำลังคน เครื่องจักร และเป้าหมายร่วมกับหัวหน้าแผนกทั้ง 7 แผนก','Translate the Manager’s production plan into manpower, machine, and target allocations with the seven section leaders.'],
-   ['ติดตามผลผลิต คุณภาพ การส่งมอบ และความปลอดภัย พร้อมสรุปผลต่อ Manager','Monitor output, quality, delivery, and safety and report results to the Manager.'],
-   ['ประสาน Engineering Support, Support Production, Machine Maintenance และ Tooling Maintenance เพื่อแก้ปัญหาที่กระทบการผลิต','Coordinate with Engineering Support, Support Production, Machine Maintenance, and Tooling Maintenance to resolve production issues.'],
-   ['ควบคุมการปฏิบัติตาม WI และแผนควบคุม ติดตามการแก้ไขปัญหาและยืนยันประสิทธิผล','Verify WI and control-plan compliance, follow up corrective actions, and confirm effectiveness.'],
-   ['ประเมินความสามารถและพัฒนาหัวหน้าทีมกับพนักงานใน 7 แผนกที่รับผิดชอบ','Assess competence and develop leaders and employees in the seven supervised sections.']
-  ];
-  if(headMode){
-   duties[0]=['กำกับดูแล Stamping, Bending, Tapping, Tooling Maintenance, Welding, CNC, Sorting 1 และ Sorting 2 ผ่าน Stamping Specialist และหัวหน้าแผนกตามสายบังคับบัญชา','Supervise Stamping, Bending, Tapping, Tooling Maintenance, Welding, CNC, Sorting 1, and Sorting 2 through the Stamping Specialist and section leaders.'];
-   for(const pair of duties)for(let i=0;i<pair.length;i++)pair[i]=pair[i].replace(/7 แผนก/g,'8 แผนก').replace(/\bseven\b/g,'eight');
-  }
-  return {...scope,employeeId:'',employeeName:'',documentNo:'',revision:'DRAFT',effectiveDate:'',reportsTo:'ผู้จัดการฝ่ายผลิต / Production Manager',jobPurpose:headMode?'กำกับดูแลการผลิตของ 8 แผนกผ่าน Stamping Specialist และหัวหน้าแผนก\nSupervise the eight production sections through the Stamping Specialist and section leaders.':'กำกับดูแลการผลิตของ 7 แผนกให้เป็นไปตามแผน คุณภาพ การส่งมอบ และความปลอดภัย\nSupervise the seven production sections against production, quality, delivery, and safety targets.',responsibilities:duties.map((item,index)=>(index+1)+'. '+item.join('\n   ')).join('\n'),qualifications:'มีความรู้กระบวนการผลิต การวางแผนกำลังคน การวิเคราะห์ KPI และการบริหารทีม\nKnowledge of manufacturing processes, manpower planning, KPI analysis, and team supervision.',documentUrl:'',status:'draft',templateSource:'PPMS Supervisor Production V862',templateVersion:5,version:1};
+  const group=supervisorGroup(scope.position)||supervisorGroups[0],lines=group.lines.join(' / ');
+  return {...scope,position:group.position,employeeId:'',employeeName:'',documentNo:'',revision:'DRAFT',effectiveDate:'',reportsTo:'ผู้จัดการฝ่ายผลิต / Production Manager',jobPurpose:'กำกับดูแลการผลิตของไลน์ '+lines+'\nSupervise production lines '+lines+'.',responsibilities:'1. วางแผนกำลังคนและติดตามผลผลิต คุณภาพ การส่งมอบ และความปลอดภัยของไลน์ '+lines+'\n   Plan manpower and monitor output, quality, delivery and safety for lines '+lines+'.\n2. ประสานหัวหน้าแผนกทุกกระบวนการที่อยู่ในไลน์ และติดตามการแก้ปัญหา\n   Coordinate all sections assigned to these lines and follow up corrective actions.\n3. พัฒนาทักษะพนักงานและรายงานผลต่อ Production Manager\n   Develop employee skills and report performance to the Production Manager.',qualifications:'มีความรู้กระบวนการผลิต การวางแผนกำลังคน และการบริหารทีม\nManufacturing, manpower planning and team supervision.',documentUrl:'',status:'draft',templateSource:'PPMS Line Supervisor V959',templateVersion:6,version:1};
  }
- window.PPMSProductionHierarchy={position,castingPosition,castingSections,isCastingSpecialist,castingOwns,castingJD,headPosition,headSections,isHead,headOwns,headTitle,headJD,supervisorSection,sectionKey,hasSpecialist,specialistVacancyMarkup,positionVacancies,positionVacancyMarkup,isSupervisor,reportsToSupervisor,withPosition,chartMarkup,supervisorJD};
+ window.PPMSProductionHierarchy={supervisorGroups,supervisorGroup,supervisorTitle,normalizePosition,isLegacySupervisor,leadershipMarkup,position,castingPosition,castingSections,isCastingSpecialist,castingOwns,castingJD,headPosition,headSections,isHead,headOwns,headTitle,headJD,supervisorSection,sectionKey,hasSpecialist,specialistVacancyMarkup,positionVacancies,positionVacancyMarkup,isSupervisor,reportsToSupervisor,withPosition,chartMarkup,supervisorJD};
 })();

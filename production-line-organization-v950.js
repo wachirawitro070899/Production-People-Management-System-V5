@@ -29,17 +29,18 @@
  }
  function record(value=scope()){let result=cache[key(value)]||{};for(const job of jobs)if(key(job.scope)===key(value))result=patchRecord(result,job.patch);return result}
  function assignment(employee,value=scope(),data=record(value)){
+  const supervision=window.PPMSProductionHierarchy?.supervisorGroup(employee);if(supervision)return 'supervisor'+supervision.id;
   const own=data.employees?.[personKey(employee.id)];if(values(value).includes(own))return own;
   if(/manager|ผู้จัดการ/i.test(String(employee.position||'')))return 'shared';
   const inherited=data.sections?.[sectionKey(employee.section)];return values(value).includes(inherited)?inherited:'unassigned';
  }
  function filter(list,value=scope(),selected=selection(value)){
   if(value.division!=='Production Division'||selected==='all')return list;
-  const data=record(value);return list.filter(e=>{const line=assignment(e,value,data);return line===selected||(selected!=='unassigned'&&line==='shared')});
+  const data=record(value);return list.filter(e=>{const supervision=window.PPMSProductionHierarchy?.supervisorGroup(e);if(supervision)return supervision.lines.includes(selected);const line=assignment(e,value,data);return line===selected||(selected!=='unassigned'&&line==='shared')});
  }
  function filterMembers(list,value=scope(),selected=selection(value)){
   if(value.division!=='Production Division'||selected==='all')return list;
-  const data=record(value);return list.filter(e=>assignment(e,value,data)===selected);
+  const data=record(value);return list.filter(e=>{const supervision=window.PPMSProductionHierarchy?.supervisorGroup(e);return supervision?supervision.lines.includes(selected):assignment(e,value,data)===selected});
  }
  function select(selected,value=scope(),notify=true){
   if(!['all',...lineIds(value),'unassigned'].includes(selected))return false;
@@ -61,7 +62,7 @@
  }
  function chartMarkup(list,descriptors,person,department,value=scope()){
   const data=record(value),selected=selection(value),groups=new Map();
-  for(const employee of list){const id=assignment(employee,value,data);if(!groups.has(id))groups.set(id,[]);groups.get(id).push(employee)}
+  for(const employee of list){if(window.PPMSProductionHierarchy?.isSupervisor(employee.position))continue;const id=assignment(employee,value,data);if(!groups.has(id))groups.set(id,[]);groups.get(id).push(employee)}
   const render=id=>{
    const members=groups.get(id)||[],managers=members.filter(e=>/manager|ผู้จัดการ/i.test(String(e.position||''))),workers=members.filter(e=>!managers.includes(e));
    const groupDescriptors=[...descriptors];
@@ -69,8 +70,12 @@
    const sections=groupDescriptors.filter(d=>workers.some(e=>sectionKey(e.section)===sectionKey(d.section))||data.sections?.[sectionKey(d.section)]===id).map(d=>department(d,workers.filter(e=>sectionKey(e.section)===sectionKey(d.section)))).join('');
    return `<section class="production-line-branch" data-production-line="${esc(id)}" data-i18n-ignore><div class="production-line-heading"><h3>${esc(label(id,lang(),value))}</h3><b data-line-headcount="${esc(id)}">${members.length} ${text('คน','employees')}</b>${window.PPMS_RUNTIME&&id!=='shared'?`<button type="button" class="secondary no-print" data-line-matrix="${esc(id)}">Skill Matrix</button>`:''}</div>${managers.length?`<div class="production-line-managers people factory-people">${managers.map(person).join('')}</div>`:''}<div class="production-line-sections">${sections||(managers.length?'':`<p class="production-line-empty">${text('ยังไม่มีพนักงานในไลน์นี้ — กดจัดไลน์ / กำหนดพนักงาน','No employees assigned — use Assign sections / employees')}</p>`)}</div></section>`;
   };
-  const ids=selected==='all'?lineIds(value):[selected];
-  return `<div class="production-lines-chart">${groups.has('shared')?`<div class="production-lines-shared">${render('shared')}</div>`:''}<div class="production-lines-grid">${ids.map(render).join('')}</div>${selected==='all'&&groups.has('unassigned')?render('unassigned'):''}</div>`;
+  const ids=selected==='all'?lineIds(value):[selected],hierarchy=window.PPMSProductionHierarchy;
+  const assigned=new Set(),families=(hierarchy?.supervisorGroups||[]).map(group=>{
+   const lines=ids.filter(id=>group.lines.includes(id));if(!lines.length)return '';lines.forEach(id=>assigned.add(id));
+   return `<section class="line-supervisor-family" data-supervisor-family="${group.id}">${hierarchy.leadershipMarkup(list,person,value,{group:group.id,assign:admin()})}<div class="production-lines-grid">${lines.map(render).join('')}</div></section>`;
+  }).join(''),other=ids.filter(id=>!assigned.has(id));
+  return `<div class="production-lines-chart">${groups.has('shared')?`<div class="production-lines-shared">${render('shared')}</div>`:''}<div class="line-supervisor-families">${families}</div>${other.length?`<div class="production-lines-grid">${other.map(render).join('')}</div>`:''}${selected==='all'&&groups.has('unassigned')?render('unassigned'):''}</div>`;
  }
  function roster(value=scope()){
   let list=window.PPMS_RUNTIME?.factoryLayoutEmployees?.();if(!list){const raw=read('ppms_v3_employees',[]);list=Array.isArray(raw)?raw:Object.values(raw);const deleted=new Set(read('ppms_v3_deleted_employee_ids',[]).map(String));list=list.filter(e=>!deleted.has(String(e.id)))}
@@ -108,6 +113,7 @@
    if(/^lines\/[1-9]\d*$/.test(path)){
     if(!line||typeof line!=='object'||(line.deleted!==true&&(typeof line.name!=='string'||!line.name.trim()||line.name.length>80))||Object.keys(line).some(k=>!['name','deleted'].includes(k)))throw Error('Invalid line name');
    }else if(!/^(sections\/section_|employees\/person_)/.test(path)||path.split('/').length!==2||line!==null&&!allowed.includes(line))throw Error('Invalid line assignment');
+   if(path.startsWith('employees/')&&line!==null){const employee=roster(value).find(e=>'employees/'+personKey(e.id)===path);if(employee&&window.PPMSProductionHierarchy?.isSupervisor(employee.position))throw Error(text('กรุณาจัดตำแหน่ง Supervisor ด้วยปุ่มกำหนด Supervisor ประจำไลน์','Use the line supervisor role controls to change supervisor responsibilities'))}
   }
   if(!lineIds(value,next).length)throw Error(text('ต้องมีอย่างน้อย 1 ไลน์','Keep at least one line'));
   const removed=lineIds(value).filter(id=>!allowed.includes(id));
@@ -130,7 +136,7 @@
  }
  function open(){
   if(!admin())return;
-  const captured={...scope()},people=roster(captured).sort((a,b)=>String(a.section).localeCompare(String(b.section))||String(a.id).localeCompare(String(b.id),undefined,{numeric:true})),data=record(captured);
+  const captured={...scope()},people=roster(captured).filter(e=>!window.PPMSProductionHierarchy?.isSupervisor(e.position)).sort((a,b)=>String(a.section).localeCompare(String(b.section))||String(a.id).localeCompare(String(b.id),undefined,{numeric:true})),data=record(captured);
   const sections=window.PPMSOrganizationScope.sections(people,captured,window.PPMSOrganizationScope.master().sections||[]);
   const options=(selected,inherit=false)=>(inherit?['inherit',...values(captured)]:values(captured)).map(id=>`<option value="${id}" ${selected===id?'selected':''}>${esc(label(id))}</option>`).join('');
   document.getElementById('productionLineDialog')?.remove();const dialog=document.createElement('dialog');dialog.id='productionLineDialog';dialog.className='production-line-dialog';dialog.setAttribute('data-i18n-ignore','');
