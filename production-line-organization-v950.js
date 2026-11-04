@@ -37,15 +37,27 @@
   if(value.division!=='Production Division'||selected==='all')return list;
   const data=record(value);return list.filter(e=>{const line=assignment(e,value,data);return line===selected||(selected!=='unassigned'&&line==='shared')});
  }
+ function filterMembers(list,value=scope(),selected=selection(value)){
+  if(value.division!=='Production Division'||selected==='all')return list;
+  const data=record(value);return list.filter(e=>assignment(e,value,data)===selected);
+ }
+ function select(selected,value=scope(),notify=true){
+  if(!['all',...lineIds(value),'unassigned'].includes(selected))return false;
+  sessionStorage.setItem('ppms_org_line::'+key(value),selected);if(notify)changed(true);return true;
+ }
+ function matrixControlsMarkup(value=scope()){
+  if(value.division!=='Production Division')return '';
+  return `<div class="matrix-line-filter" data-i18n-ignore><label>${text('เลือกไลน์','Select line')}<select data-org-line-select>${['all',...lineIds(value),'unassigned'].map(id=>`<option value="${id}" ${selection(value)===id?'selected':''}>${esc(label(id,lang(),value))}</option>`).join('')}</select></label><small>${text('แสดงเฉพาะพนักงานประจำไลน์ที่เลือก แยกหัวข้อทักษะตาม Section · ผู้ดูแลทุกไลน์อยู่ในรวมทุกไลน์','Only assigned line members, with skills by section · Shared staff appear under All lines')}</small></div>`;
+ }
  function visibleSection(section,people,value=scope()){
   const selected=selection(value);if(selected==='all'||value.division!=='Production Division')return true;
   const data=record(value),line=data.sections?.[sectionKey(section)]||'unassigned';
   return line===selected||(selected!=='unassigned'&&line==='shared')||people.some(e=>!/manager|ผู้จัดการ/i.test(String(e.position||''))&&sectionKey(e.section)===sectionKey(section));
  }
  function suffix(value=scope(),language=lang()){const selected=selection(value);return selected==='all'?'':' — '+label(selected,language,value)}
- function controlsMarkup(value=scope()){
+ function controlsMarkup(value=scope(),options={}){
   if(value.division!=='Production Division')return '';
-  return `<div class="production-line-controls no-print" data-i18n-ignore><label>${text('เลือกไลน์','Select line')}<select data-org-line-select>${['all',...lineIds(value),'unassigned'].map(id=>`<option value="${id}" ${selection(value)===id?'selected':''}>${esc(label(id,lang(),value))}</option>`).join('')}</select></label><button type="button" class="${isLineView(value)?'':'secondary'}" data-org-line-view aria-pressed="${isLineView(value)}">${text('จัดผังตามไลน์','Layout by line')}</button>${admin()?`<button type="button" class="secondary" data-org-line-manage>${text('เพิ่ม / ตั้งชื่อไลน์','Add / name lines')}</button><button type="button" class="secondary" data-org-line-settings>${text('จัดไลน์ / กำหนดพนักงาน','Assign sections / employees')}</button>`:''}<small>${text('เพิ่มไลน์ได้ตามต้องการ · พนักงานดูแลทุกไลน์แสดงแยกด้านบน','Add as many lines as needed · Shared staff appear above the lines')}</small><span role="status" data-org-line-status>${esc(notice|| (jobs.length?text('บันทึกในเครื่องแล้ว รอซิงก์','Saved locally, awaiting sync'):''))}</span></div>`;
+  return `<div class="production-line-controls no-print" data-i18n-ignore><label>${text('เลือกไลน์','Select line')}<select data-org-line-select>${['all',...lineIds(value),'unassigned'].map(id=>`<option value="${id}" ${selection(value)===id?'selected':''}>${esc(label(id,lang(),value))}</option>`).join('')}</select></label>${options.dedicated?'':`<button type="button" class="${isLineView(value)?'':'secondary'}" data-org-line-view aria-pressed="${isLineView(value)}">${text('จัดผังตามไลน์','Layout by line')}</button>`}${options.dedicated?`<button type="button" data-line-matrix="${esc(selection(value))}">${text('Skill Matrix ของไลน์นี้','Skill Matrix for this line')}</button>`:''}${admin()?`<button type="button" class="secondary" data-org-line-manage>${text('เพิ่ม / ตั้งชื่อไลน์','Add / name lines')}</button><button type="button" class="secondary" data-org-line-settings>${text('จัดไลน์ / กำหนดพนักงาน','Assign sections / employees')}</button>`:''}<small>${text('เพิ่มไลน์ได้ตามต้องการ · พนักงานดูแลทุกไลน์แสดงแยกด้านบน','Add as many lines as needed · Shared staff appear above the lines')}</small><span role="status" data-org-line-status>${esc(notice|| (jobs.length?text('บันทึกในเครื่องแล้ว รอซิงก์','Saved locally, awaiting sync'):''))}</span></div>`;
  }
  function chartMarkup(list,descriptors,person,department,value=scope()){
   const data=record(value),selected=selection(value),groups=new Map();
@@ -55,7 +67,7 @@
    const groupDescriptors=[...descriptors];
    for(const employee of workers)if(!groupDescriptors.some(d=>sectionKey(d.section)===sectionKey(employee.section)))groupDescriptors.push({section:employee.section||'',title:employee.section||text('ไม่ระบุแผนก','No section'),sortingGroup:''});
    const sections=groupDescriptors.filter(d=>workers.some(e=>sectionKey(e.section)===sectionKey(d.section))||data.sections?.[sectionKey(d.section)]===id).map(d=>department(d,workers.filter(e=>sectionKey(e.section)===sectionKey(d.section)))).join('');
-   return `<section class="production-line-branch" data-production-line="${esc(id)}" data-i18n-ignore><div class="production-line-heading"><h3>${esc(label(id,lang(),value))}</h3><b data-line-headcount="${esc(id)}">${members.length} ${text('คน','employees')}</b></div>${managers.length?`<div class="production-line-managers people factory-people">${managers.map(person).join('')}</div>`:''}<div class="production-line-sections">${sections||(managers.length?'':`<p class="production-line-empty">${text('ยังไม่มีพนักงานในไลน์นี้ — กดจัดไลน์ / กำหนดพนักงาน','No employees assigned — use Assign sections / employees')}</p>`)}</div></section>`;
+   return `<section class="production-line-branch" data-production-line="${esc(id)}" data-i18n-ignore><div class="production-line-heading"><h3>${esc(label(id,lang(),value))}</h3><b data-line-headcount="${esc(id)}">${members.length} ${text('คน','employees')}</b>${window.PPMS_RUNTIME&&id!=='shared'?`<button type="button" class="secondary no-print" data-line-matrix="${esc(id)}">Skill Matrix</button>`:''}</div>${managers.length?`<div class="production-line-managers people factory-people">${managers.map(person).join('')}</div>`:''}<div class="production-line-sections">${sections||(managers.length?'':`<p class="production-line-empty">${text('ยังไม่มีพนักงานในไลน์นี้ — กดจัดไลน์ / กำหนดพนักงาน','No employees assigned — use Assign sections / employees')}</p>`)}</div></section>`;
   };
   const ids=selected==='all'?lineIds(value):[selected];
   return `<div class="production-lines-chart">${groups.has('shared')?`<div class="production-lines-shared">${render('shared')}</div>`:''}<div class="production-lines-grid">${ids.map(render).join('')}</div>${selected==='all'&&groups.has('unassigned')?render('unassigned'):''}</div>`;
@@ -134,7 +146,7 @@
   const apply=value=>{const before=JSON.stringify(record(captured));cache[key(captured)]=value||{};persist();if(before!==JSON.stringify(record(captured)))changed()};
   try{if(window.firebase?.apps?.length){const ref=firebase.database().ref('settings/productionLines/'+key(captured)),callback=snapshot=>apply(snapshot.val());ref.on('value',callback,()=>{});unsubscribe=()=>ref.off('value',callback)}else apply(await request(captured))}catch{}
  }
- document.addEventListener('change',event=>{if(!event.target.matches?.('[data-org-line-select]'))return;const value=event.target.value;if(!['all',...lineIds(),'unassigned'].includes(value))return;sessionStorage.setItem('ppms_org_line::'+key(scope()),value);document.activeElement?.blur();changed(true)});
+ document.addEventListener('change',event=>{if(!event.target.matches?.('[data-org-line-select]'))return;const value=event.target.value;if(!['all',...lineIds(),'unassigned'].includes(value))return;document.activeElement?.blur();select(value)});
  document.addEventListener('click',event=>{if(event.target.closest?.('[data-org-line-settings]'))open();if(event.target.closest?.('[data-org-line-manage]'))manage();if(event.target.closest?.('[data-org-line-view]')){sessionStorage.setItem(viewKey(scope()),isLineView()?'departments':'lines');document.activeElement?.blur();changed(true)}});
  window.addEventListener('ppms-organization-scope-changed',()=>{document.getElementById('productionLineDialog')?.remove();document.getElementById('productionLineNamesDialog')?.remove();void bindRemote()});
  window.addEventListener('online',()=>void sync());
@@ -142,5 +154,5 @@
  window.addEventListener('ppms-language-changed',()=>changed(true));
  window.addEventListener('storage',event=>{if([CACHE,OUTBOX].includes(event.key)){cache=read(CACHE,{});jobs=read(OUTBOX,[]);changed()}});
  const start=()=>{void bindRemote();void sync()};if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start,{once:true});else start();
- window.PPMSProductionLines={selection,filter,assignment,visibleSection,controlsMarkup,suffix,label,open,manage,lineIds,isLineView,chartMarkup,saveAssignments,sync,record,key,sectionKey,personKey,get pending(){return jobs.slice()}};
+ window.PPMSProductionLines={selection,select,filter,filterMembers,matrixControlsMarkup,assignment,visibleSection,controlsMarkup,suffix,label,open,manage,lineIds,isLineView,chartMarkup,saveAssignments,sync,record,key,sectionKey,personKey,get pending(){return jobs.slice()}};
 })();

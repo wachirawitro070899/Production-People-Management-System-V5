@@ -23,7 +23,8 @@
   });
   const section=document.getElementById('matrixSection')?.value||'',groupValue=document.getElementById('matrixSortingGroup')?.value||'',group=groupValue==='__UNASSIGNED__'?'ยังไม่ระบุ Sorting 1 / 2':groupValue;
   const date=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Bangkok',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
-  return {section,group,title:section+(group?' · '+group:''),skills,rows,date,documentNo:'JR-HR-SM-001',revision:'00',logo:document.querySelector('header .logo img')?.src||'',ranges:ranges(skills.length)};
+  const line=window.PPMSProductionLines?.selection(ctx.scope)||'all',lineLabel=line==='all'?'':window.PPMSProductionLines.label(line,undefined,ctx.scope);
+  return {section,group,line,title:section+(group?' · '+group:'')+(lineLabel?' — '+lineLabel:''),skills,rows,date,documentNo:'JR-HR-SM-001',revision:'00',logo:document.querySelector('header .logo img')?.src||'',ranges:ranges(skills.length)};
  }
  function paginate(rows,opt){
   const capacity=Math.max(1,Math.floor((opt.h-12-76)/13)),pages=[];

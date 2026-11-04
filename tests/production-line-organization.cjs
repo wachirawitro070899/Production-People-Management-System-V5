@@ -85,6 +85,45 @@ function row(w,path,value){const select=Array.from(w.document.querySelectorAll('
   w.document.querySelector('[data-org-line-view]').click();await wait(100);assert.equal(w.document.querySelector('.division-org').dataset.organizationMode,'departments');
   assert.deepEqual(ids(w),['M','S1','X']);
   console.log('PASS add/name eight lines, grouping, split assignments, no duplicate people, scoped persistence, print counts, deletion guards and view toggle');
+  // A separate page always groups lines without changing the dashboard view mode.
+  await nav(w,'lineOrganization');assert.equal(w.sessionStorage.getItem('ppms_admin_page_v906'),'lineOrganization');
+  assert.equal(w.document.querySelector('.division-org').dataset.organizationMode,'lines');
+  assert(!w.document.querySelector('#organizationStructureView'));assert(!w.document.querySelector('[data-org-line-view]'));
+  await line(w,'all');assert.equal(w.document.querySelectorAll('.production-lines-chart .person[data-edit]').length,7);
+  assert(w.document.querySelector('[data-org-line-settings]'));
+  let lineExport;w.PPMSOrganizationExcel.download=data=>{lineExport=data};
+  w.document.querySelector('[data-action="pageExcel"]').click();await wait(10);assert.equal(lineExport.list.length,7);
+  await nav(w,'dashboard');assert.equal(w.document.querySelector('.division-org').dataset.organizationMode,'departments');
+  await nav(w,'lineOrganization');await line(w,'8');
+  w.document.querySelector('.production-line-controls [data-line-matrix]').click();await wait(180);
+  assert(w.document.querySelector('#nav [data-page="matrix"].active'));
+  const matrixIds=()=>Array.from(w.PPMSMatrixReport.snapshot().rows,r=>r.id).sort();
+  assert.deepEqual(matrixIds(),['S1']);assert(w.PPMSMatrixReport.snapshot().title.endsWith('Assembly & Packing'));
+  assert.deepEqual(Array.from(w.document.querySelector('#matrixSection').options,o=>o.value),['Stamping Section']);
+  assert(!matrixIds().includes('M')&&!matrixIds().includes('X'),'Shared staff stay outside member-only matrices');
+  w.document.querySelector('[data-action="bulkSkills"]').click();await wait(20);
+  assert.deepEqual(Array.from(w.document.querySelectorAll('[name="bulkEmployee"]'),n=>n.value),['S1']);
+  w.document.querySelector('#modal [data-action="close"]').click();w.document.activeElement?.blur();
+  // Reports take their rows from the filtered matrix and retain the line name.
+  const model=w.PPMSMatrixReport.snapshot(),paper=w.PPMSMatrixReport.options('A4','landscape');
+  const pages=w.PPMSMatrixReport.makePages(model,paper);assert(pages.includes('Assembly &amp; Packing'));assert(pages.includes('data-matrix-doc-employee="S1"'));assert(!pages.includes('data-matrix-doc-employee="S2"'));
+  w.eval(fs.readFileSync('vendor/exceljs-4.4.0.min.js','utf8'));const book=await w.PPMSMatrixReport.workbook(model,paper);
+  const cells=[];book.worksheets[0].eachRow(row=>row.eachCell(cell=>cells.push(cell.value)));
+  assert(cells.includes('S1'));assert(!cells.includes('S2'));assert(cells.some(c=>typeof c==='string'&&c.includes('Assembly & Packing')));
+  await line(w,'6');assert.deepEqual(matrixIds(),['S2']);
+  // Changing assignments immediately rebuilds both the matrix and its section list.
+  api.saveAssignments({['employees/'+api.personKey('W1')]:'6'},scope);await wait(100);
+  assert.deepEqual(Array.from(w.document.querySelector('#matrixSection').options,o=>o.value),['Stamping Section','Welding Section']);
+  const ms=w.document.querySelector('#matrixSection');ms.value='Welding Section';ms.dispatchEvent(new w.Event('change',{bubbles:true}));await wait(100);assert.deepEqual(matrixIds(),['W1']);
+  api.saveAssignments({['employees/'+api.personKey('W1')]:'8'},scope);await wait(100);assert.deepEqual(matrixIds(),['S2']);
+  await line(w,'5');assert.deepEqual(matrixIds(),[]);assert(w.PPMSMatrixReport.snapshot().title.endsWith('Line 5'));
+  await line(w,'unassigned');assert.deepEqual(matrixIds(),['U']);
+  await line(w,'all');assert(!w.PPMSMatrixReport.snapshot().title.includes(' — '));
+  await nav(w,'search');assert.equal(w.getAppHealth().employees,employees.length);
+  await nav(w,'lineOrganization');await select(w,divisions[0],'โรง 2');assert.equal(api.selection(),'all');assert.deepEqual(ids(w),['P2']);
+  await select(w,divisions[1]);assert(!w.document.querySelector('.production-lines-chart'));assert(!w.document.querySelector('.page-error'));
+  await select(w,divisions[0],'โรง 1');
+  console.log('PASS dedicated line page, member-only matrices, scoped section choices, bulk skill roster, filtered A4/XLSX reports, live reassignment, empty lines and plant/division isolation');
   w.sessionStorage.removeItem('ppms_admin');assert.throws(()=>api.saveAssignments({['employees/'+api.personKey('U')]:'3'},scope));assert(!api.controlsMarkup(scope).includes('data-org-line-settings'));
   assert.deepEqual(run.errors,[],run.errors.join('\n'));console.log('PASS line/section assignments, split sections, shared staff, counts, PDF context, Excel, scope isolation, unrelated pages, translations, queued retry, inherited assignments and write permissions');
  }finally{w.close()}
@@ -92,4 +131,16 @@ function row(w,path,value){const select=Array.from(w.document.querySelectorAll('
   const {w}=standalone,api=w.PPMSProductionLines,scope={division:divisions[0],plant:'โรง 1'};
   api.saveAssignments({'lines/7':{name:'Line Seven'},['sections/'+api.sectionKey('Stamping Section')]:'1',['employees/'+api.personKey('S2')]:'2'},scope);await wait(80);await line(w,'2');assert.deepEqual(ids(w),['M','S2']);assert(w.document.querySelector('header h1').textContent.endsWith('ไลน์ 2'));assert.equal(w.PPMSOrgPoster.context().counts.total,2);w.document.querySelector('[data-org-line-view]').click();await wait(80);assert(w.document.querySelector('.production-lines-chart'));await line(w,'all');assert(w.document.querySelector('[data-production-line=\"7\"]'));assert.equal(w.PPMSOrgPoster.context().counts.total,7);assert.deepEqual(standalone.errors,[]);console.log('PASS standalone factory line selector, split assignment, title and print summary');
  }finally{standalone.w.close()}
+ // Sorting's original skill groups remain separate within each line.
+ employees.push(employee('SORT1',divisions[0],'โรง 1','Sorting 1'),employee('SORT2',divisions[0],'โรง 1','Sorting 2'));
+ const fallback=await setup('404.html');try{
+  const {w}=fallback,api=w.PPMSProductionLines,sc={division:divisions[0],plant:'โรง 1'};
+  api.saveAssignments({['employees/'+api.personKey('SORT1')]:'1',['employees/'+api.personKey('SORT2')]:'2'},sc);await wait(80);
+  await nav(w,'lineOrganization');w.document.querySelector('[data-production-line="1"] [data-line-matrix]').click();await wait(100);
+  assert.equal(w.document.querySelector('#matrixSortingGroup').value,'Sorting 1');assert.deepEqual(Array.from(w.PPMSMatrixReport.snapshot().rows,r=>r.id),['SORT1']);
+  await line(w,'2');assert.equal(w.document.querySelector('#matrixSortingGroup').value,'Sorting 2');assert.deepEqual(Array.from(w.PPMSMatrixReport.snapshot().rows,r=>r.id),['SORT2']);
+  assert(w.document.querySelector('#nav [data-page="lineOrganization"]').textContent.includes('ผังองค์กรตามไลน์'));
+  w.PPMSLanguage.setLanguage('en');await wait(80);assert.equal(w.document.querySelector('#nav [data-page="lineOrganization"]').textContent,'Line Organization');
+  assert.deepEqual(fallback.errors,[]);console.log('PASS 404 entry point, original Sorting skill groups, automatic group selection by line and bilingual navigation');
+ }finally{fallback.w.close()}
 })().catch(error=>{console.error(error);process.exitCode=1});
