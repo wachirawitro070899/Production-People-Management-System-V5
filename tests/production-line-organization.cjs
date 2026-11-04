@@ -31,7 +31,7 @@ async function exportText(w,downloads,action,scopeIds){const b=w.document.queryS
 const ids=w=>Array.from(new Set(Array.from(w.document.querySelectorAll('.division-org:not(.employee-history-report) .person[data-edit],#factoryDivisionChartDetail .factory-chart-person[data-edit]'),n=>n.dataset.edit))).sort();
 async function line(w,value){const select=w.document.querySelector('[data-org-line-select]');assert(select,'Line selector exists');select.value=value;select.dispatchEvent(new w.Event('change',{bubbles:true}));await wait(140);assert(!w.document.querySelector('.page-error'))}
 function row(w,path,value){const select=Array.from(w.document.querySelectorAll('#productionLineDialog [data-line-path]')).find(n=>n.dataset.linePath===path);assert(select,path);select.value=value}
-(async()=>{
+if(require.main===module)(async()=>{
  const run=await setup('index.html'),{w,writes}=run;
  try{
   await nav(w,'dashboard');assert.deepEqual(ids(w),['C1','M','S1','S2','U','W1','X']);
@@ -86,7 +86,7 @@ function row(w,path,value){const select=Array.from(w.document.querySelectorAll('
   assert.deepEqual(ids(w),['M','S1','X']);
   console.log('PASS add/name eight lines, grouping, split assignments, no duplicate people, scoped persistence, print counts, deletion guards and view toggle');
   // A separate page always groups lines without changing the dashboard view mode.
-  await nav(w,'lineOrganization');assert.equal(w.sessionStorage.getItem('ppms_admin_page_v906'),'lineOrganization');
+  w.PPMSLineBoard.setMode('report');await nav(w,'lineOrganization');assert.equal(w.sessionStorage.getItem('ppms_admin_page_v906'),'lineOrganization');
   assert.equal(w.document.querySelector('.division-org').dataset.organizationMode,'lines');
   assert(!w.document.querySelector('#organizationStructureView'));assert(!w.document.querySelector('[data-org-line-view]'));
   await line(w,'all');assert.equal(w.document.querySelectorAll('.production-lines-chart .person[data-edit]').length,7);
@@ -136,7 +136,7 @@ function row(w,path,value){const select=Array.from(w.document.querySelectorAll('
  const fallback=await setup('404.html');try{
   const {w}=fallback,api=w.PPMSProductionLines,sc={division:divisions[0],plant:'โรง 1'};
   api.saveAssignments({['employees/'+api.personKey('SORT1')]:'1',['employees/'+api.personKey('SORT2')]:'2'},sc);await wait(80);
-  await nav(w,'lineOrganization');w.document.querySelector('[data-production-line="1"] [data-line-matrix]').click();await wait(100);
+  w.PPMSLineBoard.setMode('report');await nav(w,'lineOrganization');w.document.querySelector('[data-production-line="1"] [data-line-matrix]').click();await wait(100);
   assert.equal(w.document.querySelector('#matrixSortingGroup').value,'Sorting 1');assert.deepEqual(Array.from(w.PPMSMatrixReport.snapshot().rows,r=>r.id),['SORT1']);
   await line(w,'2');assert.equal(w.document.querySelector('#matrixSortingGroup').value,'Sorting 2');assert.deepEqual(Array.from(w.PPMSMatrixReport.snapshot().rows,r=>r.id),['SORT2']);
   assert(w.document.querySelector('#nav [data-page="lineOrganization"]').textContent.includes('ผังองค์กรตามไลน์'));
@@ -144,3 +144,5 @@ function row(w,path,value){const select=Array.from(w.document.querySelectorAll('
   assert.deepEqual(fallback.errors,[]);console.log('PASS 404 entry point, original Sorting skill groups, automatic group selection by line and bilingual navigation');
  }finally{fallback.w.close()}
 })().catch(error=>{console.error(error);process.exitCode=1});
+
+module.exports={setup,nav,select,line,employees,divisions,employee};

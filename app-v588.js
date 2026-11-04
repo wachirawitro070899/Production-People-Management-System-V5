@@ -1644,6 +1644,7 @@ function orgShiftLevels(list,shiftKey,isActive){
 }
 function lineOrganizationPage(){
  if(organizationScope().division!=='Production Division')return head('Line Organization','เลือก Production Division และโรงงานด้านบน เพื่อจัดผังและดู Skill Matrix ตามไลน์');
+ if(window.PPMSLineBoard?.active())return window.PPMSLineBoard.markup();
  return dashboard(false,true);
 }
 function dashboard(historyPage=false,byLine=false){
