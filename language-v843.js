@@ -5,6 +5,26 @@
  let language='th', scheduled=false, applying=false;
  try{language=localStorage.getItem(KEY)==='en'?'en':'th'}catch{}
  const dictionary=Object.fromEntries(`
+แผนเทรนนิ่งรายไตรมาส|Quarterly Training Plan
+หัวข้ออบรม Q1–Q4 แยกตาม Section|Q1–Q4 training topics by Section
+แผนการเทรนนิ่ง Q1–Q4|Q1–Q4 Training Plan
+อบรมก่อนสอบประจำไตรมาส|Train before the quarterly examination
+แผนแนะนำ · ยังไม่ได้บันทึก|Suggested plan · not saved yet
+กำหนดอบรม|Planned training date
+ยังไม่กำหนดวัน|Date not scheduled
+ผู้สอน / ผู้รับผิดชอบ|Trainer / responsible person
+ยังไม่ระบุ|Not specified
+กลุ่มเป้าหมาย|Target group
+พนักงานทุกคนใน Section|All employees in this Section
+สถานะแผน|Plan status
+กำลังดำเนินการ|In progress
+อบรมครบตามแผน|Training plan completed
+เลื่อนแผน|Postponed
+วิธีอบรม:|Training method:
+แก้ไขแผน Q1|Edit Q1 plan
+แก้ไขแผน Q2|Edit Q2 plan
+แก้ไขแผน Q3|Edit Q3 plan
+แก้ไขแผน Q4|Edit Q4 plan
 อบรมและใบเซอร์|Training & Certificates
 การอบรมและใบรับรอง|Training and certifications
 เพิ่มหลักสูตร / ใบเซอร์|Add course / certificate

@@ -4,13 +4,20 @@
   const RECORD_ROOT = 'ppmsTrainingImplementationRecords';
   const LOCAL_KEY = 'ppms_exam_plan_details_v592';
   const QUARTERS = ['Q1', 'Q2', 'Q3', 'Q4'];
-  const isAdmin = () => sessionStorage.getItem('ppms_admin') === '1';
+  const isAdmin = () => sessionStorage.getItem('ppms_admin') === '1' && window.PPMSAccess?.canEdit() !== false;
+  const planStates = {planned:'วางแผนอบรม',in_progress:'กำลังดำเนินการ',completed:'อบรมครบตามแผน',postponed:'เลื่อนแผน'};
   const esc = value => String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
   const lines = value => String(value || '').split(/\r?\n/).map(x => x.trim()).filter(Boolean);
   const safeKey = value => btoa(unescape(encodeURIComponent(String(value)))).replace(/=+$/,'').replace(/\+/g,'-').replace(/\//g,'_');
 
   function sectionFocus(section) {
     const s = String(section || '').toLowerCase();
+    if (/mold|mould|แม่พิมพ์/.test(s)) return 'การตรวจสภาพแม่พิมพ์ — ตรวจผิว จุดสึก และจุดเสียหายตามมาตรฐานงาน\nแผน PM แม่พิมพ์ — จุดตรวจ ความถี่ ผู้รับผิดชอบ และประวัติการซ่อม\nDrawing และชิ้นส่วนอะไหล่ — ตรวจ Revision และ Part No. ก่อนเปลี่ยน\nการยืนยันหลังซ่อม — ทดลองและส่งตรวจชิ้นงานก่อนส่งมอบแม่พิมพ์\nการบันทึกประวัติ — ระบุปัญหา วิธีแก้ อะไหล่ และผลตรวจยืนยัน';
+    if (/smelt|หลอม/.test(s)) return 'มาตรฐานงานหลอม — ชนิดวัตถุดิบ เงื่อนไขกระบวนการ และ WI ที่ใช้\nการตรวจวัตถุดิบ — ตรวจชนิด Lot และการป้องกันวัสดุปะปน\nการควบคุมคุณภาพโลหะ — จุดตรวจและเกณฑ์ยอมรับตามมาตรฐาน\nเครื่องมือและอุปกรณ์ — ตรวจสภาพตามรายการตรวจประจำงาน\nการบันทึกและสอบย้อนกลับ — เชื่อมโยงวัตถุดิบ Batch และผลตรวจ';
+    if (/die.?cast|หล่อ/.test(s)) return 'WI งาน Die Casting — ลำดับงานและจุดควบคุมเฉพาะ Part\nParameter งานหล่อ — ตรวจค่าตามมาตรฐานและเงื่อนไขการเปลี่ยนค่า\nการตรวจแม่พิมพ์และเครื่องจักร — ตรวจความพร้อมก่อนเริ่มงาน\nDefect งานหล่อ — เปรียบเทียบตัวอย่างและเกณฑ์ Porosity, Crack, Flash และ Short Shot\nFirst Piece และ Traceability — ตรวจยืนยันชิ้นแรกและบันทึก Lot การผลิต';
+    if (/polish|shot.?blast|x.?ray|ขัด/.test(s)) return 'มาตรฐานกระบวนการ — เลือก WI และเงื่อนไขให้ตรงกับงานขัด Shot Blasting หรือ X-Ray\nการเตรียมเครื่องและอุปกรณ์ — ตรวจความพร้อมและวัสดุสิ้นเปลืองตามหน้าที่\nDefect Criteria — ตรวจผิว Burr, Scratch และความผิดปกติตาม Q-Point\nการตรวจยืนยัน — ใช้วิธีและเกณฑ์ตรวจที่ได้รับอนุมัติสำหรับแต่ละกระบวนการ\nการควบคุม Lot — แยกสถานะก่อนและหลังทำงานพร้อมบันทึกผล';
+    if (/warehouse|\bwh\b|คลัง/.test(s)) return 'การรับเข้าและจัดเก็บ — ตรวจ Part No. Lot จำนวน และตำแหน่งจัดเก็บ\nFIFO / FEFO — จ่ายสินค้าตามลำดับและข้อกำหนดที่เกี่ยวข้อง\nLabel และ Traceability — ตรวจป้ายและเชื่อมโยงประวัติรับจ่าย\nStock Accuracy — ตรวจนับและจัดการผลต่างตามขั้นตอน\nการควบคุม NG — แยกกัก ติดป้าย และป้องกันจ่ายของผิดสถานะ';
+    if (/quality|\bqc\b|\bqa\b|คุณภาพ/.test(s)) return 'Drawing และ Q-Point — ตรวจ Revision จุดตรวจ และเกณฑ์ยอมรับ\nเครื่องมือวัด — เลือกเครื่องมือและตรวจสถานะสอบเทียบก่อนใช้\nDefect Criteria — ฝึกตัดสิน Sample OK/NG ตามเกณฑ์อนุมัติ\nInspection Record — บันทึกผลตรวจและข้อมูลสอบย้อนกลับ\nการควบคุมงานไม่เป็นไปตามข้อกำหนด — แยกกัก แจ้งปัญหา และตรวจยืนยันผลแก้ไข';
     if (s.includes('stamping')) return 'Safety เครื่องปั๊ม — จุดอันตรายของ Die, Flywheel, Feeding และวิธีหยุดเครื่องฉุกเฉิน\nWI และ Q-Point งานปั๊ม — ลำดับการทำงาน จุดตรวจสำคัญ ความถี่ตรวจ และค่ามาตรฐานของ Part\nการตั้งเครื่องและ Parameter — วิธีตรวจ Die, Material, Feeder, Counter และค่าที่อนุญาตก่อนเริ่มผลิต\nFirst Piece Inspection — ตรวจชิ้นแรกตาม Drawing/Q-Point บันทึกผล และรออนุมัติก่อนผลิตต่อ\nDefect งานปั๊ม — วิธีแยก Crack, Burr, Dent, Dimension NG พร้อมการติดป้ายและกักงาน';
     if (s.includes('welding')) return 'Safety งานเชื่อม — อันตรายจากไฟฟ้า สะเก็ดไฟ ความร้อน ควันเชื่อม PPE และ Emergency Stop\nWI และ Welding Parameter — วิธีตรวจ Current, Time, Pressure และเงื่อนไขก่อนเริ่มงาน\nการตรวจจุดเชื่อม — ตำแหน่งและจำนวนจุดเชื่อม ลักษณะรอยเชื่อม และ Carbon Paper Test\nการควบคุม Electrode — การตรวจสภาพหัวเชื่อม การเจียร การเปลี่ยน และการบันทึกอายุการใช้งาน\nDefect งานเชื่อม — Missing Weld, Weak Weld, Burn, Spatter, Deformation และวิธีกักงาน NG';
     if (s.includes('sorting')) return 'Safety พื้นที่ Sorting — การจัดโต๊ะ แสงสว่าง PPE และการป้องกัน Part ปะปน\nVisual Inspection ตาม Q-Point — ตำแหน่งตรวจ วิธีจับชิ้นงาน ระยะมอง และลำดับการตรวจครบทุกจุด\nDefect Criteria — เปรียบเทียบ Sample OK/NG และเกณฑ์ Scratch, Dent, Crack, Burr, Rust และงานประกอบผิด\nMeasurement — เลือกและใช้เครื่องมือวัดให้เหมาะกับจุดตรวจ พร้อมตรวจ Zero ก่อนใช้งาน\nTraceability และ Packing — ควบคุม Lot, Label, จำนวนบรรจุ และป้องกัน Part ต่างรุ่นปะปน';
@@ -73,30 +80,36 @@
   function context() {
     const section = document.querySelector('#examPlanSection')?.value || '';
     const year = Number(document.querySelector('#examPlanYear')?.value || new Date().getFullYear());
-    return { section, year, key: year + '__' + safeKey(section) };
+    const scope = window.PPMSOrganizationScope?.current() || {division:'Production Division',plant:'โรง 1'};
+    const sectionKey = scope.division === 'Production Division' && scope.plant === 'โรง 1' ? safeKey(section) : 'scope_' + safeKey(scope.division + '::' + scope.plant + '::' + section);
+    return { section, year, sectionKey, scope, key: year + '__' + sectionKey };
   }
   async function readPlan(ctx) {
     const fallback = localRead(ctx.key) || defaults(ctx.section);
     if (!dbReady()) return fallback;
     try {
-      const snap = await ensureFirebase().ref(ROOT + '/' + ctx.year + '/' + safeKey(ctx.section)).once('value');
+      const snap = await ensureFirebase().ref(ROOT + '/' + ctx.year + '/' + ctx.sectionKey).once('value');
       const cloud = snap.val();
-      if (cloud) { localWrite(ctx.key, cloud); return {...fallback, ...cloud}; }
+      if (cloud) { const plan = {...defaults(ctx.section), ...cloud}; QUARTERS.forEach(q => { if (cloud[q]) plan[q] = {...cloud[q], _saved:true}; }); try { localWrite(ctx.key, plan); } catch (_) {} return plan; }
     } catch (error) { console.warn('Exam plan detail read failed', error); }
     return fallback;
   }
-  async function savePlan(ctx, plan) {
-    localWrite(ctx.key, plan);
-    if (!dbReady()) throw new Error('Firebase ยังไม่พร้อม');
-    await ensureFirebase().ref(ROOT + '/' + ctx.year + '/' + safeKey(ctx.section)).set({
-      ...plan,
-      section: ctx.section,
-      year: ctx.year,
-      updatedAt: firebase.database.ServerValue.TIMESTAMP
+  const canonical = value => JSON.stringify(value && typeof value === 'object' ? Object.fromEntries(Object.keys(value).sort().map(key => [key, value[key]])) : value);
+  async function savePlan(ctx, plan, q, expected) {
+    if (!isAdmin()) throw new Error('บัญชีนี้ไม่มีสิทธิ์แก้ไขแผน');
+    if (!dbReady() || navigator.onLine === false) throw new Error('กรุณาเชื่อมต่ออินเทอร์เน็ตก่อนบันทึกแผน');
+    const next = {...plan[q], updatedAt:new Date().toISOString()}; delete next._saved;
+    let matched = false;
+    const result = await ensureFirebase().ref(ROOT + '/' + ctx.year + '/' + ctx.sectionKey + '/' + q).transaction(current => {
+      matched = canonical(current || null) === canonical(expected || null);
+      return matched ? next : current; // A cold SDK cache may start at null; let the server retry without changing data.
     });
+    if (!result.committed || !matched) throw new Error('แผนถูกแก้ไขจากเครื่องอื่น กรุณาปิดแล้วเปิดแผนใหม่');
+    plan[q] = {...next, _saved:true};
+    try { localWrite(ctx.key, plan); } catch (_) {}
   }
   function recordKey(ctx, q, topicIndex) {
-    return ctx.year + '__' + safeKey(ctx.section) + '__' + q + '__' + topicIndex;
+    return ctx.year + '__' + ctx.sectionKey + '__' + q + '__' + topicIndex;
   }
   async function readTrainingRecord(ctx, q, topicIndex) {
     const key = recordKey(ctx, q, topicIndex);
@@ -104,17 +117,18 @@
     try { local = JSON.parse(localStorage.getItem(RECORD_ROOT + '__' + key) || 'null'); } catch (_) {}
     if (!dbReady()) return local;
     try {
-      const snap = await ensureFirebase().ref(RECORD_ROOT + '/' + ctx.year + '/' + safeKey(ctx.section) + '/' + q + '/' + topicIndex).once('value');
+      const snap = await ensureFirebase().ref(RECORD_ROOT + '/' + ctx.year + '/' + ctx.sectionKey + '/' + q + '/' + topicIndex).once('value');
       const cloud = snap.val();
       if (cloud) localStorage.setItem(RECORD_ROOT + '__' + key, JSON.stringify(cloud));
       return cloud || local;
     } catch (error) { console.warn('Training record read failed', error); return local; }
   }
   async function saveTrainingRecord(ctx, q, topicIndex, record) {
+    if (!isAdmin()) throw new Error('บัญชีนี้ไม่มีสิทธิ์บันทึกผลการอบรม');
     const key = recordKey(ctx, q, topicIndex);
-    localStorage.setItem(RECORD_ROOT + '__' + key, JSON.stringify(record));
     if (!dbReady()) throw new Error('Firebase ยังไม่พร้อม');
-    await ensureFirebase().ref(RECORD_ROOT + '/' + ctx.year + '/' + safeKey(ctx.section) + '/' + q + '/' + topicIndex).set(record);
+    await ensureFirebase().ref(RECORD_ROOT + '/' + ctx.year + '/' + ctx.sectionKey + '/' + q + '/' + topicIndex).set(record);
+    localStorage.setItem(RECORD_ROOT + '__' + key, JSON.stringify(record));
   }
   function readEvidenceFile(file) {
     return new Promise((resolve, reject) => {
@@ -143,22 +157,22 @@
       '<button type="button" class="exam-training-topic" data-training-topic="' + item.index + '"><span><b>' + esc(item.title) + '</b><small>' + esc(item.detail) + '</small></span><strong>ดูรายละเอียด ›</strong></button>'
     ).join('') + '</div>' : '<p class="exam-detail-empty">ยังไม่กำหนด</p>';
   }
+  function planMeta(data) {
+    return '<dl class="training-plan-meta"><div><dt>กำหนดอบรม</dt><dd>' + esc(data.plannedDate || 'ยังไม่กำหนดวัน') + '</dd></div><div><dt>ผู้สอน / ผู้รับผิดชอบ</dt><dd>' + esc(data.trainer || 'ยังไม่ระบุ') + '</dd></div><div><dt>กลุ่มเป้าหมาย</dt><dd>' + esc(data.targetGroup || 'พนักงานทุกคนใน Section') + '</dd></div></dl>';
+  }
   function cardHtml(q, data) {
-    const trainingCount = lines(data.training).length;
-    const examCount = lines(data.exam).length;
-    return '<article class="exam-detail-card exam-detail-card-clickable" data-exam-detail-view="' + q + '" tabindex="0" role="button" aria-label="ดูรายละเอียด ' + q + '">' +
-      '<div class="exam-detail-head"><h4>' + q + '</h4><span class="exam-quarter-badge">กดดูรายละเอียด</span></div>' +
-      '<div class="exam-detail-summary training"><b>📘 Training</b><strong>' + trainingCount + '</strong><small>หัวข้อพร้อมรายละเอียด</small></div>' +
-      '<div class="exam-detail-summary exam"><b>📝 Examination</b><strong>' + examCount + '</strong><small>หัวข้อสอบประจำ Quarter</small></div>' +
-      '<p class="exam-detail-method"><b>วิธีดำเนินการ:</b> ' + esc(data.method || '-') + '</p>' +
-      '<button type="button" class="exam-detail-view-button" data-exam-detail-view="' + q + '">ดูรายละเอียด ' + q + '</button></article>';
+    const months = {Q1:'ม.ค.–มี.ค.',Q2:'เม.ย.–มิ.ย.',Q3:'ก.ค.–ก.ย.',Q4:'ต.ค.–ธ.ค.'};
+    return '<article class="exam-detail-card" data-training-quarter="' + q + '"><div class="exam-detail-head"><h4>' + q + '</h4><span>' + months[q] + '</span></div>' +
+      '<p class="training-plan-state">' + (data._saved ? esc(planStates[data.planStatus] || planStates.planned) : 'แผนแนะนำ · ยังไม่ได้บันทึก') + '</p>' +
+      '<h5>หัวข้อการเทรนนิ่ง (' + trainingItems(data.training).length + ')</h5><ol class="training-plan-topics">' + trainingItems(data.training).map(item => '<li><button type="button" data-plan-topic="' + item.index + '" data-quarter="' + q + '">' + esc(item.title) + '</button></li>').join('') + '</ol>' +
+      planMeta(data) + '<p><b>วิธีอบรม:</b> ' + esc(data.method || '-') + '</p><div class="actions no-print"><button type="button" class="exam-detail-view-button" data-exam-detail-view="' + q + '">ดูรายละเอียด ' + q + '</button>' + (isAdmin() ? '<button type="button" class="secondary" data-plan-edit="' + q + '">แก้ไขแผน ' + q + '</button>' : '') + '</div></article>';
   }
   async function enhance() {
     const select = document.querySelector('#examPlanSection');
     const title = document.querySelector('#app .page-head h2, #app .page-head h1, #app h2, #app h1');
-    if (!select || !title || !/Examination Plan/i.test(title.textContent || '')) return;
+    if (!select || !title) return;
     const ctx = context();
-    const signature = ctx.key + '__' + (isAdmin() ? 'admin' : 'user');
+    const signature = ctx.scope.division + ctx.scope.plant + ctx.key + '__' + (isAdmin() ? 'admin' : 'user');
     const existing = document.querySelector('#examPlanDetailsV592');
     if (existing?.dataset.signature === signature) return;
     if (existing) existing.remove();
@@ -168,12 +182,14 @@
     host.className = 'panel exam-plan-details-v592';
     host.innerHTML = '<h3>แผนการอบรมและการสอบ Q1–Q4</h3><p class="modal-note">กำลังโหลดรายละเอียดแผน...</p>';
     const controls = document.querySelector('.exam-plan-controls');
-    (controls?.nextElementSibling || controls || select.closest('.panel'))?.before(host);
+    controls?.after(host);
     const plan = await readPlan(ctx);
     if (!document.body.contains(host)) return;
-    host.innerHTML = '<div class="exam-detail-title"><div><h3>แผนการอบรมและการสอบ Q1–Q4</h3><p>' +
-      esc(ctx.section) + ' • ปี ' + esc(ctx.year) + '</p></div><span>Training ก่อนสอบทุก Quarter</span></div>' +
+    host.innerHTML = '<div class="exam-detail-title"><div><h3>แผนการเทรนนิ่ง Q1–Q4</h3><p>' +
+      esc(ctx.section) + ' • ปี ' + esc(ctx.year) + '</p></div><span>อบรมก่อนสอบประจำไตรมาส</span></div><p class="modal-note">หัวข้อแนะนำสามารถปรับให้ตรงกับงานจริงของ Section · กดชื่อหัวข้อเพื่อดูเนื้อหาและแบบฟอร์มอบรม</p>' +
       '<div class="exam-detail-grid">' + QUARTERS.map(q => cardHtml(q, plan[q] || defaults(ctx.section)[q])).join('') + '</div>';
+    host.querySelectorAll('[data-plan-topic]').forEach(button => { button.onclick = () => openTrainingTopic(ctx, button.dataset.quarter, plan[button.dataset.quarter], Number(button.dataset.planTopic)); });
+    host.querySelectorAll('[data-plan-edit]').forEach(button => { button.onclick = () => openEditor(ctx, plan, button.dataset.planEdit); });
     host.querySelectorAll('[data-exam-detail-view]').forEach(element => {
       element.onclick = event => {
         event.stopPropagation();
@@ -195,7 +211,7 @@
       '<div class="exam-viewer-head"><div><span class="exam-viewer-quarter">' + q + '</span><h2>รายละเอียด Training & Examination</h2><p>' + esc(ctx.section) + ' • ปี ' + esc(ctx.year) + '</p></div><button type="button" class="secondary" data-close>ปิด</button></div>' +
       '<div class="exam-viewer-section training"><h3>📘 หัวข้อการเทรนนิ่ง</h3><p class="exam-topic-hint">กดหัวข้อเพื่อดูรายละเอียดว่าอบรมอะไรและฝึกอย่างไร</p>' + trainingTopicHtml(current.training) + '</div>' +
       '<div class="exam-viewer-section exam"><h3>📝 หัวข้อ Examination</h3>' + listHtml(current.exam) + '</div>' +
-      '<div class="exam-viewer-meta"><p><b>วิธีดำเนินการ:</b> ' + esc(current.method || '-') + '</p><p><b>เกณฑ์ผ่าน:</b> ' + esc(current.criteria || '-') + '</p></div>' +
+      planMeta(current) + '<div class="exam-viewer-meta"><p><b>วิธีดำเนินการ:</b> ' + esc(current.method || '-') + '</p><p><b>เกณฑ์ผ่าน:</b> ' + esc(current.criteria || '-') + '</p></div>' +
       (isAdmin() ? '<div class="actions"><button type="button" data-edit>แก้ไขรายละเอียด ' + q + '</button></div>' : '') + '</section>';
     overlay.querySelector('[data-close]').onclick = () => overlay.remove();
     overlay.onclick = event => { if (event.target === overlay) overlay.remove(); };
@@ -227,7 +243,7 @@
     const recordPanel = overlay.querySelector('[data-record-panel]');
     const printButton = overlay.querySelector('[data-print-training]');
     readTrainingRecord(ctx, q, index).then(value => {
-      record = value;
+      record = value?.topic === item.title ? value : null;
       if (!document.body.contains(overlay)) return;
       if (record) {
         const evidence = Array.isArray(record.evidence) ? record.evidence : [];
@@ -237,6 +253,7 @@
         recordPanel.innerHTML = '<h3>📋 แบบฟอร์มและหลักฐานการอบรม</h3><div class="training-record-status"><b>ยังไม่ได้บันทึกผลการอบรม</b><span>กรอกรายละเอียดก่อนพิมพ์แบบฟอร์มไปใช้เทรนนิ่ง</span></div>';
       }
     });
+    if (!isAdmin()) overlay.querySelector('[data-training-form]').hidden = true;
     overlay.querySelector('[data-training-form]').onclick = () => openTrainingRecordEditor(ctx, q, quarter, index, item, record, value => {
       record = value;
       overlay.remove();
@@ -318,10 +335,16 @@
     document.body.appendChild(overlay);
   }
   function openEditor(ctx, plan, q) {
+    if (!isAdmin()) return;
     const current = plan[q] || defaults(ctx.section)[q];
+    const expected = current._saved ? {...current} : null; if (expected) delete expected._saved;
     const overlay = document.createElement('div');
     overlay.className = 'exam-detail-overlay';
     overlay.innerHTML = '<form class="exam-detail-editor"><h2>' + q + ' · ' + esc(ctx.section) + '</h2>' +
+      '<label>กำหนดอบรม<input name="plannedDate" type="date" value="' + esc(current.plannedDate || '') + '"></label>' +
+      '<label>ผู้สอน / ผู้รับผิดชอบ<input name="trainer" maxlength="180" value="' + esc(current.trainer || '') + '"></label>' +
+      '<label>กลุ่มเป้าหมาย<input name="targetGroup" maxlength="300" value="' + esc(current.targetGroup || 'พนักงานทุกคนใน Section') + '"></label>' +
+      '<label>สถานะแผน<select name="planStatus">' + Object.entries(planStates).map(([key,label]) => '<option value="' + key + '" ' + (key === (current.planStatus || 'planned') ? 'selected' : '') + '>' + label + '</option>').join('') + '</select></label>' +
       '<label>หัวข้อและรายละเอียด Training (1 บรรทัดต่อ 1 หัวข้อ พร้อมอธิบายสิ่งที่ต้องสอน)<textarea name="training" rows="7" required>' + esc(current.training) + '</textarea></label>' +
       '<label>หัวข้อ Examination (1 บรรทัดต่อ 1 หัวข้อ)<textarea name="exam" rows="7" required>' + esc(current.exam) + '</textarea></label>' +
       '<label>วิธีดำเนินการ<input name="method" value="' + esc(current.method) + '" required></label>' +
@@ -335,13 +358,17 @@
       submit.disabled = true;
       try {
         const fd = new FormData(form);
-        plan[q] = {
+        const date = String(fd.get('plannedDate') || '');
+        const quarterIndex = QUARTERS.indexOf(q);
+        if (date && (Number(date.slice(0,4)) !== ctx.year || Math.floor((Number(date.slice(5,7))-1)/3) !== quarterIndex)) throw new Error('วันอบรมต้องอยู่ใน ' + q + ' ปี ' + ctx.year);
+        const draft = {...plan, [q]: {
+          plannedDate:date, trainer:String(fd.get('trainer') || '').trim(), targetGroup:String(fd.get('targetGroup') || '').trim(), planStatus:String(fd.get('planStatus') || 'planned'),
           training: String(fd.get('training') || '').trim(),
           exam: String(fd.get('exam') || '').trim(),
           method: String(fd.get('method') || '').trim(),
           criteria: String(fd.get('criteria') || '').trim()
-        };
-        await savePlan(ctx, plan);
+        }};
+        await savePlan(ctx, draft, q, expected);
         overlay.remove();
         document.querySelector('#examPlanDetailsV592')?.remove();
         await enhance();
@@ -361,7 +388,9 @@
       .exam-plan-details-v592{margin:14px 0;border:1px solid #bfdbfe;background:#f8fbff}
       .exam-detail-title{display:flex;justify-content:space-between;gap:12px;align-items:center;margin-bottom:12px}
       .exam-detail-title h3,.exam-detail-title p{margin:0}.exam-detail-title span{background:#dbeafe;color:#1e3a8a;border-radius:999px;padding:7px 12px;font-weight:800}
-      .exam-detail-grid{display:grid;grid-template-columns:repeat(4,minmax(245px,1fr));gap:12px;overflow:auto;padding-bottom:4px}
+      .exam-detail-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;overflow:auto;padding-bottom:4px}
+      .training-plan-topics{margin:10px 0;padding-left:24px}.training-plan-topics li{padding:4px 0;color:#1d4ed8}.training-plan-topics button{background:transparent;border:0;box-shadow:none;text-align:left;padding:2px;color:#123c73;font-size:14px;line-height:1.5;text-decoration:underline;text-underline-offset:3px}.training-plan-topics button:hover{background:#eff6ff}.training-plan-state{background:#eff6ff;color:#1d4ed8;padding:7px 10px;border-radius:7px}.training-plan-meta{font-size:13px;border-top:1px solid #dbe3ef;padding-top:8px}.training-plan-meta div{display:grid;grid-template-columns:140px 1fr;gap:8px;margin:5px 0}.training-plan-meta dt{font-weight:700}.training-plan-meta dd{margin:0;overflow-wrap:anywhere}.exam-detail-card h5{font-size:15px;margin:12px 0 4px}.exam-detail-card .actions{flex-wrap:wrap}.exam-detail-card .exam-detail-view-button{width:auto;margin:0}
+      @media print{.exam-detail-card{break-inside:avoid;box-shadow:none}.training-plan-topics button{text-decoration:none;color:#111}.exam-detail-grid{display:block!important}.exam-detail-card{margin-bottom:10px}.training-plan-state{background:none}}
       .exam-detail-card{background:#fff;border:1px solid #dbe3ef;border-top:5px solid #2563eb;border-radius:12px;padding:13px;min-width:0}
       .exam-detail-head{display:flex;justify-content:space-between;align-items:center}.exam-detail-head h4{font-size:20px;margin:0;color:#123c73}.exam-detail-head button{padding:6px 10px;font-size:12px}
       .exam-detail-block{margin:10px 0;padding:10px;border-radius:9px}.exam-detail-block.training{background:#eff6ff}.exam-detail-block.exam{background:#fff7ed}
@@ -382,7 +411,7 @@
       .exam-viewer-meta{background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:12px 16px}.exam-viewer-meta p{margin:7px 0}
       .exam-detail-overlay{position:fixed;inset:0;z-index:10060;background:#0f172acc;display:flex;align-items:center;justify-content:center;padding:16px}
       .exam-detail-editor{width:min(720px,100%);max-height:92vh;overflow:auto;background:#fff;border-radius:16px;padding:22px;box-shadow:0 24px 70px #0007}
-      .exam-detail-editor label{display:block;font-weight:700;margin:12px 0}.exam-detail-editor textarea,.exam-detail-editor input{display:block;width:100%;box-sizing:border-box;margin-top:6px;padding:10px;font:inherit}
+      .exam-detail-editor label{display:block;font-weight:700;margin:12px 0}.exam-detail-editor textarea,.exam-detail-editor input,.exam-detail-editor select{display:block;width:100%;box-sizing:border-box;margin-top:6px;padding:10px;font:inherit}
       @media(max-width:900px){.exam-detail-grid{grid-template-columns:1fr 1fr}}@media(max-width:560px){.exam-detail-grid{grid-template-columns:1fr}.exam-detail-title{align-items:flex-start;flex-direction:column}.exam-topic-detail-grid,.training-record-fields{grid-template-columns:1fr}.training-record-fields .full{grid-column:auto}.exam-training-topic{align-items:flex-start}.exam-training-topic strong{display:none}.training-evidence-grid{grid-template-columns:1fr 1fr}}
       @media print{.exam-detail-head button{display:none}.exam-detail-grid{grid-template-columns:1fr 1fr;overflow:visible}body.training-form-printing>*:not(.training-print-overlay){display:none!important}body.training-form-printing .training-print-overlay{position:static;background:#fff;padding:0;overflow:visible}body.training-form-printing .training-record-sheet,body.training-form-printing .training-evidence-sheet{margin:0;width:210mm;min-height:297mm;page-break-after:always}body.training-form-printing .training-evidence-sheet:last-child{page-break-after:auto}}
     `;
