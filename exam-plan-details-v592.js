@@ -4,7 +4,10 @@
   const RECORD_ROOT = 'ppmsTrainingImplementationRecords';
   const LOCAL_KEY = 'ppms_exam_plan_details_v592';
   const QUARTERS = ['Q1', 'Q2', 'Q3', 'Q4'];
-  const isAdmin = () => sessionStorage.getItem('ppms_admin') === '1' && window.PPMSAccess?.canEdit() !== false;
+  const isAdmin = () => {
+    try { return sessionStorage.getItem('ppms_admin') === '1' && window.PPMSAccess?.canEdit() !== false; }
+    catch (_) { return false; }
+  };
   const planStates = {planned:'วางแผนอบรม',in_progress:'กำลังดำเนินการ',completed:'อบรมครบตามแผน',postponed:'เลื่อนแผน'};
   const esc = value => String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
   const lines = value => String(value || '').split(/\r?\n/).map(x => x.trim()).filter(Boolean);
@@ -84,15 +87,41 @@
     const sectionKey = scope.division === 'Production Division' && scope.plant === 'โรง 1' ? safeKey(section) : 'scope_' + safeKey(scope.division + '::' + scope.plant + '::' + section);
     return { section, year, sectionKey, scope, key: year + '__' + sectionKey };
   }
-  async function readPlan(ctx) {
-    const fallback = localRead(ctx.key) || defaults(ctx.section);
-    if (!dbReady()) return fallback;
-    try {
-      const snap = await ensureFirebase().ref(ROOT + '/' + ctx.year + '/' + ctx.sectionKey).once('value');
-      const cloud = snap.val();
-      if (cloud) { const plan = {...defaults(ctx.section), ...cloud}; QUARTERS.forEach(q => { if (cloud[q]) plan[q] = {...cloud[q], _saved:true}; }); try { localWrite(ctx.key, plan); } catch (_) {} return plan; }
-    } catch (error) { console.warn('Exam plan detail read failed', error); }
-    return fallback;
+  const planRequests = new Map();
+  const freshPlans = new Map();
+  const READ_TIMEOUT = 8000;
+  const PLAN_FRESHNESS = 60000;
+  function readCloudValue(path) {
+    return new Promise((resolve, reject) => {
+      let ref, settled = false;
+      const finish = (error, snapshot) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        if (ref) ref.off('value', onValue);
+        if (error) reject(error); else resolve(snapshot.val());
+      };
+      const onValue = snapshot => finish(null, snapshot);
+      const timer = setTimeout(() => finish(new Error('การเชื่อมต่อใช้เวลานาน กรุณาลองใหม่')), READ_TIMEOUT);
+      try {
+        ref = ensureFirebase().ref(path);
+        ref.on('value', onValue, error => finish(error));
+        if (settled) ref.off('value', onValue);
+      } catch (error) { finish(error); }
+    });
+  }
+  function readPlan(ctx) {
+    if (planRequests.has(ctx.key)) return planRequests.get(ctx.key);
+    if (!dbReady() || navigator.onLine === false) return Promise.reject(new Error('ยังไม่เชื่อมต่อฐานข้อมูล'));
+    const request = readCloudValue(ROOT + '/' + ctx.year + '/' + ctx.sectionKey).then(cloud => {
+      const plan = defaults(ctx.section);
+      QUARTERS.forEach(q => { if (cloud?.[q]) plan[q] = {...cloud[q], _saved:true}; });
+      try { localWrite(ctx.key, plan); } catch (_) {}
+      freshPlans.set(ctx.key, {plan, at:Date.now()});
+      return plan;
+    }).finally(() => planRequests.delete(ctx.key));
+    planRequests.set(ctx.key, request);
+    return request;
   }
   const canonical = value => JSON.stringify(value && typeof value === 'object' ? Object.fromEntries(Object.keys(value).sort().map(key => [key, value[key]])) : value);
   async function savePlan(ctx, plan, q, expected) {
@@ -105,6 +134,7 @@
       return matched ? next : current; // A cold SDK cache may start at null; let the server retry without changing data.
     });
     if (!result.committed || !matched) throw new Error('แผนถูกแก้ไขจากเครื่องอื่น กรุณาปิดแล้วเปิดแผนใหม่');
+    freshPlans.delete(ctx.key);
     plan[q] = {...next, _saved:true};
     try { localWrite(ctx.key, plan); } catch (_) {}
   }
@@ -167,7 +197,7 @@
       '<h5>หัวข้อการเทรนนิ่ง (' + trainingItems(data.training).length + ')</h5><ol class="training-plan-topics">' + trainingItems(data.training).map(item => '<li><button type="button" data-plan-topic="' + item.index + '" data-quarter="' + q + '">' + esc(item.title) + '</button></li>').join('') + '</ol>' +
       planMeta(data) + '<p><b>วิธีอบรม:</b> ' + esc(data.method || '-') + '</p><div class="actions no-print"><button type="button" class="exam-detail-view-button" data-exam-detail-view="' + q + '">ดูรายละเอียด ' + q + '</button>' + (isAdmin() ? '<button type="button" class="secondary" data-plan-edit="' + q + '">แก้ไขแผน ' + q + '</button>' : '') + '</div></article>';
   }
-  async function enhance() {
+  function enhance() {
     const select = document.querySelector('#examPlanSection');
     const title = document.querySelector('#app .page-head h2, #app .page-head h1, #app h2, #app h1');
     if (!select || !title) return;
@@ -180,28 +210,59 @@
     host.id = 'examPlanDetailsV592';
     host.dataset.signature = signature;
     host.className = 'panel exam-plan-details-v592';
-    host.innerHTML = '<h3>แผนการอบรมและการสอบ Q1–Q4</h3><p class="modal-note">กำลังโหลดรายละเอียดแผน...</p>';
+    const fresh = freshPlans.get(ctx.key);
+    const cached = fresh?.plan || localRead(ctx.key);
+    const plan = {...defaults(ctx.section), ...(cached || {})};
     const controls = document.querySelector('.exam-plan-controls');
     controls?.after(host);
-    const plan = await readPlan(ctx);
-    if (!document.body.contains(host)) return;
-    host.innerHTML = '<div class="exam-detail-title"><div><h3>แผนการเทรนนิ่ง Q1–Q4</h3><p>' +
-      esc(ctx.section) + ' • ปี ' + esc(ctx.year) + '</p></div><span>อบรมก่อนสอบประจำไตรมาส</span></div><p class="modal-note">หัวข้อแนะนำสามารถปรับให้ตรงกับงานจริงของ Section · กดชื่อหัวข้อเพื่อดูเนื้อหาและแบบฟอร์มอบรม</p>' +
-      '<div class="exam-detail-grid">' + QUARTERS.map(q => cardHtml(q, plan[q] || defaults(ctx.section)[q])).join('') + '</div>';
-    host.querySelectorAll('[data-plan-topic]').forEach(button => { button.onclick = () => openTrainingTopic(ctx, button.dataset.quarter, plan[button.dataset.quarter], Number(button.dataset.planTopic)); });
-    host.querySelectorAll('[data-plan-edit]').forEach(button => { button.onclick = () => openEditor(ctx, plan, button.dataset.planEdit); });
-    host.querySelectorAll('[data-exam-detail-view]').forEach(element => {
-      element.onclick = event => {
-        event.stopPropagation();
-        openViewer(ctx, plan, element.dataset.examDetailView);
-      };
-      element.onkeydown = event => {
-        if (event.key === 'Enter' || event.key === ' ') {
-          event.preventDefault();
+    const render = () => {
+      if (!document.body.contains(host)) return;
+      host.innerHTML = '<div class="exam-detail-title"><div><h3>แผนการเทรนนิ่ง Q1–Q4</h3><p>' +
+        esc(ctx.section) + ' • ปี ' + esc(ctx.year) + '</p></div><span>อบรมก่อนสอบประจำไตรมาส</span></div><p class="modal-note">หัวข้อแนะนำสามารถปรับให้ตรงกับงานจริงของ Section · กดชื่อหัวข้อเพื่อดูเนื้อหาและแบบฟอร์มอบรม</p>' +
+        '<p class="modal-note no-print" data-plan-sync role="status"></p><div class="exam-detail-grid">' + QUARTERS.map(q => cardHtml(q, plan[q] || defaults(ctx.section)[q])).join('') + '</div>';
+      host.querySelectorAll('[data-plan-topic]').forEach(button => { button.onclick = () => openTrainingTopic(ctx, button.dataset.quarter, plan[button.dataset.quarter], Number(button.dataset.planTopic)); });
+      host.querySelectorAll('[data-plan-edit]').forEach(button => { button.onclick = () => openEditor(ctx, plan, button.dataset.planEdit); });
+      host.querySelectorAll('[data-exam-detail-view]').forEach(element => {
+        element.onclick = event => {
+          event.stopPropagation();
           openViewer(ctx, plan, element.dataset.examDetailView);
-        }
-      };
-    });
+        };
+        element.onkeydown = event => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            openViewer(ctx, plan, element.dataset.examDetailView);
+          }
+        };
+      });
+    };
+    const status = (message, retry = false) => {
+      const node = host.querySelector('[data-plan-sync]');
+      if (!node) return;
+      node.textContent = message;
+      if (retry) {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'secondary';
+        button.textContent = 'ลองเชื่อมต่อใหม่';
+        button.onclick = sync;
+        node.append(' ', button);
+      }
+    };
+    const sync = () => {
+      status(cached ? 'แสดงแผนที่เก็บไว้ในเครื่อง · กำลังตรวจข้อมูลล่าสุด...' : 'แสดงแผนแนะนำ · กำลังตรวจแผนที่บันทึกไว้...');
+      readPlan(ctx).then(latest => {
+        if (!document.body.contains(host)) return;
+        Object.assign(plan, latest);
+        render();
+        status('ข้อมูลแผนล่าสุด');
+      }).catch(() => {
+        if (!document.body.contains(host)) return;
+        status('ยังยืนยันข้อมูลล่าสุดไม่ได้ · ' + (cached ? 'แสดงแผนที่เก็บไว้ในเครื่อง' : 'แสดงแผนแนะนำ ซึ่งอาจต่างจากแผนที่บันทึกไว้'), true);
+      });
+    };
+    render();
+    if (fresh && Date.now() - fresh.at < PLAN_FRESHNESS) status('ข้อมูลแผนล่าสุด');
+    else sync();
   }
   function openViewer(ctx, plan, q) {
     const current = plan[q] || defaults(ctx.section)[q];

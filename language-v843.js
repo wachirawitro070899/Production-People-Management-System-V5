@@ -5,6 +5,12 @@
  let language='th', scheduled=false, applying=false;
  try{language=localStorage.getItem(KEY)==='en'?'en':'th'}catch{}
  const dictionary=Object.fromEntries(`
+แสดงแผนที่เก็บไว้ในเครื่อง · กำลังตรวจข้อมูลล่าสุด...|Showing the locally stored plan · checking for updates...
+แสดงแผนแนะนำ · กำลังตรวจแผนที่บันทึกไว้...|Showing a suggested plan · checking for saved plans...
+ยังยืนยันข้อมูลล่าสุดไม่ได้ · แสดงแผนที่เก็บไว้ในเครื่อง|Unable to confirm updates · showing the locally stored plan
+ยังยืนยันข้อมูลล่าสุดไม่ได้ · แสดงแผนแนะนำ ซึ่งอาจต่างจากแผนที่บันทึกไว้|Unable to confirm updates · showing a suggested plan that may differ from the saved plan
+ข้อมูลแผนล่าสุด|Latest plan data
+ลองเชื่อมต่อใหม่|Retry connection
 แผนเทรนนิ่งรายไตรมาส|Quarterly Training Plan
 หัวข้ออบรม Q1–Q4 แยกตาม Section|Q1–Q4 training topics by Section
 แผนการเทรนนิ่ง Q1–Q4|Q1–Q4 Training Plan
