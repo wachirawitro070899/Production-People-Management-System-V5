@@ -79,3 +79,22 @@ body.training-lessons-active{overflow:hidden}
 @media(prefers-reduced-motion:reduce){.tl-progress i,.training-lessons-overlay .tl-button{transition:none}}
 
 .tl-sources{font-size:9px;line-height:1.6;color:#678190;margin-top:12px}.tl-sources a{color:#157e83}
+
+/* Embedded artwork stays available in class, offline printouts and saved PDFs. */
+.tl-slide-layout{display:grid;grid-template-columns:minmax(0,1fr) minmax(220px,32%);gap:24px;align-items:start}
+.tl-slide-text{min-width:0}
+.tl-illustration{margin:0;min-width:0;break-inside:avoid}
+.tl-illustration svg{display:block;width:100%;height:auto;border:1px solid #d8e8eb;border-radius:14px}
+.tl-illustration figcaption{font-size:14px;line-height:1.7;color:#315b70;font-weight:700;margin-top:12px}
+.tl-visual-focus{font-size:13px;line-height:1.7;color:#547182;border-top:1px solid #cee2e6;padding-top:12px;margin:12px 0 0}
+.tl-visual-focus b,.tl-visual-focus span{display:block}
+.tl-visual-focus b{color:#157e83;margin-bottom:5px}
+.tl-paper-cover .tl-points{grid-template-columns:1fr;margin-top:0}
+.tl-paper-cover .tl-points li{display:flex;gap:12px}
+.tl-paper-cover .tl-points p{margin:0;font-size:15px}
+.tl-points-flow{grid-template-columns:repeat(2,minmax(0,1fr));margin-top:0}
+.tl-points-flow li{min-height:95px}
+.tl-points-flow p{margin-top:8px}
+@media(max-width:1100px){.tl-slide-layout{grid-template-columns:minmax(0,1fr) minmax(180px,30%);gap:16px}.tl-points p{font-size:15px}.tl-illustration figcaption{font-size:13px}}
+@media(max-width:850px){.tl-slide-layout{display:flex;flex-direction:column}.tl-illustration{width:100%;display:grid;grid-template-columns:minmax(130px,38%) minmax(0,1fr);gap:0 16px;align-items:start}.tl-illustration svg{grid-row:span 2}.tl-illustration figcaption{margin-top:0}.tl-visual-focus{margin-top:8px;padding-top:8px}.tl-paper-cover .tl-points p{font-size:14px}}
+@media(max-width:400px){.tl-illustration{grid-template-columns:1fr}.tl-illustration svg{width:min(250px,100%);margin:auto;grid-row:auto}.tl-illustration figcaption{margin-top:10px}}
