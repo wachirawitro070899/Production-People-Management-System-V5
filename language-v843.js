@@ -5,6 +5,37 @@
  let language='th', scheduled=false, applying=false;
  try{language=localStorage.getItem(KEY)==='en'?'en':'th'}catch{}
  const dictionary=Object.fromEntries(`
+อัปเดตสถานะ|Refresh status
+อบรมเสร็จแล้ว|Training completed
+สอบเสร็จแล้ว|Exam completed
+รอแนบหลักฐาน|Awaiting evidence
+ยังไม่พบหลักฐานในสรุป|No evidence in summary yet
+รอตรวจหลักฐาน|Checking evidence
+กำลังอบรม|Training in progress
+รอหลักฐานการอบรม|Awaiting training evidence
+มีหลักฐานแล้ว|Topics with evidence
+สอบประจำไตรมาสแล้ว|Quarterly exams completed
+เหลือสอบ|Awaiting exam
+เข้าสู่ระบบเพื่อดูสถานะสอบ|Sign in to view exam status
+ผลสอบอิงข้อสอบประจำไตรมาสของ Section นี้ แยกจากหลักฐานอบรมแต่ละหัวข้อ|Exam status uses this Section's quarterly exam results, separate from topic evidence
+แนบหลักฐาน / รายชื่อ|Evidence / attendees
+แนบหลักฐาน / บันทึกผลอบรม|Attach evidence / record training
+บันทึกหลักฐาน / ผลอบรม|Save evidence / training results
+บันทึกแบบฟอร์มแล้ว|Training form saved
+กำลังตรวจสถานะหลักฐาน...|Checking training evidence status...
+ยังตรวจสถานะหลักฐานไม่ได้ กรุณาเปิดหัวข้อเพื่อตรวจข้อมูลล่าสุด|Cannot check evidence status; open a topic to check its latest record
+แนบรูปอบรม ใบลงชื่อ หรือ PDF ในแต่ละหัวข้อแล้วบันทึก • หลักฐานเดิมที่ยังไม่แสดงในสรุป ให้เปิดหัวข้อนั้นเพื่อตรวจสอบ|Attach training photos, attendance sheets or PDFs to each topic and save. Open a topic to check older evidence missing from the summary
+เลือกผู้เข้าอบรม (เชื่อมสถานะสอบรายคน)|Select attendees (link individual exam status)
+ค้นหา รหัส หรือชื่อพนักงาน|Search employee ID or name
+เลือกทุกคนที่แสดง|Select all shown
+ล้างที่เลือก|Clear selection
+รายชื่อเพิ่มเติม / รายชื่อเดิมที่ยังไม่เชื่อมรหัส|Additional attendees / legacy names without linked IDs
+ผู้เข้าอบรมเพิ่มเติม (ถ้ามี)|Additional attendees (optional)
+รายชื่อที่พิมพ์เพิ่มเติมจะไม่เชื่อมผลสอบอัตโนมัติ|Typed additional names do not link exam results automatically
+ยังไม่ได้เชื่อมรายชื่อกับรหัสพนักงาน เลือกผู้เข้าอบรมเพื่อดูสถานะรายคน|No linked employee IDs; select attendees to see individual status
+สถานะผู้เข้าอบรม|Attendee status
+เปิดแบบฟอร์มพิมพ์หลังบันทึก|Open print form after saving
+แนบหลักฐานแล้วบันทึกสำเร็จ จะแสดง “อบรมเสร็จแล้ว” • หากยังไม่แนบไฟล์ จะเป็น “รอแนบหลักฐาน”|Saving evidence marks training completed. A record without attachments remains awaiting evidence
 แสดงแผนที่เก็บไว้ในเครื่อง · กำลังตรวจข้อมูลล่าสุด...|Showing the locally stored plan · checking for updates...
 แสดงแผนแนะนำ · กำลังตรวจแผนที่บันทึกไว้...|Showing a suggested plan · checking for saved plans...
 ยังยืนยันข้อมูลล่าสุดไม่ได้ · แสดงแผนที่เก็บไว้ในเครื่อง|Unable to confirm updates · showing the locally stored plan

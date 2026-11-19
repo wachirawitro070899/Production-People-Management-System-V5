@@ -2,6 +2,10 @@
   'use strict';
   const ROOT = 'ppmsExamPlanDetails';
   const RECORD_ROOT = 'ppmsTrainingImplementationRecords';
+  const STATUS_ROOT = 'ppmsTrainingImplementationStatus';
+  const recordSummaries = new Map();
+  const summaryRequests = new Map();
+  const today = () => new Intl.DateTimeFormat('en-CA', {timeZone:'Asia/Bangkok',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
   const LOCAL_KEY = 'ppms_exam_plan_details_v592';
   const QUARTERS = ['Q1', 'Q2', 'Q3', 'Q4'];
   const isAdmin = () => {
@@ -141,33 +145,86 @@
   function recordKey(ctx, q, topicIndex) {
     return ctx.year + '__' + ctx.sectionKey + '__' + q + '__' + topicIndex;
   }
+  function roster(ctx) {
+    const source = window.PPMS_RUNTIME?.monthReportContext?.();
+    if (!source?.allowed) return [];
+    const api = window.PPMSOrganizationScope;
+    return (source.employees || []).filter(e => {
+      const scope = api?.employeeScope(e) || {division:e.organizationDivision || 'Production Division',plant:e.organizationPlant || 'โรง 1'};
+      return scope.division === ctx.scope.division && scope.plant === ctx.scope.plant &&
+        (source.allSections || (api?.sameSection(e.section, source.section) ?? e.section === source.section)) &&
+        (api?.sameSection(e.section, ctx.section) ?? e.section === ctx.section);
+    }).sort((a,b) => String(a.id).localeCompare(String(b.id), undefined, {numeric:true}));
+  }
+  function summaryOf(record) {
+    return {topic:record.topic,trainingDate:record.trainingDate || '',evidenceCount:(record.evidence || []).length,
+      attendeeIds:record.attendeeIds || [],updatedAt:record.updatedAt || ''};
+  }
+  function trainingDone(record) { return !!record?.trainingDate && Number(record.evidenceCount) > 0; }
+  function topicSummary(ctx, q, item) {
+    const record = recordSummaries.get(ctx.key)?.data?.[q]?.[item.index];
+    return record?.topic === item.title ? record : null;
+  }
+  function topicBadge(ctx, q, item) {
+    const state = recordSummaries.get(ctx.key), record = topicSummary(ctx,q,item);
+    const label = trainingDone(record) ? 'อบรมเสร็จแล้ว · หลักฐาน ' + record.evidenceCount + ' ไฟล์' : record ? 'รอแนบหลักฐาน' : state?.loaded ? 'ยังไม่พบหลักฐานในสรุป' : 'รอตรวจหลักฐาน';
+    return '<span class="training-progress-badge ' + (trainingDone(record)?'done':'pending') + '">' + esc(label) + '</span>';
+  }
+  function examProgress(ctx,q) {
+    const source = window.PPMS_RUNTIME?.monthReportContext?.(), people = roster(ctx), ids = new Set(people.map(e=>String(e.id))), results = new Map();
+    for (const r of source?.examResults || []) {
+      if (r.deleted || !ids.has(String(r.employeeId)) || (r.examType || 'quarterly') !== 'quarterly' || r.quarter !== q) continue;
+      const date = String(r.date || r.createdAt || ''), year = /^\d{4}-\d{2}-\d{2}$/.test(date) ? Number(date.slice(0,4)) : Number.isFinite(new Date(date).getTime()) ? Number(new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Bangkok',year:'numeric'}).format(new Date(date))) : null;
+      if (year !== ctx.year || r.organizationDivision && r.organizationDivision !== ctx.scope.division || r.organizationPlant && r.organizationPlant !== ctx.scope.plant) continue;
+      const old = results.get(String(r.employeeId));
+      if (!old || String(r.createdAt || r.date) > String(old.createdAt || old.date)) results.set(String(r.employeeId),r);
+    }
+    return {people,results,available:!!source?.allowed};
+  }
+  function quarterProgress(ctx,q,quarter) {
+    const items = trainingItems(quarter.training), complete = items.filter(item=>trainingDone(topicSummary(ctx,q,item))).length;
+    const {people,results,available} = examProgress(ctx,q), all = items.length > 0 && complete === items.length;
+    const label = all ? 'อบรมเสร็จแล้ว' + (!available || !people.length ? '' : results.size === people.length ? ' • สอบเสร็จแล้ว' : ' • รอสอบ') : complete ? 'กำลังอบรม' : 'รอหลักฐานการอบรม';
+    return '<div class="training-quarter-progress" data-quarter-progress="'+q+'"><b>'+label+'</b><span>มีหลักฐานแล้ว '+complete+' / '+items.length+' หัวข้อ</span><span>'+(available ? 'สอบประจำไตรมาสแล้ว '+results.size+' / '+people.length+' คน • เหลือสอบ '+(people.length-results.size)+' คน' : 'เข้าสู่ระบบเพื่อดูสถานะสอบ')+'</span><small>ผลสอบอิงข้อสอบประจำไตรมาสของ Section นี้ แยกจากหลักฐานอบรมแต่ละหัวข้อ</small></div>';
+  }
+  async function readSummaries(ctx) {
+    if (!dbReady() || navigator.onLine === false) throw Error('ยังไม่เชื่อมต่อฐานข้อมูล');
+    if (summaryRequests.has(ctx.key)) return summaryRequests.get(ctx.key);
+    const request = readCloudValue(STATUS_ROOT+'/'+ctx.year+'/'+ctx.sectionKey).then(data=>{
+      recordSummaries.set(ctx.key,{loaded:true,data:data || {}});
+    }).finally(()=>summaryRequests.delete(ctx.key));
+    summaryRequests.set(ctx.key,request);return request;
+  }
+  function rememberRecord(ctx,q,index,record) {
+    const state = recordSummaries.get(ctx.key) || {loaded:false,data:{}};
+    state.data[q] ||= {};
+    if (record) state.data[q][index] = summaryOf(record); else delete state.data[q][index];
+    recordSummaries.set(ctx.key,state);
+    if (context().key === ctx.key) { document.querySelector('#examPlanDetailsV592')?.remove(); enhance(); }
+  }
   async function readTrainingRecord(ctx, q, topicIndex) {
-    const key = recordKey(ctx, q, topicIndex);
-    let local = null;
-    try { local = JSON.parse(localStorage.getItem(RECORD_ROOT + '__' + key) || 'null'); } catch (_) {}
-    if (!dbReady()) return local;
-    try {
-      const snap = await ensureFirebase().ref(RECORD_ROOT + '/' + ctx.year + '/' + ctx.sectionKey + '/' + q + '/' + topicIndex).once('value');
-      const cloud = snap.val();
-      if (cloud) localStorage.setItem(RECORD_ROOT + '__' + key, JSON.stringify(cloud));
-      return cloud || local;
-    } catch (error) { console.warn('Training record read failed', error); return local; }
+    if (!dbReady() || navigator.onLine === false) throw Error('กรุณาเชื่อมต่ออินเทอร์เน็ตเพื่อตรวจหลักฐานล่าสุด');
+    const record = await readCloudValue(RECORD_ROOT + '/' + ctx.year + '/' + ctx.sectionKey + '/' + q + '/' + topicIndex);
+    rememberRecord(ctx,q,topicIndex,record); return record;
   }
   async function saveTrainingRecord(ctx, q, topicIndex, record) {
     if (!isAdmin()) throw new Error('บัญชีนี้ไม่มีสิทธิ์บันทึกผลการอบรม');
-    const key = recordKey(ctx, q, topicIndex);
-    if (!dbReady()) throw new Error('Firebase ยังไม่พร้อม');
-    await ensureFirebase().ref(RECORD_ROOT + '/' + ctx.year + '/' + ctx.sectionKey + '/' + q + '/' + topicIndex).set(record);
-    localStorage.setItem(RECORD_ROOT + '__' + key, JSON.stringify(record));
+    if (!dbReady() || navigator.onLine === false) throw new Error('กรุณาเชื่อมต่ออินเทอร์เน็ตก่อนบันทึกหลักฐาน');
+    const suffix = '/' + ctx.year + '/' + ctx.sectionKey + '/' + q + '/' + topicIndex;
+    // Commit evidence and its small dashboard summary atomically; never download attachments for the four cards.
+    await ensureFirebase().ref().update({[RECORD_ROOT + suffix]:record,[STATUS_ROOT + suffix]:summaryOf(record)});
+    rememberRecord(ctx,q,topicIndex,record);
   }
-  function readEvidenceFile(file) {
+  async function readEvidenceFile(file) {
+    if (!file) throw Error('ไม่พบไฟล์');
+    if (file.size > 1572864) throw Error('ไฟล์ ' + file.name + ' ต้องมีขนาดไม่เกิน 1.5 MB');
+    const bytes=new Uint8Array(await file.arrayBuffer()), prefix=[...bytes.slice(0,12)].map(b=>b.toString(16).padStart(2,'0')).join('');
+    const type=prefix.startsWith('255044462d')?'application/pdf':prefix.startsWith('89504e470d0a1a0a')?'image/png':prefix.startsWith('ffd8ff')?'image/jpeg':prefix.startsWith('52494646')&&prefix.slice(16,24)==='57454250'?'image/webp':'';
+    if (!type) throw Error('รองรับเฉพาะไฟล์ JPG, PNG, WEBP หรือ PDF ที่ถูกต้อง');
     return new Promise((resolve, reject) => {
-      if (!file) return reject(new Error('ไม่พบไฟล์'));
-      if (file.size > 1600000) return reject(new Error('ไฟล์ ' + file.name + ' ต้องมีขนาดไม่เกิน 1.5 MB'));
-      if (!/^image\/(jpeg|png|webp)$|^application\/pdf$/.test(file.type)) return reject(new Error('รองรับเฉพาะ JPG, PNG, WEBP หรือ PDF'));
       const reader = new FileReader();
       reader.onerror = () => reject(new Error('อ่านไฟล์ ' + file.name + ' ไม่สำเร็จ'));
-      reader.onload = () => resolve({name:file.name,type:file.type,size:file.size,dataUrl:reader.result,uploadedAt:new Date().toISOString()});
+      reader.onload = () => resolve({name:file.name,type,size:file.size,dataUrl:String(reader.result).replace(/^data:[^;]*;/,'data:'+type+';'),uploadedAt:new Date().toISOString()});
       reader.readAsDataURL(file);
     });
   }
@@ -190,11 +247,12 @@
   function planMeta(data) {
     return '<dl class="training-plan-meta"><div><dt>กำหนดอบรม</dt><dd>' + esc(data.plannedDate || 'ยังไม่กำหนดวัน') + '</dd></div><div><dt>ผู้สอน / ผู้รับผิดชอบ</dt><dd>' + esc(data.trainer || 'ยังไม่ระบุ') + '</dd></div><div><dt>กลุ่มเป้าหมาย</dt><dd>' + esc(data.targetGroup || 'พนักงานทุกคนใน Section') + '</dd></div></dl>';
   }
-  function cardHtml(q, data) {
+  function cardHtml(q, data, ctx) {
     const months = {Q1:'ม.ค.–มี.ค.',Q2:'เม.ย.–มิ.ย.',Q3:'ก.ค.–ก.ย.',Q4:'ต.ค.–ธ.ค.'};
     return '<article class="exam-detail-card" data-training-quarter="' + q + '"><div class="exam-detail-head"><h4>' + q + '</h4><span>' + months[q] + '</span></div>' +
       '<p class="training-plan-state">' + (data._saved ? esc(planStates[data.planStatus] || planStates.planned) : 'แผนแนะนำ · ยังไม่ได้บันทึก') + '</p>' +
-      '<h5>หัวข้อการเทรนนิ่ง (' + trainingItems(data.training).length + ')</h5><ol class="training-plan-topics">' + trainingItems(data.training).map(item => '<li><button type="button" data-plan-topic="' + item.index + '" data-quarter="' + q + '">' + esc(item.title) + '</button></li>').join('') + '</ol>' +
+      quarterProgress(ctx,q,data) +
+      '<h5>หัวข้อการเทรนนิ่ง (' + trainingItems(data.training).length + ')</h5><ol class="training-plan-topics">' + trainingItems(data.training).map(item => '<li><button type="button" data-plan-topic="' + item.index + '" data-quarter="' + q + '">' + esc(item.title) + '</button>' + topicBadge(ctx,q,item) + (isAdmin()?'<button type="button" class="training-evidence-action no-print" data-plan-evidence="'+item.index+'" data-quarter="'+q+'">แนบหลักฐาน / รายชื่อ</button>':'') + '</li>').join('') + '</ol>' +
       planMeta(data) + '<p><b>วิธีอบรม:</b> ' + esc(data.method || '-') + '</p><div class="actions no-print"><button type="button" class="exam-detail-view-button" data-exam-detail-view="' + q + '">ดูรายละเอียด ' + q + '</button>' + (isAdmin() ? '<button type="button" class="secondary" data-plan-edit="' + q + '">แก้ไขแผน ' + q + '</button>' : '') + '</div></article>';
   }
   function enhance() {
@@ -213,14 +271,19 @@
     const fresh = freshPlans.get(ctx.key);
     const cached = fresh?.plan || localRead(ctx.key);
     const plan = {...defaults(ctx.section), ...(cached || {})};
+    let planStatusMessage = '', planRetry = false;
     const controls = document.querySelector('.exam-plan-controls');
     controls?.after(host);
     const render = () => {
       if (!document.body.contains(host)) return;
       host.innerHTML = '<div class="exam-detail-title"><div><h3>แผนการเทรนนิ่ง Q1–Q4</h3><p>' +
-        esc(ctx.section) + ' • ปี ' + esc(ctx.year) + '</p></div><span>อบรมก่อนสอบประจำไตรมาส</span></div><p class="modal-note">หัวข้อแนะนำสามารถปรับให้ตรงกับงานจริงของ Section · กดชื่อหัวข้อเพื่อดูเนื้อหาและแบบฟอร์มอบรม</p>' +
-        '<p class="modal-note no-print" data-plan-sync role="status"></p><div class="exam-detail-grid">' + QUARTERS.map(q => cardHtml(q, plan[q] || defaults(ctx.section)[q])).join('') + '</div>';
+        esc(ctx.section) + ' • ปี ' + esc(ctx.year) + '</p></div><button type="button" class="secondary no-print" data-training-refresh>อัปเดตสถานะ</button></div><p class="modal-note">หัวข้อแนะนำสามารถปรับให้ตรงกับงานจริงของ Section · กดชื่อหัวข้อเพื่อดูเนื้อหาและแบบฟอร์มอบรม</p>' +
+        '<p class="modal-note">แนบรูปอบรม ใบลงชื่อ หรือ PDF ในแต่ละหัวข้อแล้วบันทึก • หลักฐานเดิมที่ยังไม่แสดงในสรุป ให้เปิดหัวข้อนั้นเพื่อตรวจสอบ</p><p class="modal-note no-print" data-plan-sync role="status"></p><p class="modal-note no-print" data-evidence-sync role="status"></p><div class="exam-detail-grid">' + QUARTERS.map(q => cardHtml(q, plan[q] || defaults(ctx.section)[q],ctx)).join('') + '</div>';
       host.querySelectorAll('[data-plan-topic]').forEach(button => { button.onclick = () => openTrainingTopic(ctx, button.dataset.quarter, plan[button.dataset.quarter], Number(button.dataset.planTopic)); });
+      host.querySelectorAll('[data-plan-evidence]').forEach(button => { button.onclick = () => openTrainingTopic(ctx, button.dataset.quarter, plan[button.dataset.quarter], Number(button.dataset.planEvidence),true); });
+      host.querySelector('[data-training-refresh]').onclick=()=>{
+        recordSummaries.delete(ctx.key);freshPlans.delete(ctx.key);host.remove();enhance();
+      };
       host.querySelectorAll('[data-plan-edit]').forEach(button => { button.onclick = () => openEditor(ctx, plan, button.dataset.planEdit); });
       host.querySelectorAll('[data-exam-detail-view]').forEach(element => {
         element.onclick = event => {
@@ -234,8 +297,10 @@
           }
         };
       });
+      status(planStatusMessage,planRetry);
     };
     const status = (message, retry = false) => {
+      planStatusMessage=message;planRetry=retry;
       const node = host.querySelector('[data-plan-sync]');
       if (!node) return;
       node.textContent = message;
@@ -263,6 +328,17 @@
     render();
     if (fresh && Date.now() - fresh.at < PLAN_FRESHNESS) status('ข้อมูลแผนล่าสุด');
     else sync();
+    if (!recordSummaries.has(ctx.key)) {
+      recordSummaries.set(ctx.key,{loaded:false,data:{}});
+      host.querySelector('[data-evidence-sync]').textContent='กำลังตรวจสถานะหลักฐาน...';
+      readSummaries(ctx).then(()=>{
+        if (!document.body.contains(host)) return;
+        render();
+      }).catch(()=>{
+        if (!document.body.contains(host)) return;
+        const node=host.querySelector('[data-evidence-sync]');node.textContent='ยังตรวจสถานะหลักฐานไม่ได้ กรุณาเปิดหัวข้อเพื่อตรวจข้อมูลล่าสุด';
+      });
+    }
   }
   function openViewer(ctx, plan, q) {
     const current = plan[q] || defaults(ctx.section)[q];
@@ -283,7 +359,7 @@
     });
     document.body.appendChild(overlay);
   }
-  function openTrainingTopic(ctx, q, quarter, index) {
+  function openTrainingTopic(ctx, q, quarter, index, editImmediately = false) {
     const item = trainingItems(quarter.training)[index];
     if (!item) return;
     const overlay = document.createElement('div');
@@ -296,7 +372,7 @@
       '<article><h3>✅ การประเมินผล</h3><p>' + esc(quarter.criteria || 'ประเมินความเข้าใจและตรวจการปฏิบัติงานจริง') + '</p></article></div>' +
       '<div class="exam-topic-related"><h3>📝 หัวข้อสอบที่เกี่ยวข้อง</h3>' + listHtml(quarter.exam) + '</div>' +
       '<div class="training-record-panel" data-record-panel><h3>📋 แบบฟอร์มและหลักฐานการอบรม</h3><p>กำลังตรวจสอบข้อมูลการอบรม...</p></div>' +
-      '<div class="actions"><button type="button" data-training-form>สร้าง/แก้ไขแบบฟอร์มการอบรม</button><button type="button" class="secondary" data-print-training disabled>พิมพ์แบบฟอร์ม</button></div></section>';
+      '<div class="actions"><button type="button" data-training-form disabled>แนบหลักฐาน / บันทึกผลอบรม</button><button type="button" class="secondary" data-print-training disabled>พิมพ์แบบฟอร์ม</button></div></section>';
     overlay.querySelector('[data-close]').onclick = () => overlay.remove();
     overlay.onclick = event => { if (event.target === overlay) overlay.remove(); };
     document.body.appendChild(overlay);
@@ -304,16 +380,19 @@
     const recordPanel = overlay.querySelector('[data-record-panel]');
     const printButton = overlay.querySelector('[data-print-training]');
     readTrainingRecord(ctx, q, index).then(value => {
+      if (value && value.topic !== item.title) throw Error('หัวข้อในแผนเปลี่ยนไป หลักฐานเดิมเป็นของ “'+value.topic+'” กรุณาตรวจสอบแผนก่อนบันทึก');
       record = value?.topic === item.title ? value : null;
       if (!document.body.contains(overlay)) return;
       if (record) {
         const evidence = Array.isArray(record.evidence) ? record.evidence : [];
-        recordPanel.innerHTML = '<h3>📋 แบบฟอร์มและหลักฐานการอบรม</h3><div class="training-record-status done"><b>บันทึกการอบรมแล้ว</b><span>' + esc(record.trainingDate || '-') + ' • Trainer: ' + esc(record.trainer || '-') + ' • หลักฐาน ' + evidence.length + ' ไฟล์</span></div>' + evidenceHtml(evidence);
+        recordPanel.innerHTML = '<h3>📋 แบบฟอร์มและหลักฐานการอบรม</h3><div class="training-record-status '+(evidence.length?'done':'')+'"><b>'+(evidence.length?'อบรมเสร็จแล้ว':'บันทึกแบบฟอร์มแล้ว • รอแนบหลักฐาน')+'</b><span>' + esc(record.trainingDate || '-') + ' • Trainer: ' + esc(record.trainer || '-') + ' • หลักฐาน ' + evidence.length + ' ไฟล์</span></div>' + evidenceHtml(evidence) + participantProgress(ctx,q,record);
         printButton.disabled = false;
       } else {
         recordPanel.innerHTML = '<h3>📋 แบบฟอร์มและหลักฐานการอบรม</h3><div class="training-record-status"><b>ยังไม่ได้บันทึกผลการอบรม</b><span>กรอกรายละเอียดก่อนพิมพ์แบบฟอร์มไปใช้เทรนนิ่ง</span></div>';
       }
-    });
+      overlay.querySelector('[data-training-form]').disabled=false;
+      if (editImmediately && isAdmin()) overlay.querySelector('[data-training-form]').click();
+    }).catch(error=>{if(document.body.contains(overlay))recordPanel.textContent='ยังโหลดหลักฐานไม่ได้: '+error.message+' • ปิดแล้วลองเปิดใหม่';});
     if (!isAdmin()) overlay.querySelector('[data-training-form]').hidden = true;
     overlay.querySelector('[data-training-form]').onclick = () => openTrainingRecordEditor(ctx, q, quarter, index, item, record, value => {
       record = value;
@@ -323,10 +402,25 @@
     printButton.onclick = () => { if (record) openTrainingPrintForm(ctx, q, quarter, item, record); };
   }
   function evidenceHtml(evidence) {
+    evidence = evidence.filter(file => /^(?:image\/(?:jpeg|png|webp)|application\/pdf)$/.test(file?.type || '') && new RegExp('^data:' + file.type + ';base64,[A-Za-z0-9+/=]+$').test(file.dataUrl || ''));
     if (!evidence.length) return '<p class="exam-detail-empty">ยังไม่ได้แนบหลักฐาน</p>';
     return '<div class="training-evidence-grid">' + evidence.map((file, index) => file.type.startsWith('image/')
       ? '<a href="' + file.dataUrl + '" target="_blank" rel="noopener"><img src="' + file.dataUrl + '" alt="หลักฐาน ' + (index + 1) + '"><span>' + esc(file.name) + '</span></a>'
       : '<a class="training-evidence-file" href="' + file.dataUrl + '" download="' + esc(file.name) + '"><b>PDF</b><span>' + esc(file.name) + '</span></a>').join('') + '</div>';
+  }
+  function participantProgress(ctx,q,record) {
+    const ids=new Set((record.attendeeIds || []).map(String)), {people,results}=examProgress(ctx,q), selected=people.filter(e=>ids.has(String(e.id)));
+    if (!selected.length) return '<p class="modal-note">ยังไม่ได้เชื่อมรายชื่อกับรหัสพนักงาน เลือกผู้เข้าอบรมเพื่อดูสถานะรายคน</p>';
+    return '<h4>สถานะผู้เข้าอบรม · สอบประจำไตรมาส '+q+'</h4><div class="table-wrap"><table><thead><tr><th>รหัส / ชื่อ</th><th>อบรม</th><th>การสอบ</th><th>ผลสอบ</th></tr></thead><tbody>'+selected.map(e=>{
+      const result=results.get(String(e.id)), decision=result&&window.PPMSIndividualReports?.decision(result);
+      const outcome=decision?.label || (result ? 'รอตรวจสอบผล' : '—');
+      return '<tr><td>'+esc(e.id)+' · '+esc(e.thaiName || e.name)+'</td><td>'+((record.evidence || []).length?'อบรมเสร็จแล้ว':'รอแนบหลักฐาน')+'</td><td>'+(result?'สอบเสร็จแล้ว':'รอสอบ')+'</td><td>'+esc(outcome)+'</td></tr>';
+    }).join('')+'</tbody></table></div>';
+  }
+  function attendeePicker(ctx,current) {
+    const ids=new Set((current.attendeeIds || []).map(String));
+    // Legacy names are retained in the text field until an administrator links employee IDs.
+    return '<fieldset class="full training-attendee-picker"><legend>เลือกผู้เข้าอบรม (เชื่อมสถานะสอบรายคน)</legend><input type="search" data-training-person-search placeholder="ค้นหา รหัส หรือชื่อพนักงาน"><div class="actions"><button type="button" class="secondary" data-training-select-all>เลือกทุกคนที่แสดง</button><button type="button" class="secondary" data-training-clear>ล้างที่เลือก</button></div><div class="training-attendee-list">'+roster(ctx).map(e=>'<label data-person-search="'+esc([e.id,e.name,e.thaiName].join(' ').toLowerCase())+'"><input type="checkbox" name="attendeeIds" value="'+esc(e.id)+'" '+(ids.has(String(e.id))?'checked':'')+'> '+esc(e.id)+' · '+esc(e.thaiName || e.name)+'</label>').join('')+'</div></fieldset>';
   }
   function openTrainingRecordEditor(ctx, q, quarter, index, item, existing, onSaved) {
     const current = existing || {};
@@ -334,17 +428,22 @@
     const overlay = document.createElement('div');
     overlay.className = 'exam-detail-overlay exam-topic-overlay';
     overlay.innerHTML = '<form class="training-record-editor"><div class="exam-viewer-head"><div><span class="exam-viewer-quarter">' + q + '</span><h2>Training Implementation Record</h2><p>' + esc(ctx.section) + ' • ' + esc(item.title) + '</p></div><button type="button" class="secondary" data-close>ปิด</button></div>' +
-      '<div class="training-record-fields"><label>วันที่อบรม<input type="date" name="trainingDate" value="' + esc(current.trainingDate || new Date().toISOString().slice(0,10)) + '" required></label>' +
+      '<div class="training-record-fields"><label>วันที่อบรม<input type="date" name="trainingDate" max="'+today()+'" value="' + esc(current.trainingDate || today()) + '" required></label>' +
       '<label>เวลาอบรม<input type="text" name="trainingTime" value="' + esc(current.trainingTime || '') + '" placeholder="เช่น 09:00–11:00" required></label>' +
       '<label>สถานที่อบรม<input name="trainingPlace" value="' + esc(current.trainingPlace || '') + '" placeholder="Training place" required></label>' +
       '<label>ผู้ฝึกอบรม<input name="trainer" value="' + esc(current.trainer || '') + '" placeholder="Trainer" required></label>' +
       '<label class="full">หน่วยงานที่อบรม<input name="trainingUnit" value="' + esc(current.trainingUnit || ctx.section) + '" required></label>' +
-      '<label class="full">รายชื่อผู้เข้าอบรม (1 คนต่อ 1 บรรทัด)<textarea name="attendees" rows="5" placeholder="รหัสพนักงาน - ชื่อพนักงาน">' + esc((current.attendees || []).join('\n')) + '</textarea></label>' +
+      attendeePicker(ctx,current) +
+      '<label class="full">รายชื่อเพิ่มเติม / รายชื่อเดิมที่ยังไม่เชื่อมรหัส (1 คนต่อ 1 บรรทัด)<textarea name="attendees" rows="3" placeholder="ผู้เข้าอบรมเพิ่มเติม (ถ้ามี)">' + esc((current.additionalAttendees || (current.attendeeIds?.length ? [] : current.attendees) || []).join('\n')) + '</textarea><small>รายชื่อที่พิมพ์เพิ่มเติมจะไม่เชื่อมผลสอบอัตโนมัติ</small></label>' +
       '<label class="full">Training implementation effect / ผลการอบรม<textarea name="effect" rows="4" placeholder="สรุปผล ความเข้าใจ ผล OJT หรือสิ่งที่ต้องติดตาม" required>' + esc(current.effect || '') + '</textarea></label>' +
       '<fieldset class="full"><legend>Planned training?</legend><label><input type="radio" name="planned" value="yes" ' + (current.planned !== 'no' ? 'checked' : '') + '> Yes</label><label><input type="radio" name="planned" value="no" ' + (current.planned === 'no' ? 'checked' : '') + '> No, but recorded</label></fieldset>' +
       '<label class="full evidence-upload">แนบหลักฐานการอบรม<input type="file" name="evidence" accept="image/jpeg,image/png,image/webp,application/pdf" multiple><small>รูปขณะอบรม แบบฟอร์มลงชื่อ หรือผลประเมิน • สูงสุด 4 ไฟล์ • ไม่เกิน 1.5 MB/ไฟล์</small></label></div>' +
       (evidence.length ? '<div class="existing-evidence"><h3>หลักฐานที่บันทึกแล้ว</h3>' + evidence.map((file,i) => '<label><input type="checkbox" name="removeEvidence" value="' + i + '"> ลบ ' + esc(file.name) + '</label>').join('') + evidenceHtml(evidence) + '</div>' : '') +
-      '<div class="actions"><button type="submit">บันทึกและเปิดแบบฟอร์มพิมพ์</button><button type="button" class="secondary" data-close>ยกเลิก</button></div></form>';
+      '<p class="modal-note">แนบหลักฐานแล้วบันทึกสำเร็จ จะแสดง “อบรมเสร็จแล้ว” • หากยังไม่แนบไฟล์ จะเป็น “รอแนบหลักฐาน”</p><label><input type="checkbox" name="printAfterSave"> เปิดแบบฟอร์มพิมพ์หลังบันทึก</label><p data-training-save-status role="status"></p><div class="actions"><button type="submit">บันทึกหลักฐาน / ผลอบรม</button><button type="button" class="secondary" data-close>ยกเลิก</button></div></form>';
+    const picker=overlay.querySelector('.training-attendee-picker');
+    picker.querySelector('[data-training-person-search]').oninput=event=>{picker.querySelectorAll('[data-person-search]').forEach(row=>row.hidden=!row.dataset.personSearch.includes(event.target.value.toLowerCase()));};
+    picker.querySelector('[data-training-select-all]').onclick=()=>{picker.querySelectorAll('[data-person-search]:not([hidden]) input').forEach(box=>box.checked=true);};
+    picker.querySelector('[data-training-clear]').onclick=()=>{picker.querySelectorAll('[name="attendeeIds"]').forEach(box=>box.checked=false);};
     overlay.querySelectorAll('[data-close]').forEach(button => button.onclick = () => overlay.remove());
     overlay.onclick = event => { if (event.target === overlay) overlay.remove(); };
     overlay.querySelector('form').onsubmit = async event => {
@@ -358,21 +457,27 @@
         const files = [...(form.elements.evidence.files || [])];
         if (kept.length + files.length > 4) throw new Error('แนบหลักฐานได้สูงสุด 4 ไฟล์');
         const added = await Promise.all(files.map(readEvidenceFile));
+        const eligible=new Map(roster(ctx).map(e=>[String(e.id),e])), attendeeIds=fd.getAll('attendeeIds').map(String);
+        if (attendeeIds.some(id=>!eligible.has(id))) throw Error('รายชื่อพนักงานเปลี่ยนไป กรุณาเปิดฟอร์มใหม่');
+        if (String(fd.get('trainingDate')) > today()) throw Error('วันที่อบรมต้องไม่เป็นวันในอนาคต');
+        if (kept.length+added.length && !attendeeIds.length && !lines(fd.get('attendees')).length) throw Error('กรุณาเลือกหรือระบุผู้เข้าอบรมอย่างน้อย 1 คน');
+        const additionalAttendees=lines(fd.get('attendees'));
         const record = {
           section:ctx.section, year:ctx.year, quarter:q, topicIndex:index, topic:item.title, detail:item.detail,
           trainingDate:String(fd.get('trainingDate') || ''), trainingTime:String(fd.get('trainingTime') || ''),
           trainingPlace:String(fd.get('trainingPlace') || ''), trainer:String(fd.get('trainer') || ''),
-          trainingUnit:String(fd.get('trainingUnit') || ''), attendees:lines(fd.get('attendees')),
+          trainingUnit:String(fd.get('trainingUnit') || ''), attendeeIds, additionalAttendees,
+          attendees:[...attendeeIds.map(id=>id+' - '+(eligible.get(id).thaiName || eligible.get(id).name)),...additionalAttendees],
           effect:String(fd.get('effect') || ''), planned:String(fd.get('planned') || 'yes'), evidence:[...kept, ...added],
           method:quarter.method || '', criteria:quarter.criteria || '', updatedAt:new Date().toISOString()
         };
         await saveTrainingRecord(ctx, q, index, record);
         overlay.remove();
-        openTrainingPrintForm(ctx, q, quarter, item, record);
         if (onSaved) onSaved(record);
+        if (fd.get('printAfterSave')) openTrainingPrintForm(ctx, q, quarter, item, record);
       } catch (error) {
-        submit.disabled = false; submit.textContent = 'บันทึกและเปิดแบบฟอร์มพิมพ์';
-        alert('บันทึกไม่สำเร็จ: ' + error.message);
+        submit.disabled = false; submit.textContent = 'บันทึกหลักฐาน / ผลอบรม';
+        overlay.querySelector('[data-training-save-status]').textContent='บันทึกไม่สำเร็จ: ' + error.message;
       }
     };
     document.body.appendChild(overlay);
@@ -447,6 +552,7 @@
     style.id = 'examPlanDetailsV592Style';
     style.textContent = `
       .exam-plan-details-v592{margin:14px 0;border:1px solid #bfdbfe;background:#f8fbff}
+      .training-quarter-progress{display:grid;gap:4px;background:#f0f7ff;border:1px solid #c6dcfa;border-radius:9px;padding:12px;margin:10px 0;color:#123c73}.training-quarter-progress b{font-size:16px}.training-quarter-progress small{font-size:11px;color:#52657b}.training-plan-topics li{padding:9px 0!important;border-bottom:1px solid #eef2f7}.training-progress-badge{display:inline-block;font-size:11px;padding:3px 7px;border-radius:5px;margin:2px 6px;vertical-align:middle}.training-progress-badge.done{background:#dcfce7;color:#166534}.training-progress-badge.pending{background:#fff2cc;color:#854d0e}.training-plan-topics button.training-evidence-action{display:block;background:#eff6ff;border:1px solid #bfdbfe;border-radius:5px;text-decoration:none;font-size:12px;padding:4px 8px;margin-top:4px}.training-record-fields .training-attendee-picker{display:block}.training-attendee-list{display:grid;max-height:210px;overflow:auto;margin:8px 0}.training-record-fields .training-attendee-list label{display:block;padding:6px;border-bottom:1px solid #eef2f7}.training-record-fields .training-attendee-list label[hidden]{display:none}.training-attendee-list input[type=checkbox]{display:inline;width:auto;margin-right:7px}.training-record-fields .training-attendee-picker input[type=search]{display:block;width:100%}.training-record-fields .training-attendee-picker .actions{margin-top:8px;flex-wrap:wrap}[data-training-save-status]{color:#b91c1c}
       .exam-detail-title{display:flex;justify-content:space-between;gap:12px;align-items:center;margin-bottom:12px}
       .exam-detail-title h3,.exam-detail-title p{margin:0}.exam-detail-title span{background:#dbeafe;color:#1e3a8a;border-radius:999px;padding:7px 12px;font-weight:800}
       .exam-detail-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;overflow:auto;padding-bottom:4px}

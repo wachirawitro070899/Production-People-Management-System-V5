@@ -23,7 +23,7 @@ async function setup({cached, offline = false, admin = true, brokenStorage = fal
   let transactionCurrent = null, transactionWrites = 0;
   w.PPMS_FIREBASE_CONFIG = {};
   w.firebase = {apps:[{}], database:() => ({ref:path => ({
-    on(event, success, fail) { requests.push({path, success, fail, detached:false}); },
+    on(event, success, fail) { if(path.startsWith('ppmsTrainingImplementationStatus/')) {w.setTimeout(()=>success({val:()=>null}),0);return;} requests.push({path, success, fail, detached:false}); },
     off(event, success) { const request = requests.find(r => r.path === path && r.success === success); if (request) request.detached = true; },
     async transaction(update) {
       const next = update(transactionCurrent);
