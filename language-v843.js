@@ -5,6 +5,25 @@
  let language='th', scheduled=false, applying=false;
  try{language=localStorage.getItem(KEY)==='en'?'en':'th'}catch{}
  const dictionary=Object.fromEntries(`
+ลองโหลดหลักฐานอีกครั้ง|Retry loading evidence
+กดลองใหม่ได้จากหน้านี้|Retry from this page
+ยังไม่ได้รับการยืนยันจากฐานข้อมูล กรุณาลองโหลดข้อมูลล่าสุดอีกครั้ง|No database confirmation yet; reload the latest record and retry
+ไม่มีสิทธิ์เข้าถึงหลักฐาน กรุณาตรวจสอบบัญชีผู้ใช้|Evidence access denied; check your account
+ข้อสอบอิงแผนอบรมประจำไตรมาส|Exams follow the quarterly training plan
+ข้อสอบอิงแผนอบรม|Exam based on training plan
+กระจายคำถามตามหัวข้ออบรมของไตรมาสนี้|Questions cover this quarter's training topics
+กระจายข้อสอบตามหัวข้ออบรมของไตรมาสที่เลือก|Questions cover the selected quarter's training topics
+กำลังโหลดแผนอบรมล่าสุด...|Loading the latest training plan...
+ลองโหลดแผนอบรมใหม่|Retry loading training plan
+โหลดแผนอบรมไม่สำเร็จ|Could not load training plan
+กรุณากำหนดหัวข้ออบรมก่อนออกข้อสอบ|Define training topics before creating the exam
+แจ้งเตือนผลสอบประจำไตรมาส|Quarterly exam notifications
+แจ้งเตือน: มีพนักงานสอบเสร็จแล้ว|Notification: employees have completed the exam
+รายการใหม่|new results
+ยังไม่มีการแจ้งเตือนผลสอบใหม่|No new exam notifications
+รับทราบผลสอบ|Acknowledge exam results
+ยังบันทึกการรับทราบไม่ได้|Could not save acknowledgement
+ยังตรวจแจ้งเตือนล่าสุดไม่ได้ กดอัปเดตสถานะเพื่อลองใหม่|Cannot check latest notifications; select Refresh status to retry
 อัปเดตสถานะ|Refresh status
 อบรมเสร็จแล้ว|Training completed
 สอบเสร็จแล้ว|Exam completed

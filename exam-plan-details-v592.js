@@ -16,6 +16,11 @@
   const esc = value => String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
   const lines = value => String(value || '').split(/\r?\n/).map(x => x.trim()).filter(Boolean);
   const safeKey = value => btoa(unescape(encodeURIComponent(String(value)))).replace(/=+$/,'').replace(/\+/g,'-').replace(/\//g,'_');
+  function trainingContext({section,year,scope}) {
+    scope ||= window.PPMSOrganizationScope?.current() || {division:'Production Division',plant:'โรง 1'};
+    const sectionKey=scope.division==='Production Division'&&scope.plant==='โรง 1'?safeKey(section):'scope_'+safeKey(scope.division+'::'+scope.plant+'::'+section);
+    return {section,year:Number(year),scope,sectionKey,key:Number(year)+'__'+sectionKey};
+  }
 
   function sectionFocus(section) {
     const s = String(section || '').toLowerCase();
@@ -95,6 +100,22 @@
   const freshPlans = new Map();
   const READ_TIMEOUT = 8000;
   const PLAN_FRESHNESS = 60000;
+  function trainingRestReady() {
+    return !!window.PPMS_FIREBASE_CONFIG?.databaseURL && typeof fetch === 'function' && typeof AbortController === 'function';
+  }
+  async function trainingRequest(path, options = {}, timeout = 20000) {
+    const base = String(window.PPMS_FIREBASE_CONFIG?.databaseURL || '').replace(/\/$/,'');
+    const controller = new AbortController(), timer = setTimeout(()=>controller.abort(),timeout);
+    try {
+      const response=await fetch(base+'/'+path+'.json'+(options.method==='PATCH'?'?print=silent':''),{...options,signal:controller.signal,cache:'no-store'});
+      if (!response.ok) throw Error(response.status===401 || response.status===403 ? 'ไม่มีสิทธิ์เข้าถึงหลักฐาน กรุณาตรวจสอบบัญชีผู้ใช้' : 'เชื่อมต่อหลักฐานไม่สำเร็จ ('+response.status+')');
+      return response.status===204?null:await response.json();
+    } catch(error) {
+      if(error.name==='AbortError') throw Error('ยังไม่ได้รับการยืนยันจากฐานข้อมูล กรุณาลองโหลดข้อมูลล่าสุดอีกครั้ง');
+      throw error;
+    } finally { clearTimeout(timer); }
+  }
+  const readTrainingValue = path => trainingRestReady() ? trainingRequest(path) : readCloudValue(path);
   function readCloudValue(path) {
     return new Promise((resolve, reject) => {
       let ref, settled = false;
@@ -116,8 +137,8 @@
   }
   function readPlan(ctx) {
     if (planRequests.has(ctx.key)) return planRequests.get(ctx.key);
-    if (!dbReady() || navigator.onLine === false) return Promise.reject(new Error('ยังไม่เชื่อมต่อฐานข้อมูล'));
-    const request = readCloudValue(ROOT + '/' + ctx.year + '/' + ctx.sectionKey).then(cloud => {
+    if ((!trainingRestReady() && !dbReady()) || navigator.onLine === false) return Promise.reject(new Error('ยังไม่เชื่อมต่อฐานข้อมูล'));
+    const request = readTrainingValue(ROOT + '/' + ctx.year + '/' + ctx.sectionKey).then(cloud => {
       const plan = defaults(ctx.section);
       QUARTERS.forEach(q => { if (cloud?.[q]) plan[q] = {...cloud[q], _saved:true}; });
       try { localWrite(ctx.key, plan); } catch (_) {}
@@ -139,6 +160,7 @@
     });
     if (!result.committed || !matched) throw new Error('แผนถูกแก้ไขจากเครื่องอื่น กรุณาปิดแล้วเปิดแผนใหม่');
     freshPlans.delete(ctx.key);
+    window.PPMSQuarterlyTraining?.invalidate(ctx);
     plan[q] = {...next, _saved:true};
     try { localWrite(ctx.key, plan); } catch (_) {}
   }
@@ -172,7 +194,9 @@
   }
   function examProgress(ctx,q) {
     const source = window.PPMS_RUNTIME?.monthReportContext?.(), people = roster(ctx), ids = new Set(people.map(e=>String(e.id))), results = new Map();
-    for (const r of source?.examResults || []) {
+    const deleted=new Set(source?.deletedExamKeys||[]);
+    for (const r of [...(window.PPMSQuarterlyTraining?.notifications(ctx)||[]),...(source?.examResults || [])]) {
+      if (r.recordKey && deleted.has(r.recordKey)) continue;
       if (r.deleted || !ids.has(String(r.employeeId)) || (r.examType || 'quarterly') !== 'quarterly' || r.quarter !== q) continue;
       const date = String(r.date || r.createdAt || ''), year = /^\d{4}-\d{2}-\d{2}$/.test(date) ? Number(date.slice(0,4)) : Number.isFinite(new Date(date).getTime()) ? Number(new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Bangkok',year:'numeric'}).format(new Date(date))) : null;
       if (year !== ctx.year || r.organizationDivision && r.organizationDivision !== ctx.scope.division || r.organizationPlant && r.organizationPlant !== ctx.scope.plant) continue;
@@ -188,9 +212,9 @@
     return '<div class="training-quarter-progress" data-quarter-progress="'+q+'"><b>'+label+'</b><span>มีหลักฐานแล้ว '+complete+' / '+items.length+' หัวข้อ</span><span>'+(available ? 'สอบประจำไตรมาสแล้ว '+results.size+' / '+people.length+' คน • เหลือสอบ '+(people.length-results.size)+' คน' : 'เข้าสู่ระบบเพื่อดูสถานะสอบ')+'</span><small>ผลสอบอิงข้อสอบประจำไตรมาสของ Section นี้ แยกจากหลักฐานอบรมแต่ละหัวข้อ</small></div>';
   }
   async function readSummaries(ctx) {
-    if (!dbReady() || navigator.onLine === false) throw Error('ยังไม่เชื่อมต่อฐานข้อมูล');
+    if ((!trainingRestReady() && !dbReady()) || navigator.onLine === false) throw Error('ยังไม่เชื่อมต่อฐานข้อมูล');
     if (summaryRequests.has(ctx.key)) return summaryRequests.get(ctx.key);
-    const request = readCloudValue(STATUS_ROOT+'/'+ctx.year+'/'+ctx.sectionKey).then(data=>{
+    const request = readTrainingValue(STATUS_ROOT+'/'+ctx.year+'/'+ctx.sectionKey).then(data=>{
       recordSummaries.set(ctx.key,{loaded:true,data:data || {}});
     }).finally(()=>summaryRequests.delete(ctx.key));
     summaryRequests.set(ctx.key,request);return request;
@@ -203,16 +227,18 @@
     if (context().key === ctx.key) { document.querySelector('#examPlanDetailsV592')?.remove(); enhance(); }
   }
   async function readTrainingRecord(ctx, q, topicIndex) {
-    if (!dbReady() || navigator.onLine === false) throw Error('กรุณาเชื่อมต่ออินเทอร์เน็ตเพื่อตรวจหลักฐานล่าสุด');
-    const record = await readCloudValue(RECORD_ROOT + '/' + ctx.year + '/' + ctx.sectionKey + '/' + q + '/' + topicIndex);
+    if ((!trainingRestReady() && !dbReady()) || navigator.onLine === false) throw Error('กรุณาเชื่อมต่ออินเทอร์เน็ตเพื่อตรวจหลักฐานล่าสุด');
+    const record = await readTrainingValue(RECORD_ROOT + '/' + ctx.year + '/' + ctx.sectionKey + '/' + q + '/' + topicIndex);
     rememberRecord(ctx,q,topicIndex,record); return record;
   }
   async function saveTrainingRecord(ctx, q, topicIndex, record) {
     if (!isAdmin()) throw new Error('บัญชีนี้ไม่มีสิทธิ์บันทึกผลการอบรม');
-    if (!dbReady() || navigator.onLine === false) throw new Error('กรุณาเชื่อมต่ออินเทอร์เน็ตก่อนบันทึกหลักฐาน');
+    if ((!trainingRestReady() && !dbReady()) || navigator.onLine === false) throw new Error('กรุณาเชื่อมต่ออินเทอร์เน็ตก่อนบันทึกหลักฐาน');
     const suffix = '/' + ctx.year + '/' + ctx.sectionKey + '/' + q + '/' + topicIndex;
     // Commit evidence and its small dashboard summary atomically; never download attachments for the four cards.
-    await ensureFirebase().ref().update({[RECORD_ROOT + suffix]:record,[STATUS_ROOT + suffix]:summaryOf(record)});
+    const updates = {[RECORD_ROOT + suffix]:record,[STATUS_ROOT + suffix]:summaryOf(record)};
+    if (trainingRestReady()) await trainingRequest('',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(updates)},45000);
+    else await ensureFirebase().ref().update(updates);
     rememberRecord(ctx,q,topicIndex,record);
   }
   async function readEvidenceFile(file) {
@@ -271,6 +297,7 @@
     const fresh = freshPlans.get(ctx.key);
     const cached = fresh?.plan || localRead(ctx.key);
     const plan = {...defaults(ctx.section), ...(cached || {})};
+    host.__trainingContext=ctx;host.__trainingPlan=plan;
     let planStatusMessage = '', planRetry = false;
     const controls = document.querySelector('.exam-plan-controls');
     controls?.after(host);
@@ -282,6 +309,7 @@
       host.querySelectorAll('[data-plan-topic]').forEach(button => { button.onclick = () => openTrainingTopic(ctx, button.dataset.quarter, plan[button.dataset.quarter], Number(button.dataset.planTopic)); });
       host.querySelectorAll('[data-plan-evidence]').forEach(button => { button.onclick = () => openTrainingTopic(ctx, button.dataset.quarter, plan[button.dataset.quarter], Number(button.dataset.planEvidence),true); });
       host.querySelector('[data-training-refresh]').onclick=()=>{
+        window.PPMSQuarterlyTraining?.refreshNotices(ctx);
         recordSummaries.delete(ctx.key);freshPlans.delete(ctx.key);host.remove();enhance();
       };
       host.querySelectorAll('[data-plan-edit]').forEach(button => { button.onclick = () => openEditor(ctx, plan, button.dataset.planEdit); });
@@ -376,29 +404,43 @@
     overlay.querySelector('[data-close]').onclick = () => overlay.remove();
     overlay.onclick = event => { if (event.target === overlay) overlay.remove(); };
     document.body.appendChild(overlay);
-    let record = null;
+    let record = null, recordLoaded = false, loadingRecord = null;
     const recordPanel = overlay.querySelector('[data-record-panel]');
     const printButton = overlay.querySelector('[data-print-training]');
-    readTrainingRecord(ctx, q, index).then(value => {
-      if (value && value.topic !== item.title) throw Error('หัวข้อในแผนเปลี่ยนไป หลักฐานเดิมเป็นของ “'+value.topic+'” กรุณาตรวจสอบแผนก่อนบันทึก');
-      record = value?.topic === item.title ? value : null;
-      if (!document.body.contains(overlay)) return;
-      if (record) {
-        const evidence = Array.isArray(record.evidence) ? record.evidence : [];
-        recordPanel.innerHTML = '<h3>📋 แบบฟอร์มและหลักฐานการอบรม</h3><div class="training-record-status '+(evidence.length?'done':'')+'"><b>'+(evidence.length?'อบรมเสร็จแล้ว':'บันทึกแบบฟอร์มแล้ว • รอแนบหลักฐาน')+'</b><span>' + esc(record.trainingDate || '-') + ' • Trainer: ' + esc(record.trainer || '-') + ' • หลักฐาน ' + evidence.length + ' ไฟล์</span></div>' + evidenceHtml(evidence) + participantProgress(ctx,q,record);
-        printButton.disabled = false;
-      } else {
-        recordPanel.innerHTML = '<h3>📋 แบบฟอร์มและหลักฐานการอบรม</h3><div class="training-record-status"><b>ยังไม่ได้บันทึกผลการอบรม</b><span>กรอกรายละเอียดก่อนพิมพ์แบบฟอร์มไปใช้เทรนนิ่ง</span></div>';
-      }
-      overlay.querySelector('[data-training-form]').disabled=false;
-      if (editImmediately && isAdmin()) overlay.querySelector('[data-training-form]').click();
-    }).catch(error=>{if(document.body.contains(overlay))recordPanel.textContent='ยังโหลดหลักฐานไม่ได้: '+error.message+' • ปิดแล้วลองเปิดใหม่';});
-    if (!isAdmin()) overlay.querySelector('[data-training-form]').hidden = true;
-    overlay.querySelector('[data-training-form]').onclick = () => openTrainingRecordEditor(ctx, q, quarter, index, item, record, value => {
-      record = value;
-      overlay.remove();
-      openTrainingTopic(ctx, q, quarter, index);
-    });
+    const formButton = overlay.querySelector('[data-training-form]');
+    if (!isAdmin()) formButton.hidden = true;
+    const loadRecord = () => {
+      if (loadingRecord) return loadingRecord;
+      formButton.disabled = true;
+      recordPanel.textContent = 'กำลังตรวจสอบข้อมูลการอบรม...';
+      loadingRecord = readTrainingRecord(ctx, q, index).then(value => {
+        if (value && value.topic !== item.title) throw Error('หัวข้อในแผนเปลี่ยนไป หลักฐานเดิมเป็นของ “'+value.topic+'” กรุณาตรวจสอบแผนก่อนบันทึก');
+        if (!document.body.contains(overlay)) return false;
+        record = value || null;recordLoaded = true;
+        if (record) {
+          const evidence = Array.isArray(record.evidence) ? record.evidence : [];
+          recordPanel.innerHTML = '<h3>📋 แบบฟอร์มและหลักฐานการอบรม</h3><div class="training-record-status '+(evidence.length?'done':'')+'"><b>'+(evidence.length?'อบรมเสร็จแล้ว':'บันทึกแบบฟอร์มแล้ว • รอแนบหลักฐาน')+'</b><span>' + esc(record.trainingDate || '-') + ' • Trainer: ' + esc(record.trainer || '-') + ' • หลักฐาน ' + evidence.length + ' ไฟล์</span></div>' + evidenceHtml(evidence) + participantProgress(ctx,q,record);
+          printButton.disabled = false;
+        } else {
+          recordPanel.innerHTML = '<h3>📋 แบบฟอร์มและหลักฐานการอบรม</h3><div class="training-record-status"><b>ยังไม่ได้บันทึกผลการอบรม</b><span>กรอกรายละเอียดก่อนพิมพ์แบบฟอร์มไปใช้เทรนนิ่ง</span></div>';
+        }
+        return true;
+      }).catch(error => {
+        if (document.body.contains(overlay)) {
+          recordPanel.textContent = 'ยังโหลดหลักฐานไม่ได้: '+error.message+' • กดลองใหม่ได้จากหน้านี้';
+          const retry=document.createElement('button');retry.type='button';retry.className='secondary';retry.textContent='ลองโหลดหลักฐานอีกครั้ง';retry.onclick=()=>void loadRecord();recordPanel.append(' ',retry);
+        }
+        return false;
+      }).finally(()=>{loadingRecord=null;if(document.body.contains(overlay))formButton.disabled=false;});
+      return loadingRecord;
+    };
+    formButton.onclick = async () => {
+      if (!isAdmin() || (!recordLoaded && !await loadRecord()) || !document.body.contains(overlay)) return;
+      openTrainingRecordEditor(ctx, q, quarter, index, item, record, value => {
+        record = value;overlay.remove();openTrainingTopic(ctx, q, quarter, index);
+      });
+    };
+    loadRecord().then(ok=>{if(ok && editImmediately && isAdmin()) formButton.click();});
     printButton.onclick = () => { if (record) openTrainingPrintForm(ctx, q, quarter, item, record); };
   }
   function evidenceHtml(evidence) {
@@ -597,6 +639,12 @@
       title.textContent = 'Training & Examination Plan';
     }
   }
+  window.PPMSTrainingPlanService={defaults,trainingContext,trainingItems,readTrainingValue,esc,safeKey};
+  window.addEventListener('ppms-quarterly-exams-changed',()=>{
+    const host=document.getElementById('examPlanDetailsV592'),ctx=host?.__trainingContext,plan=host?.__trainingPlan;
+    if(!ctx||!plan)return;
+    for(const q of QUARTERS){const node=host.querySelector('[data-quarter-progress="'+q+'"]'),html=quarterProgress(ctx,q,plan[q]||defaults(ctx.section)[q]);if(node&&node.outerHTML!==html)node.outerHTML=html;}
+  });
   const observer = new MutationObserver(() => {
     clearTimeout(window.__examPlanDetailTimer);
     window.__examPlanDetailTimer = setTimeout(() => { renamePlanLabels(); enhance(); }, 80);
