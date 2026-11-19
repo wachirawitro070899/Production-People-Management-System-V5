@@ -5,6 +5,10 @@
  let language='th', scheduled=false, applying=false;
  try{language=localStorage.getItem(KEY)==='en'?'en':'th'}catch{}
  const dictionary=Object.fromEntries(`
+เปิดสไลด์อบรม · 10 หน้า|Open training slides · 10 pages
+เปิดสไลด์อบรม 10 หน้า|Open 10 training slides
+สไลด์อบรมหัวข้อนี้|Training slides for this topic
+10 หน้าสรุปเนื้อหา จุดควบคุม ตัวอย่างหน้างาน แบบฝึก และคำถามทบทวน|10 short slides: key content, controls, workplace examples, practice and review questions
 ลองโหลดหลักฐานอีกครั้ง|Retry loading evidence
 กดลองใหม่ได้จากหน้านี้|Retry from this page
 ยังไม่ได้รับการยืนยันจากฐานข้อมูล กรุณาลองโหลดข้อมูลล่าสุดอีกครั้ง|No database confirmation yet; reload the latest record and retry

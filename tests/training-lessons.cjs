@@ -1,0 +1,33 @@
+const fs=require('node:fs'),assert=require('node:assert/strict');
+const {JSDOM,VirtualConsole}=require(process.env.JSDOM_MODULE||'jsdom');
+const errors=[],vc=new VirtualConsole();vc.on('jsdomError',e=>errors.push(e.message));
+const dom=new JSDOM('<html><head></head><body><main id="app"></main><button id="origin">Open</button></body></html>',{url:'https://ppms.test',runScripts:'outside-only',pretendToBeVisual:true,virtualConsole:vc});
+const w=dom.window;let writes=0;w.fetch=()=>{writes++;throw Error('Deck must not access the database');};w.print=()=>{};
+const style=w.document.createElement('style');style.textContent=fs.readFileSync('training-lessons-v964.css','utf8');w.document.head.append(style);
+w.eval(fs.readFileSync('exam-plan-details-v592.js','utf8'));w.eval(fs.readFileSync('training-lessons-v964.js','utf8'));
+const {defaults,trainingItems}=w.PPMSTrainingPlanService,api=w.PPMSTrainingLessons;
+const sections=['Engineering Support Section','Support Production Section','Machine Maintenance Section','Tooling Maintenance Section','Sorting Section','Stamping Section','Welding Section','CNC Section','Tapping Section','Bending Section','Die Casting Section','Aluminum smelting','Mold Maintenance','Polishing / Shot Blasting / X-Ray','Warehouse Section','Quality Section'];
+const ctx=section=>({section,year:2026,scope:{division:'Production Division',plant:'โรง 1'}});
+let count=0;const families=new Set();
+try{
+ for(const section of sections){for(const [q,quarter]of Object.entries(defaults(section))){for(const item of trainingItems(quarter.training)){
+  const deck=api.build({ctx:ctx(section),q,quarter,item});assert.equal(deck.pages.length,10);assert.equal(deck.source.topic,item.title);assert.equal(deck.source.detail,item.detail);assert.equal(deck.source.section,section);assert.equal(deck.source.quarter,q);assert.equal(deck.pages[8].questions.length,3);assert(deck.pages.every(page=>page.title&&page.kicker));assert(deck.pages.every(page=>!page.points||page.points.every(p=>typeof p==='string'&&p.trim())));families.add(deck.family);count++;
+ }}}
+ assert(count>450);assert(families.has('energy'));assert(families.has('electrical'));assert(families.has('mechanical'));assert(families.has('toolLife'));
+ const quarter=defaults('Stamping Section').Q1,item=trainingItems(quarter.training)[0],input={ctx:ctx('Stamping Section'),q:'Q1',quarter,item},deck=api.build(input),origin=w.document.getElementById('origin');
+ const safety=JSON.stringify(deck);assert(safety.includes('Die / Material / Feeder'));assert(safety.includes('Emergency Stop'));assert(deck.references.every(r=>r.url.startsWith('https://www.osha.gov/')));
+ const ppe=api.build({...input,item:{index:1,title:'PPE ประจำงาน',detail:'เลือก สวม ตรวจสภาพ และดูแล PPE'}});assert.notEqual(JSON.stringify(ppe.pages),safety);assert(ppe.pages[4].points.some(p=>p.includes('ไม่เพิ่มความเสี่ยง')));
+ const custom=api.build({...input,item:{index:4,title:'หัวข้อเฉพาะที่เพิ่มใหม่',detail:'ตรวจรหัสเฉพาะ ABC และบันทึกผลก่อนเริ่มงาน'}});assert.equal(custom.pages.length,10);assert.equal(custom.family,'custom');assert(custom.pages[8].questions[0].answer.includes('ABC'));
+ const script={ctx:{...ctx('Stamping Section'),section:'<img src=x onerror=alert(1)>'},q:'Q1',quarter:{method:'<script>bad()</script>',criteria:'<b>criteria</b>'},item:{index:0,title:'<svg onload=alert(1)>',detail:'<script>bad()</script>'}};
+ const html=api.printMarkup(api.build(script)),parsed=new JSDOM(html);assert.equal(parsed.window.document.querySelectorAll('[data-tl-page]').length,10);assert.equal(parsed.window.document.querySelectorAll('script,img,svg').length,0);assert(html.includes('&lt;script&gt;'));assert(!parsed.window.document.querySelector('[hidden]'));assert(html.includes('size:A4 landscape'));parsed.window.close();
+ const view=api.open(input,origin);assert.equal(w.document.querySelectorAll('.training-lessons-overlay').length,1);assert.equal(w.document.querySelector('[data-tl-page]').dataset.tlPage,'1');assert(w.document.querySelector('[data-tl-prev]').disabled);
+ w.document.querySelector('[data-tl-next]').click();assert.equal(w.document.querySelector('[data-tl-page]').dataset.tlPage,'2');
+ const stage=w.document.querySelector('.tl-stage');for(const [type,x]of [['pointerdown',200],['pointerup',80]]){const event=new w.Event(type,{bubbles:true});Object.assign(event,{pointerType:'touch',clientX:x,clientY:40});stage.dispatchEvent(event);}assert.equal(w.document.querySelector('[data-tl-page]').dataset.tlPage,'3','A horizontal touch swipe advances the deck');
+ w.document.dispatchEvent(new w.KeyboardEvent('keydown',{key:'End',bubbles:true}));assert.equal(w.document.querySelector('[data-tl-page]').dataset.tlPage,'10');assert(w.document.querySelector('[data-tl-next]').disabled);
+ w.document.querySelector('[data-tl-go="8"]').click();assert.equal(w.document.querySelectorAll('.tl-answer[hidden]').length,3);w.document.querySelector('[data-tl-answers]').click();assert.equal(w.document.querySelectorAll('.tl-answer[hidden]').length,0);
+ w.document.dispatchEvent(new w.KeyboardEvent('keydown',{key:'ArrowLeft',bubbles:true}));assert.equal(w.document.querySelector('[data-tl-page]').dataset.tlPage,'8');
+ const pagesBefore=w.localStorage.length;w.document.dispatchEvent(new w.KeyboardEvent('keydown',{key:'Escape',bubbles:true}));assert.equal(w.document.querySelector('.training-lessons-overlay'),null);assert.equal(w.document.activeElement,origin);assert.equal(w.localStorage.length,pagesBefore);assert.equal(writes,0);
+ api.open(input,origin);api.open({...input,item:trainingItems(quarter.training)[1]},origin);assert.equal(w.document.querySelectorAll('.training-lessons-overlay').length,1);api.close();assert(!w.document.body.classList.contains('training-lessons-active'));assert.equal(writes,0);
+ for(const entry of ['index.html','404.html']){const page=fs.readFileSync(entry,'utf8');assert(page.includes('training-lessons-v964.js?v=964'));assert(page.includes('training-lessons-v964.css?v=964'));assert(page.includes('exam-plan-details-v592.js?v=964'));}
+ assert.deepEqual(errors,[]);console.log('PASS '+count+' topic decks / '+count*10+' slides: topic and Section content, safe custom topics, source references, ten-page print markup, escaped inputs, navigation/keyboard/answers/focus cleanup, repeated opening and no training/exam writes.');
+}finally{w.close();}
