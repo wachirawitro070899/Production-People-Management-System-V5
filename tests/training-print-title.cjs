@@ -34,6 +34,6 @@ const launch=async topic=>{w.PPMSTrainingLessons.open(input(topic));w.document.q
  w.dispatchEvent(new w.Event('afterprint'));assert.equal(w.document.title,original);
  fail=true;await launch('หัวข้อถัดไป');assert.equal(w.document.title,original);assert.equal(w.document.querySelector('.tl-print-frame'),null);assert(w.document.querySelector('[data-tl-status]').textContent.includes('print unavailable'));
  fail=false;await launch('สอบย้อนกลับ');assert(captured.parent.includes('สอบย้อนกลับ'));w.dispatchEvent(new w.Event('afterprint'));
- for(const name of ['index.html','404.html']){const html=fs.readFileSync(name,'utf8');assert(html.includes('language-v843.js?v=966'));assert(html.includes('training-lessons-v964.js?v=968'));}
+ for(const name of ['index.html','404.html']){const html=fs.readFileSync(name,'utf8');assert(html.includes('language-v843.js?v=966'));assert(html.includes('training-lessons-v964.js?v=972'));}
  assert.equal(w.document.title,original);console.log('PASS selected topic/Section/quarter/year PDF titles, safe filename characters, language refresh, repeated print guard, save/cancel cleanup, failure recovery and cache versions.');
 }finally{w.close();}})().catch(error=>{console.error(error);process.exitCode=1;});
