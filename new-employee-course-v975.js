@@ -7,7 +7,7 @@
  const title=section=>'อบรมพื้นฐานพนักงานใหม่ — '+section;
  function buildBase(input){
   const ctx=service().trainingContext(input),topics=window.PPMSNewEmployeeTraining.requiredTopics(ctx.section);
-  if(!topics.length||topics.length>22)throw Error('หลักสูตรต้องมีหัวข้ออบรม และรวมทั้งหมดไม่เกิน 25 สไลด์');
+  if(!topics.length||topics.length>22)throw Error('กรุณาตรวจสอบหัวข้ออบรมพื้นฐานของ Section');
   const quarter={method:'สรุปพื้นฐาน Section + สาธิตหน้างาน + OJT + สอบพนักงานใหม่ในระบบเดิม',criteria:'อบรมครบทุกหัวข้อ และประเมินด้วยข้อสอบพนักงานใหม่ในระบบเดิม'};
   const built=topics.map(item=>window.PPMSTrainingLessons.build({ctx,q:'NEW',quarter,item})),deck=copy(built[0]);
   deck.source={...deck.source,topic:title(ctx.section),index:0,detail:topics.map(topic=>topic.title+' — '+topic.detail).join('\n'),quarter:'NEW',method:quarter.method,criteria:quarter.criteria};
