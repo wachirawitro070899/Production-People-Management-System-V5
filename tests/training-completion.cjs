@@ -1,0 +1,34 @@
+const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
+const source=fs.readFileSync('exam-plan-details-v592.js','utf8');
+const section='Welding Section',scope={division:'Production Division',plant:'โรง 1'};
+const person=id=>({id,name:'Person '+id,section,organizationDivision:scope.division,organizationPlant:scope.plant});
+let admin=true,fail=false,updates=null;
+const document={addEventListener(){},querySelector(){return null;}};
+const window={addEventListener(){},PPMS_FIREBASE_CONFIG:{},PPMS_RUNTIME:{monthReportContext:()=>runtime}};
+const runtime={allowed:true,allSections:true,scope,employees:[person('1'),person('2')],examResults:[]};
+const sandbox={window,document,navigator:{onLine:true},sessionStorage:{getItem:()=>admin?'1':null},btoa:s=>Buffer.from(s,'binary').toString('base64'),MutationObserver:class{},setTimeout,clearTimeout,console,Intl,Date,encodeURIComponent,unescape,
+ firebase:{apps:[{}],database:()=>({ref:()=>({update:async value=>{if(fail)throw Error('PERMISSION_DENIED');updates=JSON.parse(JSON.stringify(value));}})})}};
+vm.runInNewContext(source.replace('  const observer = new MutationObserver', '  window.testCompletion={recordSummaries,saveTrainingRecord,quarterProgress};\n  const observer = new MutationObserver'),sandbox);
+const api=window.PPMSTrainingPlanService,internals=window.testCompletion;
+const ctx=api.trainingContext({section,year:2026,scope}),item={index:0,title:'Safety'};
+const state=()=>api.topicState(ctx,'Q3',item);
+const record={topic:'Safety',trainingDate:'2026-08-10',trainingCompleted:true,evidence:[],attendeeIds:['1','2'],updatedAt:'2026-08-10T03:00:00Z'};
+const statusPath='ppmsTrainingImplementationStatus/2026/'+ctx.sectionKey+'/Q3/0';
+(async()=>{
+ assert.equal(api.trainingDone(api.summaryOf({...record,trainingCompleted:false})),false,'A dated draft stays untrained');
+ assert.equal(api.trainingDone(api.summaryOf({...record,trainingDate:''})),false,'Completion requires a training date');
+ assert.equal(api.trainingDone(api.summaryOf({...record,trainingCompleted:false,evidence:[{name:'Proof.pdf'}]})),true,'Legacy evidence-based completion remains valid');
+ await internals.saveTrainingRecord(ctx,'Q3',0,record);
+ assert.equal(updates[statusPath].trainingCompleted,true);assert.equal(updates[statusPath].evidenceCount,0);
+ assert.equal(state().label,'อบรมเรียบร้อยแล้ว • พร้อมสอบ');assert.equal(runtime.examResults.length,0,'Training cannot create exam results');
+ const saved=JSON.parse(JSON.stringify(updates[statusPath]));internals.recordSummaries.clear();internals.recordSummaries.set(ctx.key,{loaded:true,data:{Q3:{0:saved}}});
+ assert.equal(state().key,'waiting-exam','Confirmed status survives serialization and reload');
+ runtime.examResults.push({employeeId:'1',quarter:'Q3',date:'2026-08-12',examType:'quarterly'});assert.equal(state().key,'waiting-exam','One attendee still needs to take the exam');
+ runtime.examResults.push({employeeId:'2',quarter:'Q3',date:'2026-08-12',examType:'quarterly',organizationPlant:'โรง 2'});assert.equal(state().key,'waiting-exam','Wrong-plant results cannot complete training');
+ runtime.examResults.push({employeeId:'2',quarter:'Q3',date:'2026-08-12',examType:'quarterly'});assert.equal(state().key,'completed');
+ admin=false;await assert.rejects(internals.saveTrainingRecord(ctx,'Q3',0,record),/ไม่มีสิทธิ์/);admin=true;
+ sandbox.navigator.onLine=false;await assert.rejects(internals.saveTrainingRecord(ctx,'Q3',0,record),/อินเทอร์เน็ต/);sandbox.navigator.onLine=true;
+ fail=true;await assert.rejects(internals.saveTrainingRecord(ctx,'Q3',0,{...record,topic:'Changed'}),/PERMISSION_DENIED/);assert.equal(state().key,'completed','Failed writes preserve the last confirmed status');
+ assert(!JSON.stringify(updates[statusPath]).includes('data:'),'Dashboard summaries never include attachment bytes');
+ console.log('PASS explicit completion without files, draft and legacy compatibility, atomic save/reload, actual attendee exams, plant scope, readonly/offline/failed writes.');
+})().catch(error=>{console.error(error);process.exitCode=1;});

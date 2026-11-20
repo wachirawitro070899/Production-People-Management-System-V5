@@ -14,12 +14,13 @@ let readError=false,delay=false;const db={['ppmsExamPlanDetails/2026/'+sk]:{Q1:{
  try{
   await wait(0);w.eval(fs.readFileSync('exam-plan-details-v592.js','utf8'));w.document.dispatchEvent(new w.Event('DOMContentLoaded'));await wait(30);
   const badge=i=>w.document.querySelector('[data-training-quarter="Q1"] [data-training-topic-status="'+i+'"]');
-  assert.equal(badge(0).textContent,'รออบรม');assert.equal(badge(1).textContent,'รอสอบ');assert.equal(badge(2).textContent,'อบรมและสอบครบแล้ว','Only the topic attendees must complete an exam');assert.equal(badge(3).textContent,'รออบรม');assert.equal(badge(4).textContent,'รอสอบ','Unlinked attendees cannot produce a completed badge');
+  assert.equal(badge(0).textContent,'รออบรม');assert.equal(badge(1).textContent,'อบรมเรียบร้อยแล้ว • พร้อมสอบ');assert.equal(badge(2).textContent,'อบรมและสอบครบแล้ว','Only the topic attendees must complete an exam');assert.equal(badge(3).textContent,'รออบรม');assert.equal(badge(4).textContent,'อบรมเรียบร้อยแล้ว • พร้อมสอบ','Unlinked attendees cannot produce a completed badge');
   const selected=w.document.querySelector('#examPlanSection');w.runtime.examResults.push(result('2'));w.dispatchEvent(new w.Event('ppms-quarterly-exams-changed'));assert.equal(badge(1).textContent,'อบรมและสอบครบแล้ว');assert.equal(w.document.querySelector('#examPlanSection'),selected,'Exam events update badges without rebuilding controls');
-  w.runtime.deletedExamKeys=['deleted'];w.runtime.examResults.at(-1).recordKey='deleted';w.dispatchEvent(new w.Event('ppms-quarterly-exams-changed'));assert.equal(badge(1).textContent,'รอสอบ','Deleted results restore the waiting state');
+  w.runtime.deletedExamKeys=['deleted'];w.runtime.examResults.at(-1).recordKey='deleted';w.dispatchEvent(new w.Event('ppms-quarterly-exams-changed'));assert.equal(badge(1).textContent,'อบรมเรียบร้อยแล้ว • พร้อมสอบ','Deleted results restore the waiting state');
   // Failed reads stay distinct from confirmed not-trained states.
   readError=true;w.document.querySelector('[data-training-refresh]').click();await wait(30);assert.equal(badge(0).dataset.trainingStatus,'unavailable');assert(!badge(0).textContent.includes('รออบรม'));
   readError=false;delay=true;w.document.querySelector('[data-training-refresh]').click();await wait(10);assert.equal(badge(0).dataset.trainingStatus,'checking');await wait(100);assert.equal(badge(0).textContent,'รออบรม');
   assert.deepEqual(errors,[]);console.log('PASS training/exam topic states, topic-specific attendees, scoped quarterly exams, invalid/deleted attempts, live badge refresh and unknown/loading states.');
  }finally{w.close();}
 })().catch(e=>{console.error(e);process.exitCode=1});
+

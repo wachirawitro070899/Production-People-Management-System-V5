@@ -32,8 +32,8 @@ async function setup(){
   await open();assert.equal(form().querySelectorAll('[name="attendeeIds"]').length,2);
   for(const [name,value]of Object.entries({trainingDate:'2026-03-01',trainingTime:'09:00–11:00',trainingPlace:'Room',trainer:'Trainer',effect:'OJT completed'}))form().elements[name].value=value;
   form().querySelectorAll('[name="attendeeIds"]').forEach(b=>b.checked=true);await submit();assert.equal(form(),null);assert.equal(db[recordPath].evidence.length,0);close();assert(!quarter().includes('อบรมเสร็จแล้ว'));
-  await open();files([pdf()]);await submit();assert.equal(form(),null);assert.equal(db[recordPath].attendeeIds.length,2);assert.equal(db[statusPath].evidenceCount,1);assert(!JSON.stringify(db[statusPath]).includes('data:'));assert(w.document.querySelector('[data-record-panel]').textContent.includes('รอสอบ'));close();assert(quarter().includes('อบรมเสร็จแล้ว • รอสอบ'));
-  assert.deepEqual(t.errors,[]);w.close();t=await setup();w=t.w;assert(quarter().includes('อบรมเสร็จแล้ว • รอสอบ'),'Confirmed status survives reload');
+  await open();files([pdf()]);await submit();assert.equal(form(),null);assert.equal(db[recordPath].attendeeIds.length,2);assert.equal(db[statusPath].evidenceCount,1);assert(!JSON.stringify(db[statusPath]).includes('data:'));assert(w.document.querySelector('[data-record-panel]').textContent.includes('พร้อมสอบ'));close();assert(quarter().includes('อบรมเสร็จแล้ว • พร้อมสอบ'));
+  assert.deepEqual(t.errors,[]);w.close();t=await setup();w=t.w;assert(quarter().includes('อบรมเสร็จแล้ว • พร้อมสอบ'),'Confirmed status survives reload');
   await open();assert(form().textContent.includes('Attendance.pdf'));
   files([new w.File(['<script>fake</script>'],'fake.pdf',{type:'application/pdf'})]);await submit();assert(form().querySelector('[data-training-save-status]').textContent.includes('ไฟล์'));assert.equal(db[recordPath].evidence.length,1);
   files(Array.from({length:20},(_,i)=>new w.File(['%PDF-1.4\nTest'],'Proof-'+i+'.pdf',{type:'application/pdf'})));await submit();assert(form().querySelector('[data-training-save-status]').textContent.includes('สูงสุด 20'));
@@ -59,3 +59,4 @@ async function setup(){
   console.log('PASS evidence save/reload/removal, metadata-only cards, scoped quarterly exams, participant links, draft status, failed/offline saves, read failures, file validation and readonly controls.');
  }finally{w.close();}
 })().catch(error=>{console.error(error);process.exitCode=1;});
+
