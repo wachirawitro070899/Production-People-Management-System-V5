@@ -237,14 +237,22 @@
     const suffix = '/' + ctx.year + '/' + ctx.sectionKey + '/' + q + '/' + topicIndex;
     // Commit evidence and its small dashboard summary atomically; never download attachments for the four cards.
     const updates = {[RECORD_ROOT + suffix]:record,[STATUS_ROOT + suffix]:summaryOf(record)};
-    if (trainingRestReady()) await trainingRequest('',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(updates)},45000);
+    if (trainingRestReady()) await trainingRequest('',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(updates)},120000);
     else await ensureFirebase().ref().update(updates);
     rememberRecord(ctx,q,topicIndex,record);
   }
+  const EVIDENCE_LIMITS={count:20,file:5*1024*1024,total:50*1024*1024};
+  const EVIDENCE_KINDS={other:'หลักฐานอื่นๆ',atmosphere:'บรรยากาศการอบรม',attendance:'ใบลงชื่อ / ใบเทรนนิ่ง',assessment:'ผลการประเมิน'};
+  const evidenceSize=bytes=>bytes<1024*1024?Math.max(1,Math.ceil(bytes/1024))+' KB':(bytes/1024/1024).toFixed(2)+' MB';
+  function validateEvidence(files){
+    if(files.length>EVIDENCE_LIMITS.count)throw Error('แนบหลักฐานได้สูงสุด 20 ไฟล์ต่อหัวข้อ');
+    if(files.some(file=>Number(file.size||0)>EVIDENCE_LIMITS.file))throw Error('หลักฐานแต่ละไฟล์ต้องมีขนาดไม่เกิน 5 MB');
+    if(files.reduce((sum,file)=>sum+Number(file.size||0),0)>EVIDENCE_LIMITS.total)throw Error('หลักฐานทั้งหมดต้องมีขนาดรวมไม่เกิน 50 MB');
+  }
   async function readEvidenceFile(file) {
     if (!file) throw Error('ไม่พบไฟล์');
-    if (file.size > 1572864) throw Error('ไฟล์ ' + file.name + ' ต้องมีขนาดไม่เกิน 1.5 MB');
-    const bytes=new Uint8Array(await file.arrayBuffer()), prefix=[...bytes.slice(0,12)].map(b=>b.toString(16).padStart(2,'0')).join('');
+    if (!file.size || file.size > EVIDENCE_LIMITS.file) throw Error('ไฟล์ ' + file.name + ' ต้องมีขนาดมากกว่า 0 และไม่เกิน 5 MB');
+    const bytes=new Uint8Array(await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(reader.result);reader.onerror=()=>reject(Error('อ่านไฟล์ '+file.name+' ไม่สำเร็จ'));reader.readAsArrayBuffer(file);})),prefix=[...bytes.slice(0,12)].map(b=>b.toString(16).padStart(2,'0')).join('');
     const type=prefix.startsWith('255044462d')?'application/pdf':prefix.startsWith('89504e470d0a1a0a')?'image/png':prefix.startsWith('ffd8ff')?'image/jpeg':prefix.startsWith('52494646')&&prefix.slice(16,24)==='57454250'?'image/webp':'';
     if (!type) throw Error('รองรับเฉพาะไฟล์ JPG, PNG, WEBP หรือ PDF ที่ถูกต้อง');
     return new Promise((resolve, reject) => {
@@ -253,6 +261,49 @@
       reader.onload = () => resolve({name:file.name,type,size:file.size,dataUrl:String(reader.result).replace(/^data:[^;]*;/,'data:'+type+';'),uploadedAt:new Date().toISOString()});
       reader.readAsDataURL(file);
     });
+  }
+  function evidenceSelection(overlay,existing){
+    const form=overlay.querySelector('form'),input=form.elements.evidence,host=overlay.querySelector('[data-training-evidence-queue]'),submit=form.querySelector('[type=submit]'),items=[];
+    let nextId=0,processing=null,locked=false,selectionError='';
+    const retained=()=>{const removed=new Set([...form.querySelectorAll('[name=removeEvidence]:checked')].map(node=>Number(node.value)));return existing.filter((_,i)=>!removed.has(i));};
+    function render(){
+      const kept=retained(),working=items.some(item=>item.state==='queued'||item.state==='reading');
+      host.innerHTML='<div class="training-evidence-selection-head"><b>หลักฐานเดิม '+kept.length+' ไฟล์ + เลือกใหม่ '+items.length+' ไฟล์ · รวม '+(kept.length+items.length)+' / 20</b>'+((items.length||selectionError)?'<button type="button" class="secondary" data-evidence-clear>ล้างไฟล์ที่เลือกใหม่</button>':'')+'</div><p class="training-evidence-selection-note">กด Choose Files อีกครั้งเพื่อเพิ่มภาพบรรยากาศอบรม ใบเทรนนิ่ง หรือใบลงชื่อ · รูปที่เลือกไว้ยังอยู่ในรายการ</p>'+(selectionError?'<p class="training-evidence-selection-error" role="alert">'+esc(selectionError)+'</p>':'')+'<div class="training-evidence-selected">'+items.map(item=>'<article data-evidence-item="'+item.id+'">'+(item.data?.type.startsWith('image/')?'<img src="'+item.data.dataUrl+'" alt="'+esc(item.file.name)+'">':'<div class="training-evidence-file-icon">'+(item.data?.type==='application/pdf'?'PDF':item.state==='error'?'แนบไม่สำเร็จ':'กำลังเตรียมไฟล์')+'</div>')+'<b>'+esc(item.file.name)+'</b><small>'+esc(evidenceSize(item.file.size))+' · '+(item.state==='ready'?'พร้อมบันทึก':item.state==='error'?'แนบไม่สำเร็จ':'กำลังเตรียม')+'</small>'+(item.error?'<p role="alert">'+esc(item.error)+'</p>':'')+'<label>ประเภทหลักฐาน<select data-evidence-kind="'+item.id+'">'+Object.entries(EVIDENCE_KINDS).map(([value,label])=>'<option value="'+value+'" '+(item.kind===value?'selected':'')+'>'+label+'</option>').join('')+'</select></label><button type="button" class="secondary" data-evidence-remove="'+item.id+'">นำออก</button></article>').join('')+'</div>';
+      input.disabled=locked;submit.disabled=locked||working;
+      for(const checkbox of form.querySelectorAll('[name=removeEvidence]'))checkbox.disabled=locked;
+      host.querySelectorAll('button,select').forEach(node=>node.disabled=locked);
+      host.querySelectorAll('[data-evidence-remove]').forEach(button=>button.onclick=()=>{if(locked)return;const i=items.findIndex(item=>item.id===Number(button.dataset.evidenceRemove));if(i>=0)items.splice(i,1);selectionError='';render();});
+      host.querySelectorAll('[data-evidence-kind]').forEach(select=>select.onchange=()=>{if(locked)return;const item=items.find(item=>item.id===Number(select.dataset.evidenceKind));if(item)item.kind=select.value;});
+      const clear=host.querySelector('[data-evidence-clear]');if(clear)clear.onclick=()=>{if(locked)return;items.length=0;selectionError='';render();};
+    }
+    function prepare(){
+      if(processing)return processing;
+      processing=(async()=>{
+        let item;while((item=items.find(entry=>entry.state==='queued'))){
+          item.state='reading';render();
+          try{const data=await readEvidenceFile(item.file);if(items.includes(item)){item.data=data;item.state='ready';}}
+          catch(error){if(items.includes(item)){item.state='error';item.error=error.message;}}
+          render();
+        }
+      })().finally(()=>{processing=null;render();});
+      return processing;
+    }
+    function addFiles(){
+      if(locked)return;
+      const chosen=[...(input.files||[])],known=new Set(items.map(item=>item.key)),added=[];selectionError='';
+      for(const file of chosen){const key=JSON.stringify([file.name,file.size,file.lastModified]);if(!known.has(key)){known.add(key);added.push({id:++nextId,key,file,state:'queued',kind:'other',data:null,error:''});}}
+      input.value='';
+      if(retained().length+items.length+added.length>EVIDENCE_LIMITS.count){selectionError='แนบหลักฐานได้สูงสุด 20 ไฟล์ต่อหัวข้อ กรุณาเลือกเพิ่มให้ไม่เกินจำนวนที่เหลือ';render();return;}
+      if([...retained(),...items.map(item=>item.file),...added.map(item=>item.file)].reduce((sum,file)=>sum+Number(file.size||0),0)>EVIDENCE_LIMITS.total){selectionError='หลักฐานทั้งหมดต้องมีขนาดรวมไม่เกิน 50 MB';render();return;}
+      items.push(...added);render();void prepare();
+    }
+    input.onchange=addFiles;
+    form.querySelectorAll('[name=removeEvidence]').forEach(checkbox=>checkbox.addEventListener('change',render));
+    render();
+    return {
+      async collect(){if(input.files?.length)addFiles();if(processing)await processing;if(selectionError)throw Error(selectionError);const failed=items.filter(item=>item.state==='error');if(failed.length)throw Error('กรุณานำไฟล์ที่แนบไม่สำเร็จออกก่อนบันทึก: '+failed.map(item=>item.file.name+' ('+item.error+')').join(' · '));return items.map(item=>({...item.data,category:item.kind}));},
+      lock(value){locked=value;render();}
+    };
   }
   function listHtml(value) {
     const items = lines(value);
@@ -454,8 +505,8 @@
     evidence = evidence.filter(file => /^(?:image\/(?:jpeg|png|webp)|application\/pdf)$/.test(file?.type || '') && new RegExp('^data:' + file.type + ';base64,[A-Za-z0-9+/=]+$').test(file.dataUrl || ''));
     if (!evidence.length) return '<p class="exam-detail-empty">ยังไม่ได้แนบหลักฐาน</p>';
     return '<div class="training-evidence-grid">' + evidence.map((file, index) => file.type.startsWith('image/')
-      ? '<a href="' + file.dataUrl + '" target="_blank" rel="noopener"><img src="' + file.dataUrl + '" alt="หลักฐาน ' + (index + 1) + '"><span>' + esc(file.name) + '</span></a>'
-      : '<a class="training-evidence-file" href="' + file.dataUrl + '" download="' + esc(file.name) + '"><b>PDF</b><span>' + esc(file.name) + '</span></a>').join('') + '</div>';
+      ? '<a href="' + file.dataUrl + '" target="_blank" rel="noopener"><img src="' + file.dataUrl + '" alt="หลักฐาน ' + (index + 1) + '"><span>' + esc(file.name) + (EVIDENCE_KINDS[file.category]?' · '+esc(EVIDENCE_KINDS[file.category]):'') + '</span></a>'
+      : '<a class="training-evidence-file" href="' + file.dataUrl + '" download="' + esc(file.name) + '"><b>PDF</b><span>' + esc(file.name) + (EVIDENCE_KINDS[file.category]?' · '+esc(EVIDENCE_KINDS[file.category]):'') + '</span></a>').join('') + '</div>';
   }
   function participantProgress(ctx,q,record) {
     const ids=new Set((record.attendeeIds || []).map(String)), {people,results}=examProgress(ctx,q), selected=people.filter(e=>ids.has(String(e.id)));
@@ -486,9 +537,10 @@
       '<label class="full">รายชื่อเพิ่มเติม / รายชื่อเดิมที่ยังไม่เชื่อมรหัส (1 คนต่อ 1 บรรทัด)<textarea name="attendees" rows="3" placeholder="ผู้เข้าอบรมเพิ่มเติม (ถ้ามี)">' + esc((current.additionalAttendees || (current.attendeeIds?.length ? [] : current.attendees) || []).join('\n')) + '</textarea><small>รายชื่อที่พิมพ์เพิ่มเติมจะไม่เชื่อมผลสอบอัตโนมัติ</small></label>' +
       '<label class="full">Training implementation effect / ผลการอบรม<textarea name="effect" rows="4" placeholder="สรุปผล ความเข้าใจ ผล OJT หรือสิ่งที่ต้องติดตาม" required>' + esc(current.effect || '') + '</textarea></label>' +
       '<fieldset class="full"><legend>Planned training?</legend><label><input type="radio" name="planned" value="yes" ' + (current.planned !== 'no' ? 'checked' : '') + '> Yes</label><label><input type="radio" name="planned" value="no" ' + (current.planned === 'no' ? 'checked' : '') + '> No, but recorded</label></fieldset>' +
-      '<label class="full evidence-upload">แนบหลักฐานการอบรม<input type="file" name="evidence" accept="image/jpeg,image/png,image/webp,application/pdf" multiple><small>รูปขณะอบรม แบบฟอร์มลงชื่อ หรือผลประเมิน • สูงสุด 4 ไฟล์ • ไม่เกิน 1.5 MB/ไฟล์</small></label></div>' +
+      '<div class="full evidence-upload"><label>แนบหลักฐานการอบรม<input type="file" name="evidence" accept="image/jpeg,image/png,image/webp,application/pdf" multiple><small>รูปบรรยากาศอบรม ใบเทรนนิ่ง ใบลงชื่อ หรือผลประเมิน • สูงสุด 20 ไฟล์ • ไม่เกิน 5 MB/ไฟล์ • ขนาดรวมไม่เกิน 50 MB</small></label><div data-training-evidence-queue></div></div></div>' +
       (evidence.length ? '<div class="existing-evidence"><h3>หลักฐานที่บันทึกแล้ว</h3>' + evidence.map((file,i) => '<label><input type="checkbox" name="removeEvidence" value="' + i + '"> ลบ ' + esc(file.name) + '</label>').join('') + evidenceHtml(evidence) + '</div>' : '') +
       '<p class="modal-note">แนบหลักฐานแล้วบันทึกสำเร็จ จะแสดง “อบรมเสร็จแล้ว” • หากยังไม่แนบไฟล์ จะเป็น “รอแนบหลักฐาน”</p><label><input type="checkbox" name="printAfterSave"> เปิดแบบฟอร์มพิมพ์หลังบันทึก</label><p data-training-save-status role="status"></p><div class="actions"><button type="submit">บันทึกหลักฐาน / ผลอบรม</button><button type="button" class="secondary" data-close>ยกเลิก</button></div></form>';
+    const selectedEvidence=evidenceSelection(overlay,evidence);let savingRecord=false;
     const picker=overlay.querySelector('.training-attendee-picker');
     picker.querySelector('[data-training-person-search]').oninput=event=>{picker.querySelectorAll('[data-person-search]').forEach(row=>row.hidden=!row.dataset.personSearch.includes(event.target.value.toLowerCase()));};
     picker.querySelector('[data-training-select-all]').onclick=()=>{picker.querySelectorAll('[data-person-search]:not([hidden]) input').forEach(box=>box.checked=true);};
@@ -497,15 +549,17 @@
     overlay.onclick = event => { if (event.target === overlay) overlay.remove(); };
     overlay.querySelector('form').onsubmit = async event => {
       event.preventDefault();
+      if(savingRecord)return;
       const form = event.currentTarget, submit = form.querySelector('[type="submit"]');
-      submit.disabled = true; submit.textContent = 'กำลังบันทึก...';
+      const fd=new FormData(form);savingRecord=true;
+      const preparing=selectedEvidence.collect();selectedEvidence.lock(true);submit.disabled=true;submit.textContent='กำลังเตรียมหลักฐาน...';
+      let added;
+      try { added=await preparing; } catch(error) {savingRecord=false;selectedEvidence.lock(false);submit.textContent='บันทึกหลักฐาน / ผลอบรม';overlay.querySelector('[data-training-save-status]').textContent=error.message;return;}
+      submit.textContent='กำลังบันทึก...';
       try {
-        const fd = new FormData(form);
         const removed = new Set(fd.getAll('removeEvidence').map(Number));
         const kept = evidence.filter((_, i) => !removed.has(i));
-        const files = [...(form.elements.evidence.files || [])];
-        if (kept.length + files.length > 4) throw new Error('แนบหลักฐานได้สูงสุด 4 ไฟล์');
-        const added = await Promise.all(files.map(readEvidenceFile));
+        validateEvidence([...kept,...added]);
         const eligible=new Map(roster(ctx).map(e=>[String(e.id),e])), attendeeIds=fd.getAll('attendeeIds').map(String);
         if (attendeeIds.some(id=>!eligible.has(id))) throw Error('รายชื่อพนักงานเปลี่ยนไป กรุณาเปิดฟอร์มใหม่');
         if (String(fd.get('trainingDate')) > today()) throw Error('วันที่อบรมต้องไม่เป็นวันในอนาคต');
@@ -525,7 +579,7 @@
         if (onSaved) onSaved(record);
         if (fd.get('printAfterSave')) {if(window.PPMSTrainingSignatureForm)window.PPMSTrainingSignatureForm.open({ctx,q,quarter,item,record});else openTrainingPrintForm(ctx,q,quarter,item,record);}
       } catch (error) {
-        submit.disabled = false; submit.textContent = 'บันทึกหลักฐาน / ผลอบรม';
+        savingRecord=false;selectedEvidence.lock(false);submit.disabled=false;submit.textContent='บันทึกหลักฐาน / ผลอบรม';
         overlay.querySelector('[data-training-save-status]').textContent='บันทึกไม่สำเร็จ: ' + error.message;
       }
     };
@@ -646,7 +700,7 @@
       title.textContent = 'Training & Examination Plan';
     }
   }
-  window.PPMSTrainingPlanService={defaults,trainingContext,trainingItems,readTrainingValue,esc,safeKey};
+  window.PPMSTrainingPlanService={defaults,trainingContext,trainingItems,readTrainingValue,esc,safeKey,readEvidenceFile,validateEvidence,evidenceLimits:EVIDENCE_LIMITS};
   window.addEventListener('ppms-quarterly-exams-changed',()=>{
     const host=document.getElementById('examPlanDetailsV592'),ctx=host?.__trainingContext,plan=host?.__trainingPlan;
     if(!ctx||!plan)return;

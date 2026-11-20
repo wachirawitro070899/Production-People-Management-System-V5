@@ -22,6 +22,6 @@ const wait=()=>new Promise(r=>setTimeout(r,30));
  fail=true;w.document.querySelector('[data-ts-print]').click();await wait();assert(w.document.querySelector('[data-ts-status]').textContent.includes('print failure'));assert.equal(w.document.title,'PPMS');assert(!w.document.querySelector('.ts-print-frame'));
  w.document.dispatchEvent(new w.KeyboardEvent('keydown',{key:'Escape',bubbles:true}));assert(!w.document.querySelector('.training-signature-overlay'));assert.equal(w.document.activeElement,origin);assert.equal(writes,0);
  const hash=path=>crypto.createHash('sha256').update(fs.readFileSync(path)).digest('hex');assert.equal(hash('templates/training-signature-template.xlsx'),'3608a002b181d0d504e1a81a2c94eb6aac47408c688563be1c3579475dddd455');
- for(const name of ['index.html','404.html']){const page=fs.readFileSync(name,'utf8');assert(page.includes('training-signature-form-v969.js?v=970'));assert(page.includes('exam-plan-details-v592.js?v=969'));}
+ for(const name of ['index.html','404.html']){const page=fs.readFileSync(name,'utf8');assert(page.includes('training-signature-form-v969.js?v=970'));assert(page.includes('exam-plan-details-v592.js?v=971'));}
  console.log('PASS supplied template and document code, intact Excel bytes, topic/details, blank signatures, Bangkok date at print click including midnight, optional fields, long-content pagination, escaping, PDF title/cleanup and no training writes.');
 }finally{w.close();}})().catch(error=>{console.error(error);process.exitCode=1;});
