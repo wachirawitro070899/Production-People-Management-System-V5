@@ -187,17 +187,24 @@
     const record = recordSummaries.get(ctx.key)?.data?.[q]?.[item.index];
     return record?.topic === item.title ? record : null;
   }
+  function topicState(ctx,q,item){
+    const state=recordSummaries.get(ctx.key),record=topicSummary(ctx,q,item);
+    if(!record&&!state?.loaded)return {key:state?.error?'unavailable':'checking',label:state?.error?'ยังตรวจสอบสถานะไม่ได้':'กำลังตรวจสอบสถานะ',className:'checking',detail:state?.error||'กำลังตรวจข้อมูลการอบรมล่าสุด'};
+    if(!trainingDone(record))return {key:'waiting-training',label:'รออบรม',className:'pending',detail:'ยังไม่มีหลักฐานยืนยันการอบรมที่บันทึกสำเร็จ'};
+    const {people,results,available}=examProgress(ctx,q),ids=new Set((record.attendeeIds||[]).map(String)),attendees=people.filter(person=>ids.has(String(person.id))),examined=attendees.filter(person=>results.has(String(person.id))).length;
+    const complete=available&&attendees.length>0&&examined===attendees.length;
+    return {key:complete?'completed':'waiting-exam',label:complete?'อบรมและสอบครบแล้ว':'รอสอบ',className:complete?'done':'waiting-exam',detail:'อบรมเสร็จแล้ว • หลักฐาน '+record.evidenceCount+' ไฟล์ • '+(attendees.length?'สอบแล้ว '+examined+' / '+attendees.length+' คน':'กรุณาเชื่อมรหัสผู้เข้าอบรมเพื่อตรวจผลสอบ')};
+  }
   function topicBadge(ctx, q, item) {
-    const state = recordSummaries.get(ctx.key), record = topicSummary(ctx,q,item);
-    const label = trainingDone(record) ? 'อบรมเสร็จแล้ว · หลักฐาน ' + record.evidenceCount + ' ไฟล์' : record ? 'รอแนบหลักฐาน' : state?.loaded ? 'ยังไม่พบหลักฐานในสรุป' : 'รอตรวจหลักฐาน';
-    return '<span class="training-progress-badge ' + (trainingDone(record)?'done':'pending') + '">' + esc(label) + '</span>';
+    const state=topicState(ctx,q,item);
+    return '<span class="training-progress-badge '+state.className+'" data-training-topic-status="'+item.index+'" data-quarter="'+q+'" data-training-status="'+state.key+'" title="'+esc(state.detail)+'">'+esc(state.label)+'</span>';
   }
   function examProgress(ctx,q) {
     const source = window.PPMS_RUNTIME?.monthReportContext?.(), people = roster(ctx), ids = new Set(people.map(e=>String(e.id))), results = new Map();
     const deleted=new Set(source?.deletedExamKeys||[]);
     for (const r of [...(window.PPMSQuarterlyTraining?.notifications(ctx)||[]),...(source?.examResults || [])]) {
       if (r.recordKey && deleted.has(r.recordKey)) continue;
-      if (r.deleted || !ids.has(String(r.employeeId)) || (r.examType || 'quarterly') !== 'quarterly' || r.quarter !== q) continue;
+      if (r.deleted || r.forcedExit === true || !ids.has(String(r.employeeId)) || (r.examType || 'quarterly') !== 'quarterly' || r.quarter !== q) continue;
       const date = String(r.date || r.createdAt || ''), year = /^\d{4}-\d{2}-\d{2}$/.test(date) ? Number(date.slice(0,4)) : Number.isFinite(new Date(date).getTime()) ? Number(new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Bangkok',year:'numeric'}).format(new Date(date))) : null;
       if (year !== ctx.year || r.organizationDivision && r.organizationDivision !== ctx.scope.division || r.organizationPlant && r.organizationPlant !== ctx.scope.plant) continue;
       const old = results.get(String(r.employeeId));
@@ -208,7 +215,7 @@
   function quarterProgress(ctx,q,quarter) {
     const items = trainingItems(quarter.training), complete = items.filter(item=>trainingDone(topicSummary(ctx,q,item))).length;
     const {people,results,available} = examProgress(ctx,q), all = items.length > 0 && complete === items.length;
-    const label = all ? 'อบรมเสร็จแล้ว' + (!available || !people.length ? '' : results.size === people.length ? ' • สอบเสร็จแล้ว' : ' • รอสอบ') : complete ? 'กำลังอบรม' : 'รอหลักฐานการอบรม';
+    const label = all ? 'อบรมเสร็จแล้ว' + (!available || !people.length ? '' : results.size === people.length ? ' • สอบเสร็จแล้ว' : ' • รอสอบ') : complete ? 'กำลังอบรม' : recordSummaries.get(ctx.key)?.loaded ? 'รออบรม' : recordSummaries.get(ctx.key)?.error ? 'ยังตรวจสอบสถานะไม่ได้' : 'กำลังตรวจสอบสถานะ';
     return '<div class="training-quarter-progress" data-quarter-progress="'+q+'"><b>'+label+'</b><span>มีหลักฐานแล้ว '+complete+' / '+items.length+' หัวข้อ</span><span>'+(available ? 'สอบประจำไตรมาสแล้ว '+results.size+' / '+people.length+' คน • เหลือสอบ '+(people.length-results.size)+' คน' : 'เข้าสู่ระบบเพื่อดูสถานะสอบ')+'</span><small>ผลสอบอิงข้อสอบประจำไตรมาสของ Section นี้ แยกจากหลักฐานอบรมแต่ละหัวข้อ</small></div>';
   }
   async function readSummaries(ctx) {
@@ -416,8 +423,9 @@
       readSummaries(ctx).then(()=>{
         if (!document.body.contains(host)) return;
         render();
-      }).catch(()=>{
+      }).catch(error=>{
         if (!document.body.contains(host)) return;
+        const state=recordSummaries.get(ctx.key)||{loaded:false,data:{}};state.error=error.message;recordSummaries.set(ctx.key,state);render();
         const node=host.querySelector('[data-evidence-sync]');node.textContent='ยังตรวจสถานะหลักฐานไม่ได้ กรุณาเปิดหัวข้อเพื่อตรวจข้อมูลล่าสุด';
       });
     }
@@ -514,7 +522,7 @@
     return '<h4>สถานะผู้เข้าอบรม · สอบประจำไตรมาส '+q+'</h4><div class="table-wrap"><table><thead><tr><th>รหัส / ชื่อ</th><th>อบรม</th><th>การสอบ</th><th>ผลสอบ</th></tr></thead><tbody>'+selected.map(e=>{
       const result=results.get(String(e.id)), decision=result&&window.PPMSIndividualReports?.decision(result);
       const outcome=decision?.label || (result ? 'รอตรวจสอบผล' : '—');
-      return '<tr><td>'+esc(e.id)+' · '+esc(e.thaiName || e.name)+'</td><td>'+((record.evidence || []).length?'อบรมเสร็จแล้ว':'รอแนบหลักฐาน')+'</td><td>'+(result?'สอบเสร็จแล้ว':'รอสอบ')+'</td><td>'+esc(outcome)+'</td></tr>';
+      return '<tr><td>'+esc(e.id)+' · '+esc(e.thaiName || e.name)+'</td><td>'+((record.evidence || []).length?'อบรมเสร็จแล้ว':'รออบรม')+'</td><td>'+(result?'สอบเสร็จแล้ว':'รอสอบ')+'</td><td>'+esc(outcome)+'</td></tr>';
     }).join('')+'</tbody></table></div>';
   }
   function attendeePicker(ctx,current) {
@@ -522,8 +530,9 @@
     // Legacy names are retained in the text field until an administrator links employee IDs.
     return '<fieldset class="full training-attendee-picker"><legend>เลือกผู้เข้าอบรม (เชื่อมสถานะสอบรายคน)</legend><input type="search" data-training-person-search placeholder="ค้นหา รหัส หรือชื่อพนักงาน"><div class="actions"><button type="button" class="secondary" data-training-select-all>เลือกทุกคนที่แสดง</button><button type="button" class="secondary" data-training-clear>ล้างที่เลือก</button></div><div class="training-attendee-list">'+roster(ctx).map(e=>'<label data-person-search="'+esc([e.id,e.name,e.thaiName].join(' ').toLowerCase())+'"><input type="checkbox" name="attendeeIds" value="'+esc(e.id)+'" '+(ids.has(String(e.id))?'checked':'')+'> '+esc(e.id)+' · '+esc(e.thaiName || e.name)+'</label>').join('')+'</div></fieldset>';
   }
-  function openTrainingRecordEditor(ctx, q, quarter, index, item, existing, onSaved) {
-    const current = existing || {};
+  function openTrainingRecordEditor(ctx, q, quarter, index, item, existing, onSaved, options={}) {
+    options={...options,employee:options.employee?{...options.employee}:null};
+    const current = existing || (options.employee?{attendeeIds:[String(options.employee.id)]}:{});
     const evidence = Array.isArray(current.evidence) ? current.evidence : [];
     const overlay = document.createElement('div');
     overlay.className = 'exam-detail-overlay exam-topic-overlay';
@@ -533,18 +542,19 @@
       '<label>สถานที่อบรม<input name="trainingPlace" value="' + esc(current.trainingPlace || '') + '" placeholder="Training place" required></label>' +
       '<label>ผู้ฝึกอบรม<input name="trainer" value="' + esc(current.trainer || '') + '" placeholder="Trainer" required></label>' +
       '<label class="full">หน่วยงานที่อบรม<input name="trainingUnit" value="' + esc(current.trainingUnit || ctx.section) + '" required></label>' +
-      attendeePicker(ctx,current) +
+      (options.employee?'<fieldset class="full training-new-employee"><legend>พนักงานที่เข้าอบรม</legend><p>'+esc(options.employee.id)+' · '+esc(options.employee.thaiName||options.employee.name)+'<br>'+esc(ctx.section)+' • เริ่มงาน '+esc(options.employee.startDate||'—')+'</p><input type="hidden" name="attendeeIds" value="'+esc(options.employee.id)+'"></fieldset>':attendeePicker(ctx,current)) +
       '<label class="full">รายชื่อเพิ่มเติม / รายชื่อเดิมที่ยังไม่เชื่อมรหัส (1 คนต่อ 1 บรรทัด)<textarea name="attendees" rows="3" placeholder="ผู้เข้าอบรมเพิ่มเติม (ถ้ามี)">' + esc((current.additionalAttendees || (current.attendeeIds?.length ? [] : current.attendees) || []).join('\n')) + '</textarea><small>รายชื่อที่พิมพ์เพิ่มเติมจะไม่เชื่อมผลสอบอัตโนมัติ</small></label>' +
       '<label class="full">Training implementation effect / ผลการอบรม<textarea name="effect" rows="4" placeholder="สรุปผล ความเข้าใจ ผล OJT หรือสิ่งที่ต้องติดตาม" required>' + esc(current.effect || '') + '</textarea></label>' +
       '<fieldset class="full"><legend>Planned training?</legend><label><input type="radio" name="planned" value="yes" ' + (current.planned !== 'no' ? 'checked' : '') + '> Yes</label><label><input type="radio" name="planned" value="no" ' + (current.planned === 'no' ? 'checked' : '') + '> No, but recorded</label></fieldset>' +
       '<div class="full evidence-upload"><label>แนบหลักฐานการอบรม<input type="file" name="evidence" accept="image/jpeg,image/png,image/webp,application/pdf" multiple><small>รูปบรรยากาศอบรม ใบเทรนนิ่ง ใบลงชื่อ หรือผลประเมิน • สูงสุด 20 ไฟล์ • ไม่เกิน 5 MB/ไฟล์ • ขนาดรวมไม่เกิน 50 MB</small></label><div data-training-evidence-queue></div></div></div>' +
       (evidence.length ? '<div class="existing-evidence"><h3>หลักฐานที่บันทึกแล้ว</h3>' + evidence.map((file,i) => '<label><input type="checkbox" name="removeEvidence" value="' + i + '"> ลบ ' + esc(file.name) + '</label>').join('') + evidenceHtml(evidence) + '</div>' : '') +
-      '<p class="modal-note">แนบหลักฐานแล้วบันทึกสำเร็จ จะแสดง “อบรมเสร็จแล้ว” • หากยังไม่แนบไฟล์ จะเป็น “รอแนบหลักฐาน”</p><label><input type="checkbox" name="printAfterSave"> เปิดแบบฟอร์มพิมพ์หลังบันทึก</label><p data-training-save-status role="status"></p><div class="actions"><button type="submit">บันทึกหลักฐาน / ผลอบรม</button><button type="button" class="secondary" data-close>ยกเลิก</button></div></form>';
+      '<p class="modal-note">แนบหลักฐานแล้วบันทึกสำเร็จ จะแสดง “รอสอบ” หากยังสอบไม่ครบ • หากยังไม่มีหลักฐานยืนยัน จะเป็น “รออบรม”</p><label><input type="checkbox" name="printAfterSave"> เปิดแบบฟอร์มพิมพ์หลังบันทึก</label><p data-training-save-status role="status"></p><div class="actions"><button type="submit">บันทึกหลักฐาน / ผลอบรม</button><button type="button" class="secondary" data-close>ยกเลิก</button></div></form>';
     const selectedEvidence=evidenceSelection(overlay,evidence);let savingRecord=false;
     const picker=overlay.querySelector('.training-attendee-picker');
-    picker.querySelector('[data-training-person-search]').oninput=event=>{picker.querySelectorAll('[data-person-search]').forEach(row=>row.hidden=!row.dataset.personSearch.includes(event.target.value.toLowerCase()));};
+    if(picker){picker.querySelector('[data-training-person-search]').oninput=event=>{picker.querySelectorAll('[data-person-search]').forEach(row=>row.hidden=!row.dataset.personSearch.includes(event.target.value.toLowerCase()));};
     picker.querySelector('[data-training-select-all]').onclick=()=>{picker.querySelectorAll('[data-person-search]:not([hidden]) input').forEach(box=>box.checked=true);};
-    picker.querySelector('[data-training-clear]').onclick=()=>{picker.querySelectorAll('[name="attendeeIds"]').forEach(box=>box.checked=false);};
+    picker.querySelector('[data-training-clear]').onclick=()=>{picker.querySelectorAll('[name="attendeeIds"]').forEach(box=>box.checked=false);};}
+    if(options.employee){overlay.querySelector('[name=attendees]').closest('label').hidden=true;}
     overlay.querySelectorAll('[data-close]').forEach(button => button.onclick = () => overlay.remove());
     overlay.onclick = event => { if (event.target === overlay) overlay.remove(); };
     overlay.querySelector('form').onsubmit = async event => {
@@ -560,11 +570,12 @@
         const removed = new Set(fd.getAll('removeEvidence').map(Number));
         const kept = evidence.filter((_, i) => !removed.has(i));
         validateEvidence([...kept,...added]);
-        const eligible=new Map(roster(ctx).map(e=>[String(e.id),e])), attendeeIds=fd.getAll('attendeeIds').map(String);
+        const eligible=new Map(roster(ctx).map(e=>[String(e.id),e])), attendeeIds=options.employee?[String(options.employee.id)]:fd.getAll('attendeeIds').map(String);
+        if(options.employee&&eligible.get(String(options.employee.id))?.startDate!==options.employee.startDate)throw Error('ข้อมูลการจ้างงานเปลี่ยนไป กรุณาเปิดแผนพนักงานใหม่อีกครั้ง');
         if (attendeeIds.some(id=>!eligible.has(id))) throw Error('รายชื่อพนักงานเปลี่ยนไป กรุณาเปิดฟอร์มใหม่');
         if (String(fd.get('trainingDate')) > today()) throw Error('วันที่อบรมต้องไม่เป็นวันในอนาคต');
         if (kept.length+added.length && !attendeeIds.length && !lines(fd.get('attendees')).length) throw Error('กรุณาเลือกหรือระบุผู้เข้าอบรมอย่างน้อย 1 คน');
-        const additionalAttendees=lines(fd.get('attendees'));
+        const additionalAttendees=options.employee?[]:lines(fd.get('attendees'));
         const record = {
           section:ctx.section, year:ctx.year, quarter:q, topicIndex:index, topic:item.title, detail:item.detail,
           trainingDate:String(fd.get('trainingDate') || ''), trainingTime:String(fd.get('trainingTime') || ''),
@@ -655,7 +666,7 @@
     style.id = 'examPlanDetailsV592Style';
     style.textContent = `
       .exam-plan-details-v592{margin:14px 0;border:1px solid #bfdbfe;background:#f8fbff}
-      .training-quarter-progress{display:grid;gap:4px;background:#f0f7ff;border:1px solid #c6dcfa;border-radius:9px;padding:12px;margin:10px 0;color:#123c73}.training-quarter-progress b{font-size:16px}.training-quarter-progress small{font-size:11px;color:#52657b}.training-plan-topics li{padding:9px 0!important;border-bottom:1px solid #eef2f7}.training-progress-badge{display:inline-block;font-size:11px;padding:3px 7px;border-radius:5px;margin:2px 6px;vertical-align:middle}.training-progress-badge.done{background:#dcfce7;color:#166534}.training-progress-badge.pending{background:#fff2cc;color:#854d0e}.training-plan-topics button.training-evidence-action{display:block;background:#eff6ff;border:1px solid #bfdbfe;border-radius:5px;text-decoration:none;font-size:12px;padding:4px 8px;margin-top:4px}.training-record-fields .training-attendee-picker{display:block}.training-attendee-list{display:grid;max-height:210px;overflow:auto;margin:8px 0}.training-record-fields .training-attendee-list label{display:block;padding:6px;border-bottom:1px solid #eef2f7}.training-record-fields .training-attendee-list label[hidden]{display:none}.training-attendee-list input[type=checkbox]{display:inline;width:auto;margin-right:7px}.training-record-fields .training-attendee-picker input[type=search]{display:block;width:100%}.training-record-fields .training-attendee-picker .actions{margin-top:8px;flex-wrap:wrap}[data-training-save-status]{color:#b91c1c}
+      .training-quarter-progress{display:grid;gap:4px;background:#f0f7ff;border:1px solid #c6dcfa;border-radius:9px;padding:12px;margin:10px 0;color:#123c73}.training-quarter-progress b{font-size:16px}.training-quarter-progress small{font-size:11px;color:#52657b}.training-plan-topics li{padding:9px 0!important;border-bottom:1px solid #eef2f7}.training-progress-badge{display:inline-block;font-size:11px;padding:3px 7px;border-radius:5px;margin:2px 6px;vertical-align:middle}.training-progress-badge.done{background:#dcfce7;color:#166534}.training-progress-badge.pending{background:#fff2cc;color:#854d0e}.training-progress-badge.waiting-exam{background:#e0f2fe;color:#075985}.training-progress-badge.checking{background:#f1f5f9;color:#475569}.training-plan-topics button.training-evidence-action{display:block;background:#eff6ff;border:1px solid #bfdbfe;border-radius:5px;text-decoration:none;font-size:12px;padding:4px 8px;margin-top:4px}.training-record-fields .training-attendee-picker{display:block}.training-attendee-list{display:grid;max-height:210px;overflow:auto;margin:8px 0}.training-record-fields .training-attendee-list label{display:block;padding:6px;border-bottom:1px solid #eef2f7}.training-record-fields .training-attendee-list label[hidden]{display:none}.training-attendee-list input[type=checkbox]{display:inline;width:auto;margin-right:7px}.training-record-fields .training-attendee-picker input[type=search]{display:block;width:100%}.training-record-fields .training-attendee-picker .actions{margin-top:8px;flex-wrap:wrap}[data-training-save-status]{color:#b91c1c}
       .exam-detail-title{display:flex;justify-content:space-between;gap:12px;align-items:center;margin-bottom:12px}
       .exam-detail-title h3,.exam-detail-title p{margin:0}.exam-detail-title span{background:#dbeafe;color:#1e3a8a;border-radius:999px;padding:7px 12px;font-weight:800}
       .exam-detail-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;overflow:auto;padding-bottom:4px}
@@ -700,11 +711,11 @@
       title.textContent = 'Training & Examination Plan';
     }
   }
-  window.PPMSTrainingPlanService={defaults,trainingContext,trainingItems,readTrainingValue,esc,safeKey,readEvidenceFile,validateEvidence,evidenceLimits:EVIDENCE_LIMITS};
+  window.PPMSTrainingPlanService={defaults,trainingContext,trainingItems,readTrainingValue,esc,safeKey,readEvidenceFile,validateEvidence,evidenceLimits:EVIDENCE_LIMITS,sectionFocus,roster,isAdmin,summaryOf,trainingDone,readTrainingRecord,openTrainingRecordEditor,topicState,evidenceHtml};
   window.addEventListener('ppms-quarterly-exams-changed',()=>{
     const host=document.getElementById('examPlanDetailsV592'),ctx=host?.__trainingContext,plan=host?.__trainingPlan;
     if(!ctx||!plan)return;
-    for(const q of QUARTERS){const node=host.querySelector('[data-quarter-progress="'+q+'"]'),html=quarterProgress(ctx,q,plan[q]||defaults(ctx.section)[q]);if(node&&node.outerHTML!==html)node.outerHTML=html;}
+    for(const q of QUARTERS){const quarter=plan[q]||defaults(ctx.section)[q],node=host.querySelector('[data-quarter-progress="'+q+'"]'),html=quarterProgress(ctx,q,quarter);if(node&&node.outerHTML!==html)node.outerHTML=html;for(const item of trainingItems(quarter.training)){const badge=host.querySelector('[data-training-quarter="'+q+'"] [data-training-topic-status="'+item.index+'"]'),next=topicBadge(ctx,q,item);if(badge&&badge.outerHTML!==next)badge.outerHTML=next;}}
   });
   const observer = new MutationObserver(() => {
     clearTimeout(window.__examPlanDetailTimer);
