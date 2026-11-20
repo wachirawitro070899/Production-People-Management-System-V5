@@ -278,7 +278,7 @@
     return '<article class="exam-detail-card" data-training-quarter="' + q + '"><div class="exam-detail-head"><h4>' + q + '</h4><span>' + months[q] + '</span></div>' +
       '<p class="training-plan-state">' + (data._saved ? esc(planStates[data.planStatus] || planStates.planned) : 'แผนแนะนำ · ยังไม่ได้บันทึก') + '</p>' +
       quarterProgress(ctx,q,data) +
-      '<h5>หัวข้อการเทรนนิ่ง (' + trainingItems(data.training).length + ')</h5><ol class="training-plan-topics">' + trainingItems(data.training).map(item => '<li><button type="button" data-plan-topic="' + item.index + '" data-quarter="' + q + '">' + esc(item.title) + '</button>' + topicBadge(ctx,q,item) + '<button type="button" class="training-slides-action no-print" data-plan-slides="'+item.index+'" data-quarter="'+q+'">เปิดสไลด์อบรม · 10 หน้า</button>' + '<button type="button" class="training-materials-action no-print" data-plan-materials="'+item.index+'" data-quarter="'+q+'">'+(isAdmin()?'ไฟล์สไลด์ / อัปโหลด':'ไฟล์สไลด์ที่จัดเก็บ')+'</button>' + (isAdmin()?'<button type="button" class="training-evidence-action no-print" data-plan-evidence="'+item.index+'" data-quarter="'+q+'">แนบหลักฐาน / รายชื่อ</button>':'') + '</li>').join('') + '</ol>' +
+      '<h5>หัวข้อการเทรนนิ่ง (' + trainingItems(data.training).length + ')</h5><ol class="training-plan-topics">' + trainingItems(data.training).map(item => '<li><button type="button" data-plan-topic="' + item.index + '" data-quarter="' + q + '">' + esc(item.title) + '</button>' + topicBadge(ctx,q,item) + '<button type="button" class="training-slides-action no-print" data-plan-slides="'+item.index+'" data-quarter="'+q+'">เปิดสไลด์อบรม · 10 หน้า</button>' + '<button type="button" class="training-materials-action no-print" data-plan-materials="'+item.index+'" data-quarter="'+q+'">'+(isAdmin()?'ไฟล์สไลด์ / อัปโหลด':'ไฟล์สไลด์ที่จัดเก็บ')+'</button>' + '<button type="button" class="training-signature-action no-print" data-plan-signature="'+item.index+'" data-quarter="'+q+'">พิมพ์ใบลงชื่ออบรม</button>' + (isAdmin()?'<button type="button" class="training-evidence-action no-print" data-plan-evidence="'+item.index+'" data-quarter="'+q+'">แนบหลักฐาน / รายชื่อ</button>':'') + '</li>').join('') + '</ol>' +
       planMeta(data) + '<p><b>วิธีอบรม:</b> ' + esc(data.method || '-') + '</p><div class="actions no-print"><button type="button" class="exam-detail-view-button" data-exam-detail-view="' + q + '">ดูรายละเอียด ' + q + '</button>' + (isAdmin() ? '<button type="button" class="secondary" data-plan-edit="' + q + '">แก้ไขแผน ' + q + '</button>' : '') + '</div></article>';
   }
   function enhance() {
@@ -309,6 +309,7 @@
       host.querySelectorAll('[data-plan-topic]').forEach(button => { button.onclick = () => openTrainingTopic(ctx, button.dataset.quarter, plan[button.dataset.quarter], Number(button.dataset.planTopic)); });
       host.querySelectorAll('[data-plan-slides]').forEach(button => { button.onclick = () => { const q=button.dataset.quarter,quarter=plan[q],item=trainingItems(quarter.training)[Number(button.dataset.planSlides)];window.PPMSTrainingLessons?.open({ctx,q,quarter,item},button); }; });
       host.querySelectorAll('[data-plan-materials]').forEach(button=>{button.onclick=()=>{const q=button.dataset.quarter,quarter=plan[q],item=trainingItems(quarter.training)[Number(button.dataset.planMaterials)];window.PPMSTrainingLessonFiles?.open({ctx,q,quarter,item},button);};});
+      host.querySelectorAll('[data-plan-signature]').forEach(button=>{button.onclick=()=>{const q=button.dataset.quarter,quarter=plan[q],item=trainingItems(quarter.training)[Number(button.dataset.planSignature)];window.PPMSTrainingSignatureForm?.open({ctx,q,quarter,item},button);};});
       host.querySelectorAll('[data-plan-evidence]').forEach(button => { button.onclick = () => openTrainingTopic(ctx, button.dataset.quarter, plan[button.dataset.quarter], Number(button.dataset.planEvidence),true); });
       host.querySelector('[data-training-refresh]').onclick=()=>{
         window.PPMSQuarterlyTraining?.refreshNotices(ctx);
@@ -403,7 +404,7 @@
       '<article><h3>✅ การประเมินผล</h3><p>' + esc(quarter.criteria || 'ประเมินความเข้าใจและตรวจการปฏิบัติงานจริง') + '</p></article></div>' +
       '<div class="exam-topic-related"><h3>📝 หัวข้อสอบที่เกี่ยวข้อง</h3>' + listHtml(quarter.exam) + '</div>' +
       '<div class="training-record-panel" data-record-panel><h3>📋 แบบฟอร์มและหลักฐานการอบรม</h3><p>กำลังตรวจสอบข้อมูลการอบรม...</p></div>' +
-      '<div class="actions"><button type="button" data-training-form disabled>แนบหลักฐาน / บันทึกผลอบรม</button><button type="button" class="secondary" data-print-training disabled>พิมพ์แบบฟอร์ม</button></div></section>';
+      '<div class="actions"><button type="button" data-print-signature>พิมพ์ใบลงชื่ออบรม</button><button type="button" data-training-form disabled>แนบหลักฐาน / บันทึกผลอบรม</button><button type="button" class="secondary" data-print-training disabled>พิมพ์ผลอบรม / หลักฐาน</button></div></section>';
     overlay.querySelector('[data-close]').onclick = () => overlay.remove();
     overlay.onclick = event => { if (event.target === overlay) overlay.remove(); };
     document.body.appendChild(overlay);
@@ -446,6 +447,7 @@
       });
     };
     loadRecord().then(ok=>{if(ok && editImmediately && isAdmin()) formButton.click();});
+    overlay.querySelector('[data-print-signature]').onclick=event=>window.PPMSTrainingSignatureForm?.open({ctx,q,quarter,item,record:record||{}},event.currentTarget);
     printButton.onclick = () => { if (record) openTrainingPrintForm(ctx, q, quarter, item, record); };
   }
   function evidenceHtml(evidence) {
@@ -521,7 +523,7 @@
         await saveTrainingRecord(ctx, q, index, record);
         overlay.remove();
         if (onSaved) onSaved(record);
-        if (fd.get('printAfterSave')) openTrainingPrintForm(ctx, q, quarter, item, record);
+        if (fd.get('printAfterSave')) {if(window.PPMSTrainingSignatureForm)window.PPMSTrainingSignatureForm.open({ctx,q,quarter,item,record});else openTrainingPrintForm(ctx,q,quarter,item,record);}
       } catch (error) {
         submit.disabled = false; submit.textContent = 'บันทึกหลักฐาน / ผลอบรม';
         overlay.querySelector('[data-training-save-status]').textContent='บันทึกไม่สำเร็จ: ' + error.message;
