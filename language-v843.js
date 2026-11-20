@@ -3293,7 +3293,7 @@ Layout โรงงาน|Factory Layout
    }
    dirtyRoots.clear();fullTranslation=false;
    // Browser title is UI too; it has no effect on data.
-   document.title=language==='th'?'PPMS — ระบบจัดการพนักงานและการผลิต':'PPMS — People & Production Management';
+   document.title=document.documentElement.getAttribute('data-ppms-print-title')||(language==='th'?'PPMS — ระบบจัดการพนักงานและการผลิต':'PPMS — People & Production Management');
   }finally{applying=false;watch()}
  }
  function queue(full=true){if(full!==false)fullTranslation=true;if(!scheduled){scheduled=true;requestAnimationFrame(()=>apply(true))}}

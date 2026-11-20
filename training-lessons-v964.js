@@ -386,11 +386,36 @@
  const PRINT_CSS=`
 .tl-slide-layout{display:grid;grid-template-columns:minmax(0,1fr) 68mm;gap:8mm;align-items:start}.tl-slide-text{min-width:0}.tl-illustration{margin:0;break-inside:avoid}.tl-illustration svg{display:block;width:100%;height:auto}.tl-illustration figcaption{font-size:12px;line-height:1.55;font-weight:bold;margin-top:3mm;color:#315b70}.tl-visual-focus{font-size:11px;line-height:1.5;margin:3mm 0 0;border-top:1px solid #bed8df;padding-top:3mm}.tl-visual-focus b,.tl-visual-focus span{display:block}.tl-visual-focus b{color:#157e83;margin-bottom:1mm}
 .tl-sources{font-size:9px;line-height:1.5;margin-top:3mm;color:#526b7d}.tl-sources a{color:#157e83}@page{size:A4 landscape;margin:0}*{box-sizing:border-box}body{margin:0;color:#163349;font-family:Tahoma,"Noto Sans Thai",Arial,sans-serif}.tl-paper{width:297mm;height:210mm;padding:12mm 16mm;display:flex;flex-direction:column;break-after:page;page-break-after:always;background:#fff;border-top:4mm solid #157e83;overflow:hidden}.tl-paper:last-child{break-after:auto;page-break-after:auto}.tl-paper-top,.tl-paper-footer{display:flex;justify-content:space-between;gap:12px;font-size:11px;color:#526b7d}.tl-paper-body{flex:1;min-height:0;padding:7mm 0}.tl-kicker{font-size:12px;text-transform:uppercase;color:#157e83;font-weight:bold;margin:0 0 3mm}h2{font-size:30px;line-height:1.35;margin:0 0 5mm;overflow-wrap:anywhere}.tl-lead{font-size:17px;line-height:1.6;margin:0 0 5mm;white-space:pre-line;overflow-wrap:anywhere}.tl-points{list-style:none;padding:0;margin:0;display:grid;gap:4mm}.tl-points li{display:flex;align-items:flex-start;gap:4mm;background:#f2f6f8;padding:4mm 5mm;border-radius:3mm}.tl-point-number{font-size:18px;font-weight:bold;color:#157e83}.tl-points p{margin:0;font-size:18px;line-height:1.5;overflow-wrap:anywhere}.tl-points-flow{grid-template-columns:repeat(4,minmax(0,1fr));margin-top:8mm}.tl-points-flow li{display:block;min-height:35mm;border-top:1mm solid #157e83}.tl-points-flow p{margin-top:4mm}.tl-callout{background:#eaf6f2;border-left:1mm solid #157e83;font-size:14px;line-height:1.5;padding:4mm 5mm;margin-top:5mm;overflow-wrap:anywhere}.tl-points-mistakes li{background:#fff3ed}.tl-points-mistakes .tl-point-number{color:#ad5826}.tl-summary-grid{display:grid;grid-template-columns:1fr 1fr;gap:5mm;margin-top:5mm}.tl-summary-grid article{border:1px solid #d5e0e6;padding:4mm}.tl-summary-grid small{color:#157e83;font-weight:bold}.tl-summary-grid p{font-size:13px;line-height:1.5;margin:2mm 0 0}.tl-quiz{display:grid;gap:4mm}.tl-quiz article{display:flex;gap:4mm;padding:4mm;border:1px solid #d5e0e6;border-radius:3mm}.tl-quiz article>b{color:#157e83;font-size:20px}.tl-quiz h3{font-size:17px;margin:0 0 2mm}.tl-answer{font-size:14px;line-height:1.5;margin:0;color:#246347}.tl-paper-cover h2{font-size:39px;margin-top:5mm}.tl-paper-cover .tl-points{grid-template-columns:repeat(3,minmax(0,1fr));margin-top:8mm}.tl-paper-cover .tl-points li{display:block}.tl-paper-cover .tl-points p{font-size:17px;margin-top:3mm}.tl-paper-footer{border-top:1px solid #d5e0e6;padding-top:3mm}.tl-paper-footer span{max-width:86%;overflow-wrap:anywhere} .tl-paper .tl-points{gap:3mm}.tl-paper .tl-points li{padding:3mm 4mm}.tl-paper .tl-points p{font-size:16px;line-height:1.5}.tl-paper-cover .tl-points{grid-template-columns:1fr;margin-top:0}.tl-paper-cover .tl-points li{display:flex}.tl-paper-cover .tl-points p{margin:0}.tl-paper .tl-points-flow{grid-template-columns:repeat(2,minmax(0,1fr));margin-top:0}.tl-paper .tl-points-flow li{min-height:21mm}.tl-paper .tl-points-flow p{margin-top:2mm}.tl-paper .tl-callout{font-size:12px;padding:3mm 4mm;margin-top:3mm}.tl-paper .tl-summary-grid{gap:3mm;margin-top:3mm}.tl-paper .tl-summary-grid article{padding:3mm}.tl-paper .tl-quiz{gap:3mm}.tl-paper .tl-quiz article{padding:3mm}.tl-paper .tl-quiz h3{font-size:15px}.tl-paper .tl-answer{font-size:13px} @media print{*{-webkit-print-color-adjust:exact;print-color-adjust:exact}}`;
- function printMarkup(deck){return '<!doctype html><html lang="th"><head><meta charset="utf-8"><title>'+esc(deck.source.topic)+' — '+esc(deck.source.quarter)+'</title><style>'+PRINT_CSS+'</style></head><body>'+deck.pages.map((_,i)=>pageHtml(deck,i,{print:true})).join('')+'</body></html>';}
- let active=null;
+ function printTitle(deck){
+  const clean=value=>String(value??'').replace(/[<>:"/\\|?*\u0000-\u001f\u007f]/g,'-').replace(/\s+/g,' ').replace(/^[. ]+|[. ]+$/g,'');
+  return ['สไลด์อบรม',deck.source.topic,deck.source.section,deck.source.quarter,deck.source.year].map(clean).filter(Boolean).join('_');
+ }
+ function printMarkup(deck){return '<!doctype html><html lang="th"><head><meta charset="utf-8"><title>'+esc(printTitle(deck))+'</title><style>'+PRINT_CSS+'</style></head><body>'+deck.pages.map((_,i)=>pageHtml(deck,i,{print:true})).join('')+'</body></html>';}
+ let active=null,printPending=false;
  async function printDeck(deck,status){
-  const frame=document.createElement('iframe');frame.className='tl-print-frame';frame.title='สไลด์อบรมสำหรับพิมพ์';frame.style.cssText='position:fixed;left:-15000px;top:0;width:297mm;height:210mm;border:0';document.body.append(frame);
-  try{const doc=frame.contentDocument;doc.open();doc.write(printMarkup(deck));doc.close();await doc.fonts?.ready;await new Promise(resolve=>frame.contentWindow.requestAnimationFrame(resolve));frame.contentWindow.addEventListener('afterprint',()=>frame.remove(),{once:true});frame.contentWindow.focus();frame.contentWindow.print();status.textContent='เปิดหน้าพิมพ์แล้ว เลือก Save as PDF เพื่อบันทึก 10 หน้า';setTimeout(()=>frame.remove(),60000);}catch(error){frame.remove();status.textContent='เปิดหน้าพิมพ์ไม่สำเร็จ: '+error.message;}
+  if(printPending){status.textContent='กรุณาปิดหน้าพิมพ์เดิมก่อนเปิดอีกครั้ง';return;}
+  printPending=true;
+  const frame=document.createElement('iframe'),filename=printTitle(deck),originalTitle=document.title,root=document.documentElement,originalPrintTitle=root.getAttribute('data-ppms-print-title');
+  frame.className='tl-print-frame';frame.title=filename;frame.style.cssText='position:fixed;left:-15000px;top:0;width:297mm;height:210mm;border:0';
+  let printWindow=null,finished=false;
+  const cleanup=()=>{
+   if(finished)return;finished=true;
+   window.removeEventListener('afterprint',cleanup);printWindow?.removeEventListener('afterprint',cleanup);
+   if(root.getAttribute('data-ppms-print-title')===filename){
+    if(originalPrintTitle===null)root.removeAttribute('data-ppms-print-title');else root.setAttribute('data-ppms-print-title',originalPrintTitle);
+    document.title=originalTitle;
+   }
+   frame.remove();printPending=false;
+  };
+  try{
+   document.body.append(frame);printWindow=frame.contentWindow;
+   const doc=frame.contentDocument;doc.open();doc.write(printMarkup(deck));doc.close();await doc.fonts?.ready;await new Promise(resolve=>printWindow.requestAnimationFrame(resolve));
+   // Chrome takes the suggested PDF filename from the top-level document title.
+   // The language renderer also respects this temporary title until printing ends.
+   root.setAttribute('data-ppms-print-title',filename);document.title=filename;
+   window.addEventListener('afterprint',cleanup);printWindow.addEventListener('afterprint',cleanup);
+   printWindow.focus();printWindow.print();status.textContent='เลือก Save as PDF เพื่อบันทึก '+filename+'.pdf';
+  }catch(error){cleanup();status.textContent='เปิดหน้าพิมพ์ไม่สำเร็จ: '+error.message;}
  }
  function open(input,trigger=document.activeElement){
   active?.close();const deck=build(input),overlay=document.createElement('div');overlay.className='training-lessons-overlay';overlay.setAttribute('role','dialog');overlay.setAttribute('aria-modal','true');overlay.setAttribute('aria-labelledby','trainingLessonTitle');overlay.setAttribute('data-i18n-ignore','');
