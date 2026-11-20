@@ -34,7 +34,7 @@ const pageCount=pdf=>(pdf.toString('latin1').match(/\/Type\s*\/Page\b/g)||[]).le
    sessionStorage.setItem('ppms_month_report_v917::Production Division::โรง 1::ALL',JSON.stringify({month:'2026-10',section:''}));PPMSMonthReport.paint();
   });
   assert.equal(await page.locator('[data-month-count="joined"]').textContent(),'9');assert.equal(await page.locator('[data-month-count="left"]').textContent(),'2');
-  assert.equal(await page.locator('.mr-chart').count(),4);assert.equal(await page.locator('.mr-section-row').count(),7);assert.match(await page.locator('.mr-section-bars').textContent(),/อื่น ๆ รวม 2/);
+  assert.equal(await page.locator('.mr-chart').count(),4);assert.equal(await page.locator('[data-month-summary] [data-month-department]').count(),8);assert.doesNotMatch(await page.locator('[data-month-summary] [data-month-department-summary]').textContent(),/อื่น ๆ|Other/);
   const exported=await page.evaluate(async()=>{const frame=await PPMSMonthVisual.frame();const html=frame.contentDocument.documentElement.outerHTML;frame.remove();return html});
   const print=await browser.newPage();await print.route('**/*',r=>r.fulfill({body:fs.readFileSync(path.join(repo,'month-report-visual-v918.css')),contentType:'text/css'}));await print.setContent(exported);await print.evaluate(()=>document.fonts.ready);
   const pdf=await print.pdf({preferCSSPageSize:true,printBackground:true});assert.equal(pageCount(pdf),1,'Summary fits exactly one A4 page');assert.match(pdf.toString('latin1'),/\/MediaBox\s*\[0 0 594\.\d+ 841\.\d+\]/,'Print uses A4 portrait');
