@@ -278,7 +278,7 @@
     return '<article class="exam-detail-card" data-training-quarter="' + q + '"><div class="exam-detail-head"><h4>' + q + '</h4><span>' + months[q] + '</span></div>' +
       '<p class="training-plan-state">' + (data._saved ? esc(planStates[data.planStatus] || planStates.planned) : 'แผนแนะนำ · ยังไม่ได้บันทึก') + '</p>' +
       quarterProgress(ctx,q,data) +
-      '<h5>หัวข้อการเทรนนิ่ง (' + trainingItems(data.training).length + ')</h5><ol class="training-plan-topics">' + trainingItems(data.training).map(item => '<li><button type="button" data-plan-topic="' + item.index + '" data-quarter="' + q + '">' + esc(item.title) + '</button>' + topicBadge(ctx,q,item) + '<button type="button" class="training-slides-action no-print" data-plan-slides="'+item.index+'" data-quarter="'+q+'">เปิดสไลด์อบรม · 10 หน้า</button>' + (isAdmin()?'<button type="button" class="training-evidence-action no-print" data-plan-evidence="'+item.index+'" data-quarter="'+q+'">แนบหลักฐาน / รายชื่อ</button>':'') + '</li>').join('') + '</ol>' +
+      '<h5>หัวข้อการเทรนนิ่ง (' + trainingItems(data.training).length + ')</h5><ol class="training-plan-topics">' + trainingItems(data.training).map(item => '<li><button type="button" data-plan-topic="' + item.index + '" data-quarter="' + q + '">' + esc(item.title) + '</button>' + topicBadge(ctx,q,item) + '<button type="button" class="training-slides-action no-print" data-plan-slides="'+item.index+'" data-quarter="'+q+'">เปิดสไลด์อบรม · 10 หน้า</button>' + '<button type="button" class="training-materials-action no-print" data-plan-materials="'+item.index+'" data-quarter="'+q+'">'+(isAdmin()?'ไฟล์สไลด์ / อัปโหลด':'ไฟล์สไลด์ที่จัดเก็บ')+'</button>' + (isAdmin()?'<button type="button" class="training-evidence-action no-print" data-plan-evidence="'+item.index+'" data-quarter="'+q+'">แนบหลักฐาน / รายชื่อ</button>':'') + '</li>').join('') + '</ol>' +
       planMeta(data) + '<p><b>วิธีอบรม:</b> ' + esc(data.method || '-') + '</p><div class="actions no-print"><button type="button" class="exam-detail-view-button" data-exam-detail-view="' + q + '">ดูรายละเอียด ' + q + '</button>' + (isAdmin() ? '<button type="button" class="secondary" data-plan-edit="' + q + '">แก้ไขแผน ' + q + '</button>' : '') + '</div></article>';
   }
   function enhance() {
@@ -308,6 +308,7 @@
         '<p class="modal-note">แนบรูปอบรม ใบลงชื่อ หรือ PDF ในแต่ละหัวข้อแล้วบันทึก • หลักฐานเดิมที่ยังไม่แสดงในสรุป ให้เปิดหัวข้อนั้นเพื่อตรวจสอบ</p><p class="modal-note no-print" data-plan-sync role="status"></p><p class="modal-note no-print" data-evidence-sync role="status"></p><div class="exam-detail-grid">' + QUARTERS.map(q => cardHtml(q, plan[q] || defaults(ctx.section)[q],ctx)).join('') + '</div>';
       host.querySelectorAll('[data-plan-topic]').forEach(button => { button.onclick = () => openTrainingTopic(ctx, button.dataset.quarter, plan[button.dataset.quarter], Number(button.dataset.planTopic)); });
       host.querySelectorAll('[data-plan-slides]').forEach(button => { button.onclick = () => { const q=button.dataset.quarter,quarter=plan[q],item=trainingItems(quarter.training)[Number(button.dataset.planSlides)];window.PPMSTrainingLessons?.open({ctx,q,quarter,item},button); }; });
+      host.querySelectorAll('[data-plan-materials]').forEach(button=>{button.onclick=()=>{const q=button.dataset.quarter,quarter=plan[q],item=trainingItems(quarter.training)[Number(button.dataset.planMaterials)];window.PPMSTrainingLessonFiles?.open({ctx,q,quarter,item},button);};});
       host.querySelectorAll('[data-plan-evidence]').forEach(button => { button.onclick = () => openTrainingTopic(ctx, button.dataset.quarter, plan[button.dataset.quarter], Number(button.dataset.planEvidence),true); });
       host.querySelector('[data-training-refresh]').onclick=()=>{
         window.PPMSQuarterlyTraining?.refreshNotices(ctx);
@@ -395,7 +396,7 @@
     overlay.className = 'exam-detail-overlay exam-topic-overlay';
     overlay.innerHTML = '<section class="exam-training-topic-viewer" role="dialog" aria-modal="true" aria-label="รายละเอียดหัวข้อ ' + esc(item.title) + '">' +
       '<div class="exam-viewer-head"><div><span class="exam-viewer-quarter">' + q + '</span><h2>' + esc(item.title) + '</h2><p>' + esc(ctx.section) + ' • ปี ' + esc(ctx.year) + '</p></div><button type="button" class="secondary" data-close>ปิด</button></div>' +
-      '<section class="training-lesson-topic-intro"><h3>สไลด์อบรมหัวข้อนี้</h3><p>10 หน้าสรุปเนื้อหา จุดควบคุม ตัวอย่างหน้างาน แบบฝึก และคำถามทบทวน</p><button type="button" data-open-training-slides>เปิดสไลด์อบรม 10 หน้า</button></section>' +
+      '<section class="training-lesson-topic-intro"><h3>สไลด์อบรมหัวข้อนี้</h3><p>10 หน้าสรุปเนื้อหา จุดควบคุม ตัวอย่างหน้างาน แบบฝึก และคำถามทบทวน</p><button type="button" data-open-training-slides>เปิดสไลด์อบรม 10 หน้า</button> <button type="button" data-open-training-files>ไฟล์สไลด์ที่จัดเก็บ / อัปโหลด</button></section>' +
       '<div class="exam-topic-detail-grid"><article><h3>🎯 วัตถุประสงค์</h3><p>ให้ผู้เข้าอบรมเข้าใจมาตรฐานของหัวข้อนี้ สามารถอธิบายขั้นตอน และนำไปปฏิบัติกับงานจริงได้อย่างถูกต้อง</p></article>' +
       '<article><h3>📚 เนื้อหาที่ต้องอบรม</h3><p>' + esc(item.detail) + '</p></article>' +
       '<article><h3>🛠️ วิธีอบรมและฝึกปฏิบัติ</h3><p>' + esc(quarter.method || 'ผู้สอนอธิบายมาตรฐาน สาธิต แล้วให้พนักงานฝึกปฏิบัติจริง') + '</p></article>' +
@@ -407,6 +408,7 @@
     overlay.onclick = event => { if (event.target === overlay) overlay.remove(); };
     document.body.appendChild(overlay);
     overlay.querySelector('[data-open-training-slides]').onclick=event=>window.PPMSTrainingLessons?.open({ctx,q,quarter,item},event.currentTarget);
+    overlay.querySelector('[data-open-training-files]').onclick=event=>window.PPMSTrainingLessonFiles?.open({ctx,q,quarter,item},event.currentTarget);
     let record = null, recordLoaded = false, loadingRecord = null;
     const recordPanel = overlay.querySelector('[data-record-panel]');
     const printButton = overlay.querySelector('[data-print-training]');
