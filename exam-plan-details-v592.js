@@ -180,7 +180,7 @@
   }
   function summaryOf(record) {
     return {topic:record.topic,trainingDate:record.trainingDate || '',evidenceCount:(record.evidence || []).length,
-      trainingCompleted:record.trainingCompleted === true,attendeeIds:record.attendeeIds || [],updatedAt:record.updatedAt || ''};
+      trainingCompleted:record.trainingCompleted === true,attendeeIds:record.attendeeIds || [],updatedAt:record.updatedAt || '',...(record.trainingCourse?{courseRevision:record.trainingCourse.revision,courseTopics:record.trainingCourse.topics.map(topic=>topic.title)}:{})};
   }
   function trainingDone(record) { return !!record?.trainingDate && (record.trainingCompleted === true || Number(record.evidenceCount) > 0); }
   function topicSummary(ctx, q, item) {
@@ -586,6 +586,7 @@
           trainingCompleted:fd.has('trainingCompleted'), effect:String(fd.get('effect') || ''), planned:String(fd.get('planned') || 'yes'), evidence:[...kept, ...added],
           method:quarter.method || '', criteria:quarter.criteria || '', updatedAt:new Date().toISOString()
         };
+        if(options.trainingCourse)record.trainingCourse=JSON.parse(JSON.stringify(options.trainingCourse));
         await saveTrainingRecord(ctx, q, index, record);
         overlay.remove();
         if (onSaved) onSaved(record);

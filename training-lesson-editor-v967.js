@@ -11,13 +11,13 @@
   const ctx=window.PPMSTrainingPlanService?.trainingContext(input.ctx)||input.ctx;
   const scope=ctx.scope||{division:'Production Division',plant:'โรง 1'};
   const sectionKey=ctx.sectionKey||safeKey(scope.division+'::'+scope.plant+'::'+ctx.section);
-  if(!ctx.section||!Number.isInteger(Number(ctx.year))||!/^Q[1-4]$/.test(input.q))throw Error('ข้อมูล Section หรือไตรมาสไม่ครบ');
+  if(!ctx.section||!Number.isInteger(Number(ctx.year))||!/^(?:Q[1-4]|NEW)$/.test(input.q))throw Error('ข้อมูล Section หรือไตรมาสไม่ครบ');
   return ROOT+'/'+Number(ctx.year)+'/'+sectionKey+'/'+input.q+'/'+safeKey(String(input.item.index??0)+'::'+input.item.title);
  }
  function readLocal(key){try{return JSON.parse(localStorage.getItem(key)||'null');}catch{return null;}}
  function writeLocal(key,value){localStorage.setItem(key,JSON.stringify(value));if(window.ppmsErrorGuard?.pendingStorageKeys?.().includes(key))throw Error('พื้นที่เก็บฉบับร่างเต็ม');}
  function sanitizePages(values,base){
-  if(!Array.isArray(values)||values.length!==10)throw Error('ต้องมีสไลด์ครบ 10 หน้า');
+  if(!Array.isArray(values)||values.length!==base.length||values.length>25)throw Error('จำนวนสไลด์ต้องครบตามหลักสูตร และไม่เกิน 25 สไลด์');
   const text=(value,max)=>String(value??'').slice(0,max);
   return base.map((page,i)=>{
    const value=values[i]||{},next=copy(page);
@@ -77,7 +77,7 @@
   function showPanel(force=false){
    if(!editing||destroyed)return;
    const index=getIndex();if(!force&&displayed===index)return;displayed=index;const page=deck.pages[index];
-   panel.innerHTML='<header><div><b>แก้ไขหน้า '+(index+1)+' / 10</b><small>ดูตัวอย่างการแก้ไขในสไลด์</small></div><button type="button" data-editor-done>ดูสไลด์</button></header><form data-slide-form>'+field('หัวข้อสไลด์','title',page.title,{max:180})+field('ชื่อหัวข้อในสารบัญ','kicker',page.kicker,{max:100})+field('ข้อความนำ','lead',page.lead||'',{area:true})+
+   panel.innerHTML='<header><div><b>แก้ไขหน้า '+(index+1)+' / '+deck.pages.length+'</b><small>ดูตัวอย่างการแก้ไขในสไลด์</small></div><button type="button" data-editor-done>ดูสไลด์</button></header><form data-slide-form>'+field('หัวข้อสไลด์','title',page.title,{max:180})+field('ชื่อหัวข้อในสารบัญ','kicker',page.kicker,{max:100})+field('ข้อความนำ','lead',page.lead||'',{area:true})+
     (page.points?field('เนื้อหา (1 บรรทัดต่อข้อ สูงสุด 8 ข้อ)','points',page.points.join('\n'),{area:true,max:5600}):'')+
     (page.questions?'<fieldset><legend>คำถามทบทวน</legend>'+page.questions.map((qa,i)=>field('คำถามที่ '+(i+1),'question-'+i,qa.question,{area:true,max:600})+field('คำตอบที่ '+(i+1),'answer-'+i,qa.answer,{area:true,max:1000})).join('')+'</fieldset>':'')+
     field('ข้อความเน้น / ข้อควรจำ','callout',page.callout||'',{area:true})+(page.type==='summary'?field('วิธีอบรม','method',page.method||'',{area:true})+field('เกณฑ์ประเมิน','criteria',page.criteria||'',{area:true}):'')+
@@ -146,7 +146,7 @@
      saveUncertain=true;
      await request(path,{method:'PUT',headers:{'Content-Type':'application/json','If-Match':latest.etag},body:JSON.stringify(record)},20000);
     }
-    currentRevision=record.revision;deck.pages=pages;dirty=false;saveUncertain=false;let warning='';
+    currentRevision=record.revision;deck.pages=pages;dirty=false;saveUncertain=false;window.dispatchEvent(new CustomEvent('ppms-training-lesson-saved',{detail:{path,record}}));let warning='';
     try{writeLocal(cacheKey,record);localStorage.removeItem(draftKey);}catch{warning=' · พื้นที่ในเครื่องเต็ม แต่บันทึกส่วนกลางสำเร็จ';}
     render();showPanel(true);say('บันทึกสไลด์แล้ว · เปิดใช้จากเครื่องอื่นและดาวน์โหลด PDF ได้'+warning);controls.querySelector('[data-tl-reload]').hidden=true;
    }catch(error){controls.querySelector('[data-tl-reload]').hidden=false;say('ยังไม่บันทึกส่วนกลาง: '+error.message+(keepDraft()?' · เก็บฉบับร่างในเครื่องแล้ว':''));}
