@@ -53,7 +53,50 @@ function installStyle(){if(document.getElementById('jdManagerStyle'))return;cons
 .ppms-jd-person-button{display:block;margin:8px auto 0;padding:6px 10px;font-size:12px;border-radius:7px}.ppms-jd-card-toolbar{grid-column:1/-1;text-align:left;margin:8px 0}.ppms-jd-card-toolbar .ppms-jd-person-button{margin:0}@media print{.ppms-jd-person-button,.ppms-jd-card-toolbar{display:none!important}}
 .ppms-jd-overlay{position:fixed;inset:0;background:#0f172acc;z-index:10040;display:grid;place-items:center;padding:16px}.ppms-jd-dialog{width:min(1000px,96vw);max-height:92vh;overflow:auto;background:white;border-radius:16px;padding:22px;color:#17334f}.ppms-jd-dialog h2{margin:0 0 6px}.ppms-jd-heading{display:flex;justify-content:space-between;align-items:start;gap:12px}.ppms-jd-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:16px 0}.ppms-jd-dialog label{display:flex;flex-direction:column;gap:5px;font-weight:600}.ppms-jd-dialog input,.ppms-jd-dialog select,.ppms-jd-dialog textarea{width:100%;font:inherit;padding:9px;border:1px solid #a8bfd3;border-radius:8px;color:#17334f;background:#fff}.ppms-jd-dialog textarea{resize:vertical;line-height:1.6}.ppms-jd-full{grid-column:1/-1}.ppms-jd-dialog table{width:100%;border-collapse:collapse}.ppms-jd-dialog th,.ppms-jd-dialog td{border-bottom:1px solid #dbe6ef;padding:10px;text-align:left}.ppms-jd-table{overflow:auto}.ppms-jd-actions{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0}.ppms-jd-message{color:#9a3412;white-space:pre-wrap}.ppms-jd-text{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.7}.ppms-jd-meta{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;padding:14px;background:#eef5fb;border-radius:10px;margin:18px 0}.ppms-jd-document{overflow-wrap:anywhere}.ppms-jd-role{display:block;margin:7px auto;font-size:12px}.ppms-jd-hint{font-size:13px;color:#526c82}@media(max-width:650px){.ppms-jd-grid,.ppms-jd-meta{grid-template-columns:1fr}.ppms-jd-dialog{padding:16px}}@media print{body.ppms-jd-print> *:not(#jdDialog){display:none!important}body.ppms-jd-print #jdDialog{position:static;display:block;padding:0;background:white}body.ppms-jd-print .ppms-jd-dialog{width:100%;max-height:none;overflow:visible;border-radius:0;padding:0}body.ppms-jd-print .ppms-jd-no-print{display:none!important}body.ppms-jd-print .ppms-jd-text{orphans:3;widows:3}body.ppms-jd-print h3{break-after:avoid}}
 `;document.head.append(style)}
-function close(){activeViewerId=null;viewerRevision='';document.getElementById('jdDialog')?.remove();document.body.classList.remove('ppms-jd-print');lastFocus?.focus?.()}
+// Use a named page so organization/card print sizes remain independent.
+function installJDPrintStyle(){
+ let style=document.getElementById('jdSinglePagePrintStyle');if(style)return style;
+ style=document.createElement('style');style.id='jdSinglePagePrintStyle';style.media='print';style.textContent=`
+@page ppms-jd{size:A4 portrait;margin:10mm}
+body.ppms-jd-print{page:ppms-jd;margin:0!important;padding:0!important;width:190mm!important;height:auto!important;min-height:0!important;overflow:visible!important;background:#fff!important}
+body.ppms-jd-print> *:not(#jdDialog){display:none!important}
+body.ppms-jd-print #jdDialog{page:ppms-jd;position:static!important;display:block!important;inset:auto!important;width:190mm!important;height:auto!important;max-height:none!important;margin:0!important;padding:0!important;overflow:visible!important;background:#fff!important}
+body.ppms-jd-print #jdDialog .ppms-jd-dialog{box-sizing:border-box;width:calc(190mm / var(--jd-print-scale,1))!important;max-width:none!important;min-width:0!important;max-height:none!important;overflow:visible!important;border:0!important;border-radius:0!important;box-shadow:none!important;padding:0!important;margin:0!important;font-size:11pt!important;line-height:1.35!important;zoom:var(--jd-print-scale,1)}
+body.ppms-jd-print #jdDialog .ppms-jd-heading{display:block;margin:0 0 3mm}
+body.ppms-jd-print #jdDialog h2{font-size:15pt!important;line-height:1.25;margin:0 0 1mm!important}
+body.ppms-jd-print #jdDialog h3{font-size:11.5pt!important;line-height:1.3;margin:3mm 0 1.5mm!important;break-after:avoid}
+body.ppms-jd-print #jdDialog p{margin:1.5mm 0!important}
+body.ppms-jd-print #jdDialog .ppms-jd-text{font-size:11pt!important;line-height:1.4!important;white-space:pre-wrap;overflow-wrap:anywhere;orphans:1;widows:1}
+body.ppms-jd-print #jdDialog .ppms-jd-meta{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:1mm 5mm!important;margin:3mm 0!important;padding:2mm!important;font-size:10pt!important;line-height:1.35!important}
+body.ppms-jd-print #jdDialog .ppms-jd-hint{font-size:8pt!important;line-height:1.3!important}
+body.ppms-jd-print #jdDialog .ppms-jd-no-print{display:none!important}
+`;document.head.append(style);return style;
+}
+function fitJDToPage(){
+ if(!activeViewerId)return;
+ const dialog=document.querySelector('#jdDialog .ppms-jd-dialog');if(!dialog)return;
+ const style=installJDPrintStyle();document.body.classList.add('ppms-jd-print');
+ // Measure at the actual A4 print width, including when opened on a phone.
+ style.media='all';dialog.style.setProperty('--jd-print-scale','1');
+ try{
+  const available=276*96/25.4;let scale=1;
+  for(let i=0;i<6;i++){
+   const height=Math.max(dialog.getBoundingClientRect().height,dialog.scrollHeight*scale);
+   if(height<=available||!height)break;
+   scale*=available/height*0.995;dialog.style.setProperty('--jd-print-scale',String(scale));
+  }
+ }finally{style.media='print'}
+}
+function resetJDPrint(){
+ document.body.classList.remove('ppms-jd-print');
+ document.querySelector('#jdDialog .ppms-jd-dialog')?.style.removeProperty('--jd-print-scale');
+}
+async function printJD(){
+ await document.fonts?.ready;
+ if(!activeViewerId||!document.querySelector('#jdDialog article'))return;
+ fitJDToPage();try{window.print()}finally{resetJDPrint()}
+}
+function close(){activeViewerId=null;viewerRevision='';document.getElementById('jdDialog')?.remove();resetJDPrint();lastFocus?.focus?.()}
 function shell(title){if(!admin())return null;const existing=document.getElementById('jdDialog');if(!existing)lastFocus=document.activeElement;existing?.remove();installStyle();const overlay=document.createElement('div');overlay.id='jdDialog';overlay.className='ppms-jd-overlay';overlay.innerHTML='<section class="ppms-jd-dialog" role="dialog" aria-modal="true" aria-labelledby="jdTitle"><div class="ppms-jd-heading"><div><h2 id="jdTitle">'+esc(title)+'</h2><p class="ppms-jd-hint">Job Description · รายละเอียดงานรายบุคคล</p></div><button type="button" class="secondary ppms-jd-no-print" data-jd-close>ปิด</button></div><div data-jd-content></div></section>';document.body.append(overlay);overlay.querySelector('[data-jd-close]').onclick=close;overlay.onkeydown=e=>{if(e.key==='Escape')close();if(e.key==='Tab'){const items=[...overlay.querySelectorAll('button,input,textarea,select,a[href]')].filter(x=>!x.disabled&&!x.closest('[hidden]')),first=items[0],last=items.at(-1);if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus()}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus()}}};overlay.querySelector('[data-jd-close]').focus();return overlay.querySelector('[data-jd-content]')}
 const options=(values,current)=>values.map(x=>'<option '+(x===current?'selected':'')+'>'+esc(x)+'</option>').join('');
 
@@ -171,7 +214,7 @@ function editor(id,initial){activeViewerId=null;viewerRevision='';if(!admin())re
 function viewRevision(record,id=''){return JSON.stringify([window.PPMS_JD_OFFLINE?.status(id),record?.version,record?.updatedAt,record?.position,record?.section,record?.responsibilities,record?.qualifications,record?.reportsTo,record?.jobPurpose])}
 function refreshActiveViewer(){if(activeViewerId&&records[activeViewerId]&&viewRevision(currentJD(records[activeViewerId]),activeViewerId)!==viewerRevision)viewer(activeViewerId)}
 function viewer(id){const record=currentJD(records[id]);if(!record||!admin())return;activeViewerId=id;viewerRevision=viewRevision(record,id);const content=shell('JOB DESCRIPTION / JD รายบุคคล');if(!content)return;const link=url(record.documentUrl);content.innerHTML=offlineJDNotice(id)+(record.assignmentChanged?'<p class="ppms-jd-hint">JD ปรับตามตำแหน่งและ Section ปัจจุบันแล้ว · ฉบับร่างรอทบทวน</p>':'')+'<article>'+(record.employeeId?'<h3>'+esc(record.employeeName)+' · '+esc(record.employeeId)+'</h3>':'<p>JD ตามตำแหน่ง</p>')+'<h3 data-i18n-ignore data-jd-position-title="'+esc(id)+'">'+esc(positionTitle(record))+'</h3>'+(record.jobPurpose?'<h3>วัตถุประสงค์ของตำแหน่ง</h3><div class="ppms-jd-text">'+esc(record.jobPurpose)+'</div>':'')+'<div class="ppms-jd-meta"><span><b>Division:</b> '+esc(record.division)+'</span><span><b>Section:</b> '+esc(record.section)+'</span><span><b>โรงงาน:</b> '+esc(record.plant)+'</span><span><b>รายงานต่อ:</b> '+esc(record.reportsTo||'—')+'</span><span><b>JD No.:</b> '+esc(record.documentNo||'—')+'</span><span><b>Revision:</b> '+esc(record.revision||'—')+'</span><span><b>วันที่มีผล:</b> '+esc(record.effectiveDate||'—')+'</span></div>'+(Number(record.templateVersion||0)>=5?'<p class="ppms-jd-hint">JD ฉบับปรับปรุงล่าสุด</p>':'')+'<h3>หน้าที่และความรับผิดชอบ</h3><div class="ppms-jd-text">'+esc(record.responsibilities)+'</div><h3>คุณสมบัติ / ทักษะที่จำเป็น</h3><div class="ppms-jd-text">'+esc(record.qualifications||'—')+'</div>'+(link?'<p class="ppms-jd-document"><a href="'+esc(link)+'" target="_blank" rel="noopener noreferrer">เปิดไฟล์ JD ที่แนบลิงก์</a></p>':'')+'<p class="ppms-jd-hint">อัปเดต: '+esc(record.updatedAt||'')+' · '+esc(record.updatedBy||'')+'</p>'+assignmentHistoryHTML(record)+'</article><div class="ppms-jd-actions ppms-jd-no-print"><button type="button" data-jd-edit>แก้ไข JD</button><button type="button" data-jd-print>พิมพ์ / บันทึก PDF</button><button type="button" class="secondary" data-jd-back>กลับรายการ JD</button></div>';
- content.querySelector('[data-jd-edit]').onclick=()=>editor(id);const review=content.querySelector('[data-jd-review-conflict]');if(review)review.onclick=()=>reviewJDConflict(id);content.querySelector('[data-jd-back]').onclick=()=>manager(filters);content.querySelector('[data-jd-print]').onclick=()=>{document.body.classList.add('ppms-jd-print');window.print()};
+ content.querySelector('[data-jd-edit]').onclick=()=>editor(id);const review=content.querySelector('[data-jd-review-conflict]');if(review)review.onclick=()=>reviewJDConflict(id);content.querySelector('[data-jd-back]').onclick=()=>manager(filters);content.querySelector('[data-jd-print]').onclick=printJD;
 }
 // Starter drafts are created only for missing individual JDs; existing records win.
 function starterJD(person,context){
@@ -339,7 +382,7 @@ function currentJD(record,available){
 }
 function assignmentHistoryHTML(record){
  const history=record.assignmentHistory||[];if(!history.length)return '';
- return '<details><summary>JD ก่อนเปลี่ยนตำแหน่ง / Section ('+history.length+')</summary>'+history.map(r=>'<section><h4>'+esc(positionTitle(r))+' · '+esc(r.section)+'</h4><p>'+esc(r.documentNo||'—')+' / '+esc(r.revision||'—')+'</p><div class="ppms-jd-text">'+esc(r.responsibilities||'')+'</div><div class="ppms-jd-text">'+esc(r.qualifications||'')+'</div>'+(url(r.documentUrl)?'<p><a href="'+esc(url(r.documentUrl))+'" target="_blank" rel="noopener noreferrer">เปิดไฟล์ JD เดิม</a></p>':'')+'</section>').join('')+'</details>';
+ return '<details class="ppms-jd-no-print"><summary>JD ก่อนเปลี่ยนตำแหน่ง / Section ('+history.length+')</summary>'+history.map(r=>'<section><h4>'+esc(positionTitle(r))+' · '+esc(r.section)+'</h4><p>'+esc(r.documentNo||'—')+' / '+esc(r.revision||'—')+'</p><div class="ppms-jd-text">'+esc(r.responsibilities||'')+'</div><div class="ppms-jd-text">'+esc(r.qualifications||'')+'</div>'+(url(r.documentUrl)?'<p><a href="'+esc(url(r.documentUrl))+'" target="_blank" rel="noopener noreferrer">เปิดไฟล์ JD เดิม</a></p>':'')+'</section>').join('')+'</details>';
 }
 let reconcilingAssignments=false;
 async function reconcileAssignments(){
@@ -414,7 +457,8 @@ window.addEventListener('keydown',e=>{
  const button=e.target.closest?.('[data-open-jd]');if(!button||!['Enter',' '].includes(e.key))return;
  e.preventDefault();e.stopImmediatePropagation();button.click();
 },true);
-window.addEventListener('afterprint',()=>document.body.classList.remove('ppms-jd-print'));
+window.addEventListener('beforeprint',fitJDToPage);
+window.addEventListener('afterprint',resetJDPrint);
 window.addEventListener('storage',e=>{if(e.key===CACHE){remoteRecords=read(CACHE,{});applyOfflineRecords();refreshActiveViewer();drawList()}if([MASTER,ORG,'ppms_v3_employees','ppms_v3_deleted_employee_ids'].includes(e.key)){scheduleJDMaintenance();refreshActiveViewer();drawList()}});
 window.addEventListener('ppms-organization-changed',()=>{controls();scheduleJDMaintenance()});
 window.addEventListener('ppms-employees-changed',()=>{scheduleJDMaintenance();refreshPositionTitles();refreshActiveViewer();if(document.querySelector('#jdDialog [data-jd-list]'))manager(filters)});
