@@ -18,6 +18,11 @@ test('500 employee reconciliation deduplicates and avoids whole-database writes'
  vm.runInContext(fn('reconcileAutomaticAbsences'),ctx);assert.equal(ctx.reconcileAutomaticAbsences(2026),500);assert.equal(ctx.reconcileAutomaticAbsences(2026),0);assert.equal(ctx.attendance.length,500);
  ctx.absenceDeadlinePassed=()=>false;assert.equal(ctx.reconcileAutomaticAbsences(2026),500);assert.equal(ctx.attendance.length,0);Object.assign(ctx,old);
 });
+test('employee card reconciles only its selected person and leaves other history untouched',()=>{
+ const old={...ctx};const people=Array.from({length:500},(_,i)=>({id:String(i+1),section:'Test'})),foreign={employeeId:'500',date:base.date,autoAbsent:true,exception:{type:'absent'},evidence:'retained'};
+ Object.assign(ctx,{employees:people,attendance:[foreign],attendanceCloudReady:true,kpiPeriodStart:()=>base.date,thaiDateRange:()=>[base.date],attendanceIsAbsenceExcluded:()=>false,employeeEligibleOnDate:()=>true,absenceDeadlinePassed:()=>true,loadObject:()=>({}),attendanceRecordBlockedByCleanup:r=>r.employeeId==='500',attendanceRecordBlockedByDeletion:()=>false,ATTENDANCE_DELETED_DATES_KEY:'dates',ATTENDANCE_DELETED_RECORDS_KEY:'rows',LOCAL_UPDATED_KEY:'updated',touchAttendance:r=>r,employeeShiftKey:()=> 'day'});
+ assert.equal(ctx.reconcileAutomaticAbsences(2026,[people[0]]),1);assert.equal(ctx.attendance.length,2);assert.equal(ctx.attendance.find(r=>r.employeeId==='500'),foreign);assert.equal(ctx.attendance.filter(r=>r.employeeId==='1').length,1);assert.equal(ctx.reconcileAutomaticAbsences(2026,[people[0]]),0);Object.assign(ctx,old);
+});
 function mockDb({fail=false,stale=false,onWrite=()=>{}}={}){const rows=new Map();return {ref(path){return {async once(){const value=stale&&!path.includes('deleted')?{...base,checkIn:undefined,exception:{type:'absent'}}:rows.get(path);return {val:()=>value||null,exists:()=>!!value}},async set(row){if(fail)throw Error('offline');onWrite();rows.set(path,structuredClone(row))},async remove(){}}}}}
 (async()=>{
 ctx.cloudDb=mockDb();ctx.attendance=[{...base}];await ctx.syncAttendanceRecordCloudOnce({...base});assert.equal(ctx.attendance[0].pendingCloudSync,false);count++;console.log('PASS acknowledge live row when uploader receives merged copy');
