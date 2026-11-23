@@ -16,19 +16,30 @@
  const take=(r,...keys)=>{for(const key of keys)if(clean(r[key]))return clean(r[key]);return ''};
  function normalizeRow(r){return {id:take(r,'employee_id','employeeid','id','รหัสพนักงาน'),name:take(r,'name_from_source','name','englishname','ชื่อภาษาอังกฤษ','ชื่อ'),thaiName:take(r,'thainame','thai_name','ชื่อภาษาไทย'),position:take(r,'position','ตำแหน่ง'),startDate:take(r,'startdate','start_date','วันที่เริ่มงาน'),contractType:take(r,'contracttype','contract_type','ประเภทพนักงาน'),photoFile:take(r,'photo_file','photo'),sourceDuty:take(r,'duty_from_source','duty'),photoData:''}}
  function validDate(s){if(!/^\d{4}-\d{2}-\d{2}$/.test(s))return false;const d=new Date(s+'T00:00:00Z');return Number.isFinite(+d)&&d.toISOString().slice(0,10)===s}
+ const fieldLabels={id:'รหัสพนักงาน',name:'ชื่อภาษาอังกฤษ',position:'ตำแหน่ง',startDate:'วันที่เริ่มงาน',contractType:'ประเภทพนักงาน',photoData:'รูปภาพ'};
+ function reviewRows(rows,existing=[]){
+  const issues=[],seen=new Map(),ids=new Set(existing.map(e=>clean(e.id).toUpperCase()));
+  const add=(row,field,message)=>issues.push({row,field,message});
+  rows.forEach((r,i)=>{
+   const id=clean(r.id),name=clean(r.name),position=clean(r.position),date=clean(r.startDate),type=clean(r.contractType),photo=clean(r.photoData);
+   if(!id)add(i,'id','กรุณากรอกรหัสพนักงาน');
+   else if(id.length>64||/[.#$\[\]\/\\\x00-\x1f\x7f]/.test(id)||['__proto__','prototype','constructor'].includes(id))add(i,'id','รหัสพนักงานมีอักขระที่ใช้ไม่ได้');
+   else{const key=id.toUpperCase();if(seen.has(key)){add(i,'id','รหัสซ้ำกับแถว '+(seen.get(key)+1));if(!issues.some(x=>x.row===seen.get(key)&&x.field==='id'))add(seen.get(key),'id','รหัสซ้ำกับแถว '+(i+1))}else seen.set(key,i);if(ids.has(key))add(i,'id','รหัส '+id+' มีอยู่แล้ว กรุณาตรวจรหัสก่อนเพิ่ม')}
+   if(!name)add(i,'name','กรุณากรอกชื่อภาษาอังกฤษ');else if(name.length>200)add(i,'name','ชื่อยาวเกิน 200 ตัวอักษร');
+   if(!position)add(i,'position','กรุณากรอกตำแหน่ง');else if(position.length>200)add(i,'position','ตำแหน่งยาวเกิน 200 ตัวอักษร');
+   if(!validDate(date))add(i,'startDate','กรุณากรอกวันที่เริ่มงานจริง');
+   if(!['Permanent','Subcontractor'].includes(type))add(i,'contractType','กรุณาเลือกประเภทพนักงาน');
+   if(photo&&(!/^data:image\/(jpeg|png|webp);base64,[a-z0-9+/=]+$/i.test(photo)||photo.length>2*1024*1024))add(i,'photoData','รูปภาพไม่ถูกต้องหรือใหญ่เกินไป');
+  });return issues.sort((a,b)=>a.row-b.row);
+ }
  function validateBatch(batch){
   if(!batch||typeof batch.key!=='string'||!/^EMPIMPORT-[a-z0-9-]{8,100}$/i.test(batch.key))throw Error('รายการนำเข้าไม่ถูกต้อง');
   const scope={division:clean(batch.scope?.division),plant:clean(batch.scope?.plant)},section=clean(batch.section);
   if(!scope.division||!scope.plant||!section)throw Error('กรุณาเลือกฝ่าย โรงงาน และ Section');
   if(!Array.isArray(batch.employees)||!batch.employees.length||batch.employees.length>MAX_ROWS)throw Error('นำเข้าได้ครั้งละ 1–100 คน');
-  const seen=new Set(),rows=batch.employees.map((r,i)=>{
-   const id=clean(r.id),name=clean(r.name),position=clean(r.position),startDate=clean(r.startDate),contractType=clean(r.contractType),prefix='แถว '+(i+1)+': ';
-   if(!id||id.length>64||/[.#$\[\]\/\\\x00-\x1f\x7f]/.test(id)||['__proto__','prototype','constructor'].includes(id))throw Error(prefix+'กรุณาระบุรหัสพนักงานที่ถูกต้อง');
-   const key=id.toUpperCase();if(seen.has(key))throw Error(prefix+'รหัสพนักงานซ้ำในไฟล์');seen.add(key);
-   if(!name||name.length>200||!position||position.length>200)throw Error(prefix+'กรุณาระบุชื่อและตำแหน่ง');
-   if(!validDate(startDate))throw Error(prefix+'กรุณาระบุวันที่เริ่มงานจริง');
-   if(!['Permanent','Subcontractor'].includes(contractType))throw Error(prefix+'กรุณาเลือกประเภทพนักงาน');
-   const photoData=clean(r.photoData);if(photoData&&(!/^data:image\/(jpeg|png|webp);base64,[a-z0-9+/=]+$/i.test(photoData)||photoData.length>2*1024*1024))throw Error(prefix+'รูปภาพไม่ถูกต้องหรือใหญ่เกินไป');
+  const issues=reviewRows(batch.employees);if(issues.length)throw Error('แถว '+(issues[0].row+1)+': '+issues[0].message);
+  const rows=batch.employees.map(r=>{
+   const id=clean(r.id),name=clean(r.name),position=clean(r.position),startDate=clean(r.startDate),contractType=clean(r.contractType),photoData=clean(r.photoData);
    return {id,name,thaiName:clean(r.thaiName).slice(0,200),position,startDate,contractType,section,organizationDivision:scope.division,organizationPlant:scope.plant,photoData,photoUrl:'',employeeImportKey:batch.key,importSourceDuty:clean(r.sourceDuty||r.importSourceDuty).slice(0,500),updatedAt:batch.updatedAt||new Date().toISOString()};
   });return {key:batch.key,scope,section,employees:rows,updatedAt:rows[0].updatedAt};
  }
@@ -68,14 +79,14 @@
   const ctx=context();if(!ctx?.allowed)return;
   if(dialog)return;state={scope:{...ctx.scope},section:ctx.section,rows:[],busy:false,batch:null};
   dialog=document.createElement('dialog');dialog.className='employee-import-dialog';dialog.setAttribute('aria-labelledby','employeeImportTitle');
-  dialog.innerHTML=`<header><h2 id="employeeImportTitle">อัปโหลดรายชื่อพร้อมรูป</h2><button type="button" data-import-close aria-label="ปิด">ปิด</button></header><p>เพิ่มพนักงานใหม่ใน ${esc(label(ctx.scope.division))} · ${esc(ctx.scope.plant)} โดยคงรายชื่อเดิมไว้</p><label>Section ปลายทาง<select data-import-section>${ctx.sections.map(s=>`<option value="${esc(s)}" ${s===ctx.section?'selected':''}>${esc(label(s))}</option>`).join('')}</select></label><div class="employee-import-upload"><label>ไฟล์ ZIP หรือ CSV (ไม่เกิน 30 MB)<input type="file" accept=".zip,.csv" data-import-file></label><button type="button" data-import-template>ดาวน์โหลดแบบฟอร์ม CSV</button><p>ZIP: รวม employees.csv และโฟลเดอร์รูป ใช้ได้กับไฟล์ Warehouse_Employees_With_Photos.zip</p></div><div class="employee-import-common"><strong>กรอกให้ทุกแถวที่ยังว่าง</strong><label>ตำแหน่ง<input data-import-common="position" placeholder="เช่น Operator"></label><label>วันที่เริ่มงาน<input type="date" data-import-common="startDate"></label><label>ประเภทพนักงาน<select data-import-common="contractType"><option value="">เลือกประเภท</option><option value="Permanent">พนักงานประจำ</option><option value="Subcontractor">พนักงานซัพคอนแทรค</option></select></label><button type="button" data-import-apply>เติมช่องว่าง</button></div><p role="status" aria-live="polite" data-import-message>เลือกไฟล์เพื่อตรวจรายชื่อและรูปก่อนบันทึก</p><div class="employee-import-table"></div><footer><button type="button" data-import-save disabled>ยืนยันเพิ่มพนักงาน</button><button type="button" data-import-discard hidden>ล้างรายการรอในเครื่อง</button><button type="button" data-import-close>ปิด</button></footer>`;
+  dialog.innerHTML=`<header><h2 id="employeeImportTitle">อัปโหลดรายชื่อพร้อมรูป</h2><button type="button" data-import-close aria-label="ปิด">ปิด</button></header><p>เพิ่มพนักงานใหม่ใน ${esc(label(ctx.scope.division))} · ${esc(ctx.scope.plant)} โดยคงรายชื่อเดิมไว้</p><label>Section ปลายทาง<select data-import-section>${ctx.sections.map(s=>`<option value="${esc(s)}" ${s===ctx.section?'selected':''}>${esc(label(s))}</option>`).join('')}</select></label><div class="employee-import-upload"><label>ไฟล์ ZIP หรือ CSV (ไม่เกิน 30 MB)<input type="file" accept=".zip,.csv" data-import-file></label><button type="button" data-import-template>ดาวน์โหลดแบบฟอร์ม CSV</button><p>ZIP: รวม employees.csv และโฟลเดอร์รูป ใช้ได้กับไฟล์ Warehouse_Employees_With_Photos.zip</p></div><div class="employee-import-common"><strong>กรอกให้ทุกแถวที่ยังว่าง</strong><label>ตำแหน่ง<input data-import-common="position" placeholder="เช่น Operator"></label><label>วันที่เริ่มงาน<input type="date" data-import-common="startDate"></label><label>ประเภทพนักงาน<select data-import-common="contractType"><option value="">เลือกประเภท</option><option value="Permanent">พนักงานประจำ</option><option value="Subcontractor">พนักงานซัพคอนแทรค</option></select></label><button type="button" data-import-apply>เติมช่องว่าง</button></div><p role="status" aria-live="polite" data-import-message>เลือกไฟล์เพื่อตรวจรายชื่อและรูปก่อนบันทึก</p><div class="employee-import-table"></div><footer><p role="status" aria-live="polite" id="employeeImportValidationSummary" data-import-footer-message>เลือกไฟล์เพื่อตรวจรายชื่อก่อนบันทึก</p><button type="button" data-import-save disabled>ยืนยันเพิ่มพนักงาน</button><button type="button" data-import-discard hidden>ล้างรายการรอในเครื่อง</button><button type="button" data-import-close>ปิด</button></footer>`;
   document.body.append(dialog);dialog.showModal();
   dialog.addEventListener('cancel',e=>{e.preventDefault();close()});dialog.addEventListener('click',async e=>{const b=e.target.closest('button');if(!b)return;if(b.hasAttribute('data-import-close'))return close();if(b.hasAttribute('data-import-template'))return downloadTemplate();if(b.hasAttribute('data-import-discard')){localStorage.removeItem(PENDING);state.batch=null;state.complete=false;for(const el of dialog.querySelectorAll('input,select,button'))el.disabled=false;b.hidden=true;message('ล้างรายการรอในเครื่องแล้ว รายชื่อที่บันทึกแล้วจะยังอยู่');check();return}if(b.hasAttribute('data-import-apply')){for(const input of dialog.querySelectorAll('[data-import-common]'))if(input.value)for(const r of state.rows)if(!r[input.dataset.importCommon])r[input.dataset.importCommon]=input.value;draw();return}if(b.hasAttribute('data-import-save'))await save()});
   dialog.querySelector('[data-import-section]').onchange=e=>{state.section=e.target.value;check()};
   dialog.querySelector('[data-import-file]').onchange=async e=>{const file=e.target.files?.[0];if(!file)return;lock(true);message('กำลังอ่านรายชื่อและเตรียมรูป...');try{state.rows=await readFile(file,f=>window.PPMS_RUNTIME.employeePhotoData(f));state.batch=null;draw()}catch(err){state.rows=[];draw();message(err.message,true)}finally{lock(false);check()}};
   try{const pending=JSON.parse(localStorage.getItem(PENDING)||'null');if(pending){if(!sameScope(pending.scope,state.scope))message('มีรายการนำเข้ารอส่งในฝ่ายหรือโรงงานอื่น กรุณาเปิดฝ่ายและโรงงานนั้นก่อน',true);else{state.batch=validateBatch(pending);state.section=pending.section;state.rows=state.batch.employees;dialog.querySelector('[data-import-section]').value=pending.section;draw();lock(false);freeze();message('พบรายการรอการยืนยัน กดนำเข้าซ้ำเพื่อตรวจและบันทึกรายการเดิม โดยไม่เพิ่มซ้ำ');check()}}}catch{dialog.querySelector('[data-import-discard]').hidden=false;message('อ่านรายการรอส่งไม่ได้ กรุณาตรวจข้อมูลในหน้าค้นหาพนักงานก่อนลองใหม่',true)}
  }
- function message(text,error=false){if(!dialog)return;const el=dialog.querySelector('[data-import-message]');el.textContent=text;el.classList.toggle('employee-import-error',error)}
+ function message(text,error=false){if(!dialog)return;for(const el of dialog.querySelectorAll('[data-import-message],[data-import-footer-message]')){el.textContent=text;el.classList.toggle('employee-import-error',error)}}
  function freeze(){dialog.querySelector('[data-import-discard]').hidden=false;for(const input of dialog.querySelectorAll('input,select,[data-import-apply]'))input.disabled=true}
  function lock(busy){state.busy=busy;for(const el of dialog.querySelectorAll('input,select,button'))el.disabled=busy;dialog.setAttribute('aria-busy',String(busy));if(!busy&&state.batch)freeze()}
  function rowsFromUI(){for(const input of dialog.querySelectorAll('[data-import-row]'))state.rows[Number(input.dataset.importRow)][input.dataset.field]=input.value}
@@ -85,20 +96,38 @@
   table.oninput=()=>{rowsFromUI();check()};table.onchange=table.oninput;check();
  }
  function previewBatch(){return validateBatch({key:'EMPIMPORT-preview00',scope:state.scope,section:state.section,employees:state.rows})}
- function check(){
-  if(!state||state.busy)return;const button=dialog.querySelector('[data-import-save]'),ctx=context();button.disabled=true;
-  if(!ctx?.allowed||!sameScope(ctx.scope,state.scope)){message('สิทธิ์ ฝ่าย หรือโรงงานเปลี่ยน กรุณาปิดแล้วเปิดหน้านำเข้าใหม่',true);return}
-  if(!state.rows.length)return;
+ function check(focus=false){
+  if(!state||state.busy)return false;
+  const button=dialog.querySelector('[data-import-save]'),ctx=context();
+  if(state.complete){button.disabled=true;button.textContent='บันทึกแล้ว '+state.rows.length+' คน';return false}
+  button.disabled=true;
+  if(!ctx?.allowed||!sameScope(ctx.scope,state.scope)){message('สิทธิ์ ฝ่าย หรือโรงงานเปลี่ยน กรุณาปิดแล้วเปิดหน้านำเข้าใหม่',true);return false}
+  if(!state.rows.length)return false;
+  const issues=reviewRows(state.rows,state.batch?[]:ctx.employees),byField=new Map();
+  for(const issue of issues)byField.set(issue.row+':'+issue.field,issue);
+  for(const input of dialog.querySelectorAll('[data-import-row]')){
+   const issue=byField.get(input.dataset.importRow+':'+input.dataset.field);
+   if(issue){input.setAttribute('aria-invalid','true');input.title=issue.message;input.setAttribute('aria-describedby','employeeImportValidationSummary')}
+   else{input.removeAttribute('aria-invalid');input.removeAttribute('title');input.removeAttribute('aria-describedby')}
+  }
+  button.disabled=false;
+  if(issues.length){
+   const counts=new Map();for(const issue of issues)counts.set(issue.field,(counts.get(issue.field)||0)+1);
+   const first=issues[0],name=clean(state.rows[first.row].name),summary=[...counts].map(([field,n])=>fieldLabels[field]+' '+n+' ช่อง').join(', ');
+   button.textContent='ตรวจข้อมูลก่อนบันทึก ('+state.rows.length+' คน)';
+   message('ต้องแก้ '+issues.length+' ช่อง: '+summary+' · แถว '+(first.row+1)+(name?' ('+name+')':'')+': '+first.message,true);
+   if(focus){const input=dialog.querySelector('[data-import-row="'+first.row+'"][data-field="'+first.field+'"]');input?.focus({preventScroll:true});input?.scrollIntoView({block:'center',inline:'center',behavior:'smooth'})}
+   return false;
+  }
   try{
-   const batch=state.batch||previewBatch(),existing=new Map(ctx.employees.map(e=>[String(e.id).toUpperCase(),e]));
-   if(!state.batch)for(const row of batch.employees)if(existing.has(row.id.toUpperCase()))throw Error('รหัส '+row.id+' มีอยู่แล้ว กรุณาตรวจรหัส ไม่ได้นำเข้าทับ');
+   if(!state.batch)previewBatch();
    const pending=JSON.parse(localStorage.getItem(PENDING)||'null');if(pending&&!state.batch)throw Error('มีรายการรอการยืนยัน กรุณาทำรายการเดิมให้เสร็จก่อน');
-   button.disabled=false;button.textContent=state.batch?'นำเข้าซ้ำ / ตรวจการบันทึก':'ยืนยันเพิ่มพนักงาน '+state.rows.length+' คน';
-   message((state.batch?'รายการรอการยืนยัน: ':'พร้อมนำเข้า: ')+state.rows.length+' คน · '+state.rows.filter(r=>r.photoData).length+' รูป · '+label(state.section));
-  }catch(err){message(err.message,true)}
+   button.textContent=state.batch?'นำเข้าซ้ำ / ตรวจการบันทึก':'ยืนยันเพิ่มพนักงาน '+state.rows.length+' คน';
+   message((state.batch?'รายการรอการยืนยัน: ':'พร้อมนำเข้า: ')+state.rows.length+' คน · '+state.rows.filter(r=>r.photoData).length+' รูป · '+label(state.section));return true;
+  }catch(err){button.textContent='ตรวจข้อมูลก่อนบันทึก ('+state.rows.length+' คน)';message(err.message,true);return false}
  }
  async function save(){
-  if(state?.busy)return;rowsFromUI();check();if(dialog.querySelector('[data-import-save]').disabled)return;
+  if(state?.busy||state?.complete)return;rowsFromUI();if(!check(true))return;
   try{
    if(!state.batch){const key='EMPIMPORT-'+(globalThis.crypto?.randomUUID?.()||Date.now().toString(36)+'-'+Math.random().toString(36).slice(2));state.batch=validateBatch({key,scope:state.scope,section:state.section,employees:state.rows});localStorage.setItem(PENDING,JSON.stringify(state.batch))}
    lock(true);message('กำลังบันทึกและตรวจยืนยันรายชื่อกับรูป...');
@@ -107,7 +136,7 @@
    localStorage.removeItem(PENDING);dialog.querySelector('[data-import-discard]').hidden=true;state.busy=false;
    for(const b of dialog.querySelectorAll('[data-import-close]'))b.disabled=false;
    message('บันทึกสำเร็จ '+result.importedIds.length+' คน พร้อมรูป '+state.rows.filter(r=>r.photoData).length+' รูป ใน '+label(state.scope.division)+' · '+state.scope.plant+' · '+label(state.section));
-   dialog.querySelector('[data-import-save]').disabled=true;state.complete=true;
+   state.complete=true;dialog.querySelector('[data-import-save]').disabled=true;dialog.querySelector('[data-import-save]').textContent='บันทึกแล้ว '+result.importedIds.length+' คน';
   }catch(err){if(state?.batch)try{if(localStorage.getItem(PENDING)!==JSON.stringify(state.batch))state.batch=null}catch{}lock(false);check();message('ยังไม่ยืนยันการบันทึก: '+(err.message||String(err)),true)}
  }
  function mount(){
@@ -118,7 +147,7 @@
   box.querySelector('button').disabled=!ctx.allowed;const hint=ctx.allowed?'ZIP / CSV · ตรวจข้อมูลก่อนบันทึก':'บัญชีนี้ดูข้อมูลได้อย่างเดียว';if(box.querySelector('span').textContent!==hint)box.querySelector('span').textContent=hint;
  }
  let queued=false;function queue(){if(queued)return;queued=true;requestAnimationFrame(()=>{queued=false;mount()})}
- window.PPMSEmployeeImport={parseCSV,normalizeRow,validateBatch,readFile,open};
+ window.PPMSEmployeeImport={parseCSV,normalizeRow,reviewRows,validateBatch,readFile,open};
  new MutationObserver(queue).observe(document.getElementById('app')||document.body,{childList:true,subtree:true});
  for(const event of ['ppms-account-permissions-changed','ppms-organization-scope-changed','ppms-employees-changed'])window.addEventListener(event,()=>{queue();if(dialog&&!state?.complete)check()});
  queue();

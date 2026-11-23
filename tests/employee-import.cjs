@@ -23,6 +23,10 @@ function setup(initial,{conflict,failAfterSave=false,permission='edit',signedIn=
  assert.throws(()=>api.parseCSV('id,id\n1,2'),/คอลัมน์/);assert.throws(()=>api.parseCSV('id,name\n1,"oops'),/คำพูด/);
  for(const invalid of [{id:''},{startDate:'2026-02-30'},{contractType:''},{position:''},{photoData:'javascript:bad'},{id:'__proto__'}])assert.throws(()=>batch([{...row(),...invalid}]));
  assert.throws(()=>batch([row('abc'),row('ABC')]),/ซ้ำ/);
+ const gaps=api.reviewRows([{name:'Aree'},{...row('T2'),startDate:''}]);
+ assert.equal(gaps.filter(x=>x.field==='id').length,1);assert.equal(gaps.filter(x=>x.field==='startDate').length,2);assert(gaps.some(x=>x.row===0&&x.field==='contractType'));
+ assert.equal(api.reviewRows([row('T1')],[{id:'t1'}])[0].field,'id');
+ assert.equal(api.reviewRows([row('T1')]).length,0);
  const clean=batch([{...row(),skillLevels:{Safety:5},organizationPlant:'โรง 3',certifications:[{}]}]).employees[0];assert(!('skillLevels'in clean));assert.equal(clean.organizationPlant,'โรง 1');assert(!('certifications'in clean));
  const zip=new JSZip();zip.file('employees.csv','employee_id,name_from_source,photo_file\r\nT1,Aree,photos/a.png\r\n');zip.file('photos/a.png',new Uint8Array([1,2,3]));
  const file={name:'people.zip',size:200,arrayBuffer:async()=>zip.generateAsync({type:'arraybuffer'})};let converted=0;const rows=await api.readFile(file,async photo=>{assert.equal(photo.name,'a.png');converted++;return 'data:image/png;base64,YQ=='});assert.equal(rows.length,1);assert.equal(rows[0].name,'Aree');assert.equal(converted,1);
@@ -47,6 +51,6 @@ function setup(initial,{conflict,failAfterSave=false,permission='edit',signedIn=
  await assert.rejects(c.runtime.importEmployeeBatch({...b,scope:{...scope,plant:'โรง 2'}}),/เปลี่ยน/);assert.equal(calls,0);
  c.pendingEmployeeSaves={other:{}};await assert.rejects(c.runtime.importEmployeeBatch(b),/รอซิงก์/);c.pendingEmployeeSaves={};
  await c.runtime.importEmployeeBatch(b);assert.equal(calls,1);assert.equal(c.employees.length,2);assert.equal(c.cloudWritePending,false);
- for(const page of ['index.html','404.html']){const html=fs.readFileSync(page,'utf8');assert(html.includes('employee-import-v978.js?v=978'));assert(html.includes('employee-delete-v823.js?v=978'));assert(html.includes('app-v588.js?v=978'))}
+ for(const page of ['index.html','404.html']){const html=fs.readFileSync(page,'utf8');assert(html.includes('employee-import-v978.js?v=979'));assert(html.includes('employee-delete-v823.js?v=978'));assert(html.includes('app-v588.js?v=978'))}
  console.log('Employee import checks passed: ZIP/photos, validation, scope, permissions, duplicate/concurrent guards, safe retry and existing data preservation.');
 })().catch(e=>{console.error(e);process.exitCode=1});
