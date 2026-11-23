@@ -1,4 +1,4 @@
-/* V848: keep individual JD actions in employee editing and skill cards. */
+/* V980: follow current assignments, preserve previous JDs and coalesce background work. */
 (()=>{
 'use strict';
 const CACHE='ppms_job_descriptions_v1',MASTER='ppms_organization_master_v1',ORG='ppms_employee_organization_v1';
@@ -66,7 +66,7 @@ function manager(initial){
  const division=content.querySelector('[data-jd-division]'),plant=content.querySelector('[data-jd-plant]'),section=content.querySelector('[data-jd-section]'),employee=content.querySelector('[data-jd-employee]');
  const people=(reset=false)=>{
   const values=employeeList(filters.division,filters.plant,filters.section).sort((a,b)=>jdRank(a.position)-jdRank(b.position)||String(a.id).localeCompare(String(b.id),undefined,{numeric:true})),ids=new Set(values.map(e=>String(e.id)));
-  for(const r of Object.values(records))if(r?.employeeId&&r.division===filters.division&&r.plant===filters.plant&&(!filters.section||r.section===filters.section)&&!ids.has(String(r.employeeId))){values.push({id:r.employeeId,name:r.employeeName});ids.add(String(r.employeeId))}
+  for(const r of Object.values(records).map(r=>currentJD(r)))if(r?.employeeId&&r.division===filters.division&&r.plant===filters.plant&&(!filters.section||r.section===filters.section)&&!ids.has(String(r.employeeId))){values.push({id:r.employeeId,name:r.employeeName});ids.add(String(r.employeeId))}
   if(reset||!ids.has(String(filters.employeeId)))filters.employeeId='';
   employee.innerHTML='<option value="">ทุกคน / JD ตามตำแหน่ง</option>'+employeeOptions(values,filters.employeeId);employee.value=filters.employeeId||'';drawList();
  };
@@ -121,7 +121,7 @@ function refreshPositionTitles(){
   if(employee){const next=positionTitle({...employee,...employeeJDContext(employee.id)},Boolean(el.closest('.person,.factory-chart-person')));if(el.textContent!==next)el.textContent=next;}
  });
  document.querySelectorAll('#jdDialog [data-jd-position-title]').forEach(el=>{
-  const record=records[el.dataset.jdPositionTitle];if(record){const next=positionTitle(record);if(el.textContent!==next)el.textContent=next;}
+  const record=currentJD(records[el.dataset.jdPositionTitle]);if(record){const next=positionTitle(record);if(el.textContent!==next)el.textContent=next;}
  });
  const form=document.querySelector('#jdForm');
  if(form){
@@ -130,12 +130,16 @@ function refreshPositionTitles(){
  }
 }
 
-function drawList(){const content=document.querySelector('#jdDialog [data-jd-content]'),list=content?.querySelector('[data-jd-list]');if(!list)return;const entries=Object.entries(records).filter(([,r])=>r&&(filters.employeeId?String(r.employeeId)===String(filters.employeeId):r.division===filters.division&&r.plant===filters.plant&&(!filters.section||r.section===filters.section))).sort((a,b)=>String(a[1].section).localeCompare(String(b[1].section))||jdRank(a[1].position)-jdRank(b[1].position)||String(a[1].position).localeCompare(String(b[1].position)));
- content.querySelector('[data-jd-status]').textContent=loadError||((!connected?'บันทึก JD ในเครื่องได้ · จะซิงก์เมื่อเชื่อมต่อ':entries.length+' รายการ · ซิงค์ฐานข้อมูลกลาง')+(window.PPMS_JD_OFFLINE?.count()?' · '+window.PPMS_JD_OFFLINE.count()+' รายการรอซิงก์':''));
+const jdListState=new WeakMap();
+function drawList(){const content=document.querySelector('#jdDialog [data-jd-content]'),list=content?.querySelector('[data-jd-list]');if(!list)return;const entries=Object.entries(records).map(([id,r])=>[id,currentJD(r)]).filter(([,r])=>r&&(filters.employeeId?String(r.employeeId)===String(filters.employeeId):r.division===filters.division&&r.plant===filters.plant&&(!filters.section||r.section===filters.section))).sort((a,b)=>String(a[1].section).localeCompare(String(b[1].section))||jdRank(a[1].position)-jdRank(b[1].position)||String(a[1].position).localeCompare(String(b[1].position)));
+ const statusText=loadError||((!connected?'บันทึก JD ในเครื่องได้ · จะซิงก์เมื่อเชื่อมต่อ':entries.length+' รายการ · ซิงค์ฐานข้อมูลกลาง')+(window.PPMS_JD_OFFLINE?.count()?' · '+window.PPMS_JD_OFFLINE.count()+' รายการรอซิงก์':''));
+ const status=content.querySelector('[data-jd-status]');if(status.textContent!==statusText)status.textContent=statusText;
+ const stamp=JSON.stringify([window.PPMSLanguage?.language,entries.map(([id,r])=>[id,r.employeeId,r.employeeName,r.section,r.position,r.documentNo,r.revision,r.effectiveDate])]);
+ if(jdListState.get(list)===stamp)return;jdListState.set(list,stamp);
  list.innerHTML=entries.length?'<div class="ppms-jd-table"><table><thead><tr><th>รหัส / ชื่อพนักงาน</th><th>Section</th><th>ตำแหน่ง</th><th>JD No. / Rev.</th><th>วันที่มีผล</th><th>จัดการ</th></tr></thead><tbody>'+entries.map(([id,r])=>'<tr><td>'+(r.employeeId?esc(r.employeeId)+' · '+esc(r.employeeName):'JD ตามตำแหน่ง')+'</td><td>'+esc(r.section)+'</td><td data-i18n-ignore data-jd-position-title="'+esc(id)+'">'+esc(positionTitle(r))+'</td><td>'+esc(r.documentNo||'—')+' / '+esc(r.revision||'—')+'</td><td>'+esc(r.effectiveDate||'—')+'</td><td><button type="button" data-jd-view="'+esc(id)+'">ดู JD</button> <button type="button" class="secondary" data-jd-edit="'+esc(id)+'">แก้ไข</button></td></tr>').join('')+'</tbody></table></div>':'<p>ยังไม่มี JD ใน Section ที่เลือก กด “+ เพิ่ม JD รายบุคคล” เพื่อเพิ่มรายละเอียดงาน</p>';
  list.querySelectorAll('[data-jd-view]').forEach(b=>b.onclick=()=>viewer(b.dataset.jdView));list.querySelectorAll('[data-jd-edit]').forEach(b=>b.onclick=()=>editor(b.dataset.jdEdit));
 }
-function editor(id,initial){activeViewerId=null;viewerRevision='';if(!admin())return;const existing=id?records[id]:null;if(id&&!existing)return;const draft=existing||{...scope(),...initial},content=shell(existing&&!existing.employeeId?'JD ตามตำแหน่ง':existing?'แก้ไข JD รายบุคคล':'เพิ่ม JD รายบุคคล');if(!content)return;const m=master();content.innerHTML='<form id="jdForm"><div class="ppms-jd-grid"><label>Division<select name="division" '+(existing?'disabled':'')+'>'+options(m.divisions,draft.division)+'</select></label><label data-jd-plant-label>โรงงาน<select name="plant" '+(existing?'disabled':'')+'>'+options(m.plants,draft.plant)+'</select></label><label>Section<select name="section" required '+(existing?'disabled':'')+'></select></label><label class="ppms-jd-full">พนักงาน / รหัสพนักงาน<select name="employeeId" '+(existing?'disabled':'required')+'></select></label><label>ตำแหน่ง<input name="position" readonly list="jdPositions" maxlength="150" required value="'+esc(draft.position||'')+'" '+(existing?'readonly':'')+' hidden><span data-i18n-ignore data-jd-position-preview></span><datalist id="jdPositions"></datalist></label><label>เลขที่เอกสาร JD<input name="documentNo" maxlength="100" value="'+esc(draft.documentNo||'')+'"></label><label>Revision<input name="revision" maxlength="30" value="'+esc(draft.revision||'')+'"></label><label>วันที่มีผล<input name="effectiveDate" type="date" value="'+esc(draft.effectiveDate||'')+'"></label><label>รายงานต่อ / ผู้บังคับบัญชา<input name="reportsTo" maxlength="150" value="'+esc(draft.reportsTo||'')+'"></label><label class="ppms-jd-full">หน้าที่และความรับผิดชอบ<textarea name="responsibilities" rows="8" maxlength="20000" required placeholder="กรอกหน้าที่งาน แยกแต่ละข้อคนละบรรทัด">'+esc(draft.responsibilities||'')+'</textarea></label><label class="ppms-jd-full">คุณสมบัติ / ทักษะที่จำเป็น<textarea name="qualifications" rows="4" maxlength="10000">'+esc(draft.qualifications||'')+'</textarea></label><label class="ppms-jd-full">ลิงก์ไฟล์ JD (ถ้ามี)<input name="documentUrl" type="url" maxlength="2000" placeholder="https://..." value="'+esc(draft.documentUrl||'')+'"><small class="ppms-jd-hint">ใส่ลิงก์ PDF, Word หรือเอกสารที่ผู้ใช้งานมีสิทธิ์เปิดดู</small></label></div><p data-jd-message class="ppms-jd-message" role="status"></p><div class="ppms-jd-actions"><button type="submit">บันทึก JD</button><button type="button" class="secondary" data-jd-back>กลับรายการ JD</button></div></form>';
+function editor(id,initial){activeViewerId=null;viewerRevision='';if(!admin())return;const existing=id?currentJD(records[id]):null;if(id&&!existing)return;const draft=existing||{...scope(),...initial},content=shell(existing&&!existing.employeeId?'JD ตามตำแหน่ง':existing?'แก้ไข JD รายบุคคล':'เพิ่ม JD รายบุคคล');if(!content)return;const m=master();content.innerHTML='<form id="jdForm"><div class="ppms-jd-grid"><label>Division<select name="division" '+(existing?'disabled':'')+'>'+options(m.divisions,draft.division)+'</select></label><label data-jd-plant-label>โรงงาน<select name="plant" '+(existing?'disabled':'')+'>'+options(m.plants,draft.plant)+'</select></label><label>Section<select name="section" required '+(existing?'disabled':'')+'></select></label><label class="ppms-jd-full">พนักงาน / รหัสพนักงาน<select name="employeeId" '+(existing?'disabled':'required')+'></select></label><label>ตำแหน่ง<input name="position" readonly list="jdPositions" maxlength="150" required value="'+esc(draft.position||'')+'" '+(existing?'readonly':'')+' hidden><span data-i18n-ignore data-jd-position-preview></span><datalist id="jdPositions"></datalist></label><label>เลขที่เอกสาร JD<input name="documentNo" maxlength="100" value="'+esc(draft.documentNo||'')+'"></label><label>Revision<input name="revision" maxlength="30" value="'+esc(draft.revision||'')+'"></label><label>วันที่มีผล<input name="effectiveDate" type="date" value="'+esc(draft.effectiveDate||'')+'"></label><label>รายงานต่อ / ผู้บังคับบัญชา<input name="reportsTo" maxlength="150" value="'+esc(draft.reportsTo||'')+'"></label><label class="ppms-jd-full">หน้าที่และความรับผิดชอบ<textarea name="responsibilities" rows="8" maxlength="20000" required placeholder="กรอกหน้าที่งาน แยกแต่ละข้อคนละบรรทัด">'+esc(draft.responsibilities||'')+'</textarea></label><label class="ppms-jd-full">คุณสมบัติ / ทักษะที่จำเป็น<textarea name="qualifications" rows="4" maxlength="10000">'+esc(draft.qualifications||'')+'</textarea></label><label class="ppms-jd-full">ลิงก์ไฟล์ JD (ถ้ามี)<input name="documentUrl" type="url" maxlength="2000" placeholder="https://..." value="'+esc(draft.documentUrl||'')+'"><small class="ppms-jd-hint">ใส่ลิงก์ PDF, Word หรือเอกสารที่ผู้ใช้งานมีสิทธิ์เปิดดู</small></label></div><p data-jd-message class="ppms-jd-message" role="status"></p><div class="ppms-jd-actions"><button type="submit">บันทึก JD</button><button type="button" class="secondary" data-jd-back>กลับรายการ JD</button></div></form>';
  const f=content.querySelector('form'),message=f.querySelector('[data-jd-message]'),expected=Number(existing?.version||0);let previousSection=draft.section||employeeList(draft.division,draft.plant).find(e=>String(e.id)===String(draft.employeeId))?.section||'';
  const syncEmployee=()=>{
   if(existing)return;
@@ -159,14 +163,14 @@ function editor(id,initial){activeViewerId=null;viewerRevision='';if(!admin())re
  f.elements.division.onchange=()=>{previousSection='';f.elements.employeeId.value='';sync()};f.elements.plant.onchange=()=>{previousSection='';f.elements.employeeId.value='';sync()};f.elements.section.onchange=()=>{previousSection=f.elements.section.value;f.elements.employeeId.value='';sync()};f.elements.employeeId.onchange=()=>{syncEmployee();refreshPositionTitles()};sync();f.querySelector('[data-jd-back]').onclick=()=>manager(filters);(existing?f.elements.responsibilities:f.elements.employeeId).focus();
  f.onsubmit=async e=>{e.preventDefault();if(!admin())return;if(f.querySelector('[type="submit"]')?.disabled)return;
  const button=f.querySelector('[type="submit"]');let record;
- try{const person=existing?null:employeeList(f.elements.division.value,f.elements.division.value==='Production Division'?f.elements.plant.value:'รวม',f.elements.section.value).find(e=>String(e.id)===f.elements.employeeId.value);if(!existing&&!person)throw Error('ไม่พบพนักงานใน Section ที่เลือก กรุณาตรวจสอบรายชื่ออีกครั้ง');record=validateRecord({...existing,templateVersion:5,employeeId:existing?.employeeId||String(person?.id||''),employeeName:existing?.employeeName||employeeName(person),division:f.elements.division.value,plant:f.elements.division.value==='Production Division'?f.elements.plant.value:'รวม',section:f.elements.section.value,position:normalize(f.elements.position.value),documentNo:f.elements.documentNo.value.trim(),revision:f.elements.revision.value.trim(),effectiveDate:f.elements.effectiveDate.value,reportsTo:f.elements.reportsTo.value.trim(),responsibilities:f.elements.responsibilities.value.trim(),qualifications:f.elements.qualifications.value.trim(),documentUrl:f.elements.documentUrl.value.trim(),updatedAt:new Date().toISOString(),updatedBy:sessionStorage.getItem('ppms_admin_user')||'Admin'},Boolean(existing&&!existing.employeeId));
+ try{if(existing?.employeeId&&!sameAssignment(existing,employeeJDContext(existing.employeeId)))throw Error('ตำแหน่งหรือ Section เปลี่ยนแล้ว กรุณาปิดและเปิด JD ใหม่ก่อนบันทึก');const person=existing?null:employeeList(f.elements.division.value,f.elements.division.value==='Production Division'?f.elements.plant.value:'รวม',f.elements.section.value).find(e=>String(e.id)===f.elements.employeeId.value);if(!existing&&!person)throw Error('ไม่พบพนักงานใน Section ที่เลือก กรุณาตรวจสอบรายชื่ออีกครั้ง');record=validateRecord({...existing,templateVersion:5,employeeId:existing?.employeeId||String(person?.id||''),employeeName:existing?.employeeName||employeeName(person),division:f.elements.division.value,plant:f.elements.division.value==='Production Division'?f.elements.plant.value:'รวม',section:f.elements.section.value,position:normalize(f.elements.position.value),documentNo:f.elements.documentNo.value.trim(),revision:f.elements.revision.value.trim(),effectiveDate:f.elements.effectiveDate.value,reportsTo:f.elements.reportsTo.value.trim(),responsibilities:f.elements.responsibilities.value.trim(),qualifications:f.elements.qualifications.value.trim(),documentUrl:f.elements.documentUrl.value.trim(),updatedAt:new Date().toISOString(),updatedBy:sessionStorage.getItem('ppms_admin_user')||'Admin'},Boolean(existing&&!existing.employeeId));
  button.disabled=true;message.textContent='กำลังบันทึก JD ในเครื่อง...';const key=id||await recordKey(record);if(!window.PPMS_JD_OFFLINE)throw Error('โหลดระบบบันทึก JD ไม่สำเร็จ กรุณาเปิดหน้าใหม่');await window.PPMS_JD_OFFLINE.save(key,record,expected);applyOfflineRecords();viewer(key);flushJDQueue();
  }catch(error){message.textContent='บันทึกไม่สำเร็จ: '+error.message;button.disabled=false}
  };
 }
 function viewRevision(record,id=''){return JSON.stringify([window.PPMS_JD_OFFLINE?.status(id),record?.version,record?.updatedAt,record?.position,record?.section,record?.responsibilities,record?.qualifications,record?.reportsTo,record?.jobPurpose])}
-function refreshActiveViewer(){if(activeViewerId&&records[activeViewerId]&&viewRevision(records[activeViewerId],activeViewerId)!==viewerRevision)viewer(activeViewerId)}
-function viewer(id){const record=records[id];if(!record||!admin())return;activeViewerId=id;viewerRevision=viewRevision(record,id);const content=shell('JOB DESCRIPTION / JD รายบุคคล');if(!content)return;const link=url(record.documentUrl);content.innerHTML=offlineJDNotice(id)+'<article>'+(record.employeeId?'<h3>'+esc(record.employeeName)+' · '+esc(record.employeeId)+'</h3>':'<p>JD ตามตำแหน่ง</p>')+'<h3 data-i18n-ignore data-jd-position-title="'+esc(id)+'">'+esc(positionTitle(record))+'</h3>'+(record.jobPurpose?'<h3>วัตถุประสงค์ของตำแหน่ง</h3><div class="ppms-jd-text">'+esc(record.jobPurpose)+'</div>':'')+'<div class="ppms-jd-meta"><span><b>Division:</b> '+esc(record.division)+'</span><span><b>Section:</b> '+esc(record.section)+'</span><span><b>โรงงาน:</b> '+esc(record.plant)+'</span><span><b>รายงานต่อ:</b> '+esc(record.reportsTo||'—')+'</span><span><b>JD No.:</b> '+esc(record.documentNo||'—')+'</span><span><b>Revision:</b> '+esc(record.revision||'—')+'</span><span><b>วันที่มีผล:</b> '+esc(record.effectiveDate||'—')+'</span></div>'+(Number(record.templateVersion||0)>=5?'<p class="ppms-jd-hint">JD ฉบับปรับปรุงล่าสุด</p>':'')+'<h3>หน้าที่และความรับผิดชอบ</h3><div class="ppms-jd-text">'+esc(record.responsibilities)+'</div><h3>คุณสมบัติ / ทักษะที่จำเป็น</h3><div class="ppms-jd-text">'+esc(record.qualifications||'—')+'</div>'+(link?'<p class="ppms-jd-document"><a href="'+esc(link)+'" target="_blank" rel="noopener noreferrer">เปิดไฟล์ JD ที่แนบลิงก์</a></p>':'')+'<p class="ppms-jd-hint">อัปเดต: '+esc(record.updatedAt||'')+' · '+esc(record.updatedBy||'')+'</p></article><div class="ppms-jd-actions ppms-jd-no-print"><button type="button" data-jd-edit>แก้ไข JD</button><button type="button" data-jd-print>พิมพ์ / บันทึก PDF</button><button type="button" class="secondary" data-jd-back>กลับรายการ JD</button></div>';
+function refreshActiveViewer(){if(activeViewerId&&records[activeViewerId]&&viewRevision(currentJD(records[activeViewerId]),activeViewerId)!==viewerRevision)viewer(activeViewerId)}
+function viewer(id){const record=currentJD(records[id]);if(!record||!admin())return;activeViewerId=id;viewerRevision=viewRevision(record,id);const content=shell('JOB DESCRIPTION / JD รายบุคคล');if(!content)return;const link=url(record.documentUrl);content.innerHTML=offlineJDNotice(id)+(record.assignmentChanged?'<p class="ppms-jd-hint">JD ปรับตามตำแหน่งและ Section ปัจจุบันแล้ว · ฉบับร่างรอทบทวน</p>':'')+'<article>'+(record.employeeId?'<h3>'+esc(record.employeeName)+' · '+esc(record.employeeId)+'</h3>':'<p>JD ตามตำแหน่ง</p>')+'<h3 data-i18n-ignore data-jd-position-title="'+esc(id)+'">'+esc(positionTitle(record))+'</h3>'+(record.jobPurpose?'<h3>วัตถุประสงค์ของตำแหน่ง</h3><div class="ppms-jd-text">'+esc(record.jobPurpose)+'</div>':'')+'<div class="ppms-jd-meta"><span><b>Division:</b> '+esc(record.division)+'</span><span><b>Section:</b> '+esc(record.section)+'</span><span><b>โรงงาน:</b> '+esc(record.plant)+'</span><span><b>รายงานต่อ:</b> '+esc(record.reportsTo||'—')+'</span><span><b>JD No.:</b> '+esc(record.documentNo||'—')+'</span><span><b>Revision:</b> '+esc(record.revision||'—')+'</span><span><b>วันที่มีผล:</b> '+esc(record.effectiveDate||'—')+'</span></div>'+(Number(record.templateVersion||0)>=5?'<p class="ppms-jd-hint">JD ฉบับปรับปรุงล่าสุด</p>':'')+'<h3>หน้าที่และความรับผิดชอบ</h3><div class="ppms-jd-text">'+esc(record.responsibilities)+'</div><h3>คุณสมบัติ / ทักษะที่จำเป็น</h3><div class="ppms-jd-text">'+esc(record.qualifications||'—')+'</div>'+(link?'<p class="ppms-jd-document"><a href="'+esc(link)+'" target="_blank" rel="noopener noreferrer">เปิดไฟล์ JD ที่แนบลิงก์</a></p>':'')+'<p class="ppms-jd-hint">อัปเดต: '+esc(record.updatedAt||'')+' · '+esc(record.updatedBy||'')+'</p>'+assignmentHistoryHTML(record)+'</article><div class="ppms-jd-actions ppms-jd-no-print"><button type="button" data-jd-edit>แก้ไข JD</button><button type="button" data-jd-print>พิมพ์ / บันทึก PDF</button><button type="button" class="secondary" data-jd-back>กลับรายการ JD</button></div>';
  content.querySelector('[data-jd-edit]').onclick=()=>editor(id);const review=content.querySelector('[data-jd-review-conflict]');if(review)review.onclick=()=>reviewJDConflict(id);content.querySelector('[data-jd-back]').onclick=()=>manager(filters);content.querySelector('[data-jd-print]').onclick=()=>{document.body.classList.add('ppms-jd-print');window.print()};
 }
 // Starter drafts are created only for missing individual JDs; existing records win.
@@ -199,14 +203,16 @@ async function seedMissingJDs(){
  if(seeding||!admin()||!connected||!jdLoaded)return;if(typeof window!=='undefined'&&window.PPMS_JD_OFFLINE&&!window.PPMS_JD_OFFLINE.loaded)return;
  const instance=database();if(!instance)return;seeding=true;let created=false;
  try{
+  const assigned=new Set(Object.values(records).filter(Boolean).map(r=>String(r.employeeId||'')));let visited=0;
   for(const person of roster()){
+   if(++visited%20===0)await new Promise(resolve=>setTimeout(resolve,0));
    if(!admin()||!connected)break;
    const context=employeeJDContext(person.id);
-   if(!context||!context.section||!context.position||Object.values(records).some(r=>String(r?.employeeId||'')===String(person.id)))continue;
+   if(!context||!context.section||!context.position||assigned.has(String(person.id)))continue;
    const key=await recordKey(context),now=new Date().toISOString();
    const draft={...starterJD(person,context),version:1,createdAt:now,updatedAt:now,updatedBy:'PPMS · JD starter draft'};
    const result=await instance.ref('settings/jobDescriptions/'+key).transaction(current=>current==null?draft:undefined,undefined,false);
-   if(result.committed){records[key]=result.snapshot.val();created=true;}
+   if(result.committed){records[key]=result.snapshot.val();assigned.add(String(person.id));created=true;}
   }
   if(created){localStorage.setItem(CACHE,JSON.stringify(records));drawList();}
  }catch(error){loadError='เพิ่ม JD ตั้งต้นไม่สำเร็จ กรุณาเปิดหน้าใหม่เพื่อลองอีกครั้ง: '+error.message;drawList()}
@@ -273,7 +279,11 @@ async function upgradeSectionJDs(){
  finally{upgradingJDs=false}
 }
 
-function applyOfflineRecords(){records=window.PPMS_JD_OFFLINE?.overlay(remoteRecords)||{...remoteRecords};localStorage.setItem(CACHE,JSON.stringify(records))}
+let cacheWriteTimer=0;
+function applyOfflineRecords(){
+ records=window.PPMS_JD_OFFLINE?.overlay(remoteRecords)||{...remoteRecords};
+ clearTimeout(cacheWriteTimer);cacheWriteTimer=setTimeout(()=>{const next=JSON.stringify(records);if(localStorage.getItem(CACHE)!==next)localStorage.setItem(CACHE,next)},120);
+}
 function offlineJDNotice(id){const state=window.PPMS_JD_OFFLINE?.status(id);return state?'<div class="ppms-jd-message" role="status" data-jd-sync-state="'+esc(state.status)+'"><p>'+esc(state.status==='conflict'?state.error:'บันทึก JD ในเครื่องแล้ว · รอซิงก์เมื่อเชื่อมต่อ')+'</p>'+(state.status==='conflict'?'<button type="button" class="secondary ppms-jd-no-print" data-jd-review-conflict>ตรวจสอบฉบับส่วนกลาง</button>':'')+'</div>':''}
 function reviewJDConflict(id){
  const local=records[id],remote=window.PPMS_JD_OFFLINE?.conflictRecord(id),content=shell('เปรียบเทียบ JD ก่อนซิงก์');if(!local||!content)return;activeViewerId=null;viewerRevision='';
@@ -285,13 +295,69 @@ function flushJDQueue(){if(!admin()||!connected||navigator.onLine===false)return
 function bindOfflineJD(){
  if(offlineBound||!window.PPMS_JD_OFFLINE)return;offlineBound=true;
  window.PPMS_JD_OFFLINE.subscribe(event=>{if(event.type==='synced'&&event.record)remoteRecords[event.key]=event.record;applyOfflineRecords();refreshActiveViewer();drawList();if(event.type==='loaded'||event.type==='saved')flushJDQueue()});
- window.PPMS_JD_OFFLINE.ready.then(()=>{applyOfflineRecords();refreshActiveViewer();drawList();flushJDQueue();seedMissingJDs();seedPositionJDs();upgradeSectionJDs()}).catch(error=>{loadError='โหลด JD ในเครื่องไม่สำเร็จ: '+error.message;drawList()});
+ window.PPMS_JD_OFFLINE.ready.then(()=>{applyOfflineRecords();refreshActiveViewer();drawList();flushJDQueue();scheduleJDMaintenance()}).catch(error=>{loadError='โหลด JD ในเครื่องไม่สำเร็จ: '+error.message;drawList()});
 }
-function subscribe(){if(subscribed)return;const instance=database();if(!instance)return;subscribed=true;instance.ref('.info/connected').on('value',s=>{connected=s.val()===true;drawList();flushJDQueue();seedMissingJDs();seedPositionJDs();upgradeSectionJDs()});instance.ref('settings/jobDescriptions').on('value',s=>{remoteRecords=s.val()||{};jdLoaded=true;loadError='';applyOfflineRecords();refreshActiveViewer();drawList();flushJDQueue();seedMissingJDs();seedPositionJDs();upgradeSectionJDs()},error=>{loadError='โหลด JD ไม่สำเร็จ: '+error.message;drawList()})}
+let maintenanceTimer=0,maintenanceRunning=false,maintenanceAgain=false;
+function scheduleJDMaintenance(){
+ if(maintenanceRunning){maintenanceAgain=true;return}
+ if(maintenanceTimer)return;
+ maintenanceTimer=setTimeout(async()=>{
+  maintenanceTimer=0;maintenanceRunning=true;
+  try{await reconcileAssignments();await seedMissingJDs();await seedPositionJDs();await upgradeSectionJDs()}
+  finally{maintenanceRunning=false;if(maintenanceAgain){maintenanceAgain=false;scheduleJDMaintenance()}}
+ },300);
+}
+let remoteJDUITimer=0;
+function subscribe(){if(subscribed)return;const instance=database();if(!instance)return;subscribed=true;instance.ref('.info/connected').on('value',s=>{connected=s.val()===true;drawList();flushJDQueue();scheduleJDMaintenance()});instance.ref('settings/jobDescriptions').on('value',s=>{remoteRecords=s.val()||{};jdLoaded=true;loadError='';clearTimeout(remoteJDUITimer);remoteJDUITimer=setTimeout(()=>{applyOfflineRecords();refreshActiveViewer();drawList();flushJDQueue();scheduleJDMaintenance()},100)},error=>{loadError='โหลด JD ไม่สำเร็จ: '+error.message;drawList()})}
 function employeeJDContext(id){
  const key=String(id||'').trim(),employee=rosterEmployee(key);if(!employee||deletedEmployees().has(key))return null;
  const organization=read(ORG,{})[key]||{},division=organization.division||employee.organizationDivision||'Production Division';
  return {employeeId:key,division,plant:division==='Production Division'?(organization.plant||employee.organizationPlant||master().plants[0]):'รวม',section:employee.section||'',position:employee.position||''};
+}
+function sameAssignment(a,b){
+ return Boolean(a&&b)&&['division','plant','section','position'].every(key=>normalize(key==='position'?canonicalPosition(a[key]):a[key]).toLowerCase()===normalize(key==='position'?canonicalPosition(b[key]):b[key]).toLowerCase());
+}
+// Resolve against the current assignment before viewing, editing or exporting.
+// A changed title alone must never leave duties or an attachment from the old job.
+const assignmentDrafts=new WeakMap();
+function currentJD(record,available){
+ if(!record?.employeeId)return record;
+ const context=employeeJDContext(record.employeeId);
+ if(!context||!context.section||!context.position||sameAssignment(record,context))return record;
+ const role=(available||Object.values(records)).find(r=>r&&!r.employeeId&&sameAssignment(r,context));
+ const cached=assignmentDrafts.get(record),key=JSON.stringify(context);
+ if(cached?.key===key&&cached.role===role)return cached.record;
+ const template=role||starterJD(rosterEmployee(record.employeeId),context);
+ const {assignmentHistory=[],...previous}=record;
+ const now=new Date().toISOString();
+ const next={...template,...context,employeeName:employeeName(rosterEmployee(record.employeeId)),
+  createdAt:record.createdAt||now,updatedAt:now,updatedBy:'PPMS · Assignment change',version:Number(record.version||0),
+  draft:true,status:'draft',revision:'Draft',effectiveDate:'',
+  assignmentHistory:[...assignmentHistory,{...previous,supersededAt:now}],
+  assignmentChanged:true};
+ assignmentDrafts.set(record,{key,role,record:next});return next;
+}
+function assignmentHistoryHTML(record){
+ const history=record.assignmentHistory||[];if(!history.length)return '';
+ return '<details><summary>JD ก่อนเปลี่ยนตำแหน่ง / Section ('+history.length+')</summary>'+history.map(r=>'<section><h4>'+esc(positionTitle(r))+' · '+esc(r.section)+'</h4><p>'+esc(r.documentNo||'—')+' / '+esc(r.revision||'—')+'</p><div class="ppms-jd-text">'+esc(r.responsibilities||'')+'</div><div class="ppms-jd-text">'+esc(r.qualifications||'')+'</div>'+(url(r.documentUrl)?'<p><a href="'+esc(url(r.documentUrl))+'" target="_blank" rel="noopener noreferrer">เปิดไฟล์ JD เดิม</a></p>':'')+'</section>').join('')+'</details>';
+}
+let reconcilingAssignments=false;
+async function reconcileAssignments(){
+ if(reconcilingAssignments||!admin()||!window.PPMS_JD_OFFLINE?.loaded)return;
+ reconcilingAssignments=true;
+ try{
+  let count=0;
+  for(const [id,record]of Object.entries(records)){
+   if(!admin())break;
+   if(window.PPMS_JD_OFFLINE.status(id)?.status==='conflict')continue;
+   const next=currentJD(record);if(next===record)continue;
+   // Yield between batches so a large roster never holds up pointer input.
+   if(++count%8===0)await new Promise(resolve=>setTimeout(resolve,0));
+   if(records[id]!==record||!sameAssignment(next,employeeJDContext(record.employeeId)))continue;
+   await window.PPMS_JD_OFFLINE.save(id,next,Number(record.version||0));
+  }
+ }catch(error){loadError='ยังบันทึก JD ตามตำแหน่งใหม่ไม่สำเร็จ: '+error.message;drawList()}
+ finally{reconcilingAssignments=false}
 }
 function openEmployeeJD(id){
  if(!admin())return;
@@ -299,7 +365,7 @@ function openEmployeeJD(id){
  const context=employeeJDContext(id);
  if(!context&&!existing){alert('ไม่พบพนักงานคนนี้ กรุณาบันทึกข้อมูลพนักงานก่อนเพิ่ม JD');return}
  filters=context||{...existing[1]};
- if(existing)viewer(existing[0]);else editor(null,filters);
+ if(existing){viewer(existing[0]);void reconcileAssignments()}else editor(null,filters);
 }
 function cardControls(){
  document.querySelectorAll('.section-org-report [data-open-jd],.employee-history-report [data-open-jd],#employeeForm [data-open-jd],[data-jd-card-toolbar]').forEach(button=>button.remove());
@@ -318,7 +384,7 @@ function controls(){if(!admin())return;if(window.PPMSOrganizationEditor?.draggin
   if(!toolbar.querySelector('[data-jd-page-manager]')){const b=document.createElement('button');b.type='button';b.dataset.openJd='1';b.dataset.jdPageManager='1';b.className='no-print';b.textContent='+ เพิ่ม / จัดการ JD';toolbar.append(b)}
  }
  const bar=document.querySelector('.organization-scope-bar');bar?.querySelector('[data-open-jd]:not([data-jd-employee-id])')?.remove();
- document.querySelectorAll('.factory-summary .factory-org-section').forEach(section=>{if(section.querySelector('[data-open-jd]'))return;const b=document.createElement('button');b.type='button';b.dataset.openJd='1';b.dataset.jdSection=window.PPMSLanguage?.sourceText(section.querySelector('h4'))||section.querySelector('h4')?.textContent||'';b.textContent='JD รายบุคคล';b.className='ppms-jd-role';section.querySelector('h4')?.after(b)});cardControls();subscribe();seedMissingJDs();seedPositionJDs();upgradeSectionJDs()}
+ document.querySelectorAll('.factory-summary .factory-org-section').forEach(section=>{if(section.querySelector('[data-open-jd]'))return;const b=document.createElement('button');b.type='button';b.dataset.openJd='1';b.dataset.jdSection=window.PPMSLanguage?.sourceText(section.querySelector('h4'))||section.querySelector('h4')?.textContent||'';b.textContent='JD รายบุคคล';b.className='ppms-jd-role';section.querySelector('h4')?.after(b)});cardControls();subscribe()}
 window.PPMSNormalizePosition=canonicalPosition;
 // Export saved JD records, including pending offline edits, without creating drafts.
 window.PPMSJDExport={async snapshot(people){
@@ -328,7 +394,7 @@ window.PPMSJDExport={async snapshot(people){
  return people.map(person=>{
   const context=employeeJDContext(person.id);if(!context)return null;
   const personal=available.find(r=>r&&String(r.employeeId||'')===String(person.id));
-  const role=personal||available.find(r=>r&&!r.employeeId&&['division','plant','section'].every(k=>normalize(r[k]).toLowerCase()===normalize(context[k]).toLowerCase())&&canonicalPosition(r.position).toLowerCase()===canonicalPosition(context.position).toLowerCase());
+  const role=personal?currentJD(personal,available):available.find(r=>r&&!r.employeeId&&['division','plant','section'].every(k=>normalize(r[k]).toLowerCase()===normalize(context[k]).toLowerCase())&&canonicalPosition(r.position).toLowerCase()===canonicalPosition(context.position).toLowerCase());
   return role?JSON.parse(JSON.stringify({...role,exportSource:personal?'JD รายบุคคล / Individual JD':'JD ตามตำแหน่ง / Position JD'})):null;
  });
 }};
@@ -349,9 +415,9 @@ window.addEventListener('keydown',e=>{
  e.preventDefault();e.stopImmediatePropagation();button.click();
 },true);
 window.addEventListener('afterprint',()=>document.body.classList.remove('ppms-jd-print'));
-window.addEventListener('storage',e=>{if(e.key===CACHE){remoteRecords=read(CACHE,{});applyOfflineRecords();refreshActiveViewer();drawList()}if(e.key===MASTER)controls()});
-window.addEventListener('ppms-organization-changed',controls);
-window.addEventListener('ppms-employees-changed',()=>{seedMissingJDs();seedPositionJDs();upgradeSectionJDs();if(document.querySelector('#jdDialog [data-jd-list]'))manager(filters)});
+window.addEventListener('storage',e=>{if(e.key===CACHE){remoteRecords=read(CACHE,{});applyOfflineRecords();refreshActiveViewer();drawList()}if([MASTER,ORG,'ppms_v3_employees','ppms_v3_deleted_employee_ids'].includes(e.key)){scheduleJDMaintenance();refreshActiveViewer();drawList()}});
+window.addEventListener('ppms-organization-changed',()=>{controls();scheduleJDMaintenance()});
+window.addEventListener('ppms-employees-changed',()=>{scheduleJDMaintenance();refreshPositionTitles();refreshActiveViewer();if(document.querySelector('#jdDialog [data-jd-list]'))manager(filters)});
 window.addEventListener('online',()=>{subscribe();flushJDQueue()});
 setInterval(flushJDQueue,15000);
 let timer;

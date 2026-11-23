@@ -1470,6 +1470,7 @@ function activeEditingControl(){
 function userInteractionBusy(){
  if(Date.now()<userInteractionUntil)return true;
  if(activeEditingControl())return true;
+ if(document.querySelector('#jdDialog,#organizationStructureDialog,#positionSlotDialog'))return true;
  const modal=document.getElementById('modal');
  if(modal&&!modal.classList.contains('hidden'))return true;
  return false;
@@ -2810,6 +2811,7 @@ function renderFromUserControlChange(){
  return renderCore();
 }
 
+let lastOrganizationRender=null;
 function renderCore(){
  clearTimeout(employeeSearchTimer);
  const active=document.activeElement;
@@ -2831,11 +2833,14 @@ function renderCore(){
 
  if(!isAdmin&&!isLeaderMode()&&!['exam','attendance'].includes(current))current=EXAM_LINK?'exam':'attendance';
  refreshOrganizationSections();
- nav();
  const map={manpower:()=>window.PPMS_MANPOWER?.page()||head('ผังกำลังคน','กำลังโหลด'),factoryLayout:()=>window.PPMS_FACTORY_LAYOUT?.page()||head('Layout โรงงาน','กำลังโหลดหน้า Layout กรุณารีเฟรช'),attendance:attendancePage,attendanceAdmin:attendanceAdminPage,leaderShift:leaderShiftPage,dashboard,lineOrganization:lineOrganizationPage,section:()=>sectionView(false),sectionChart:()=>sectionView(true),add,search,resignations:()=>window.PPMSResignations.page(),monthReport:()=>window.PPMSMonthReport.page(),trainingPlan:quarterlyTrainingPlanPage,examPlan:examinationPlanPage,training:trainingPage,matrix:()=>matrixPage(false),cards:cardsPage,ngDashboard:ngDashboardPage,exam:examPage,examCheck:examCheckPage,examHistory:examHistoryPage,accounts:accountsPage,export:exportPage};
  try{
   if(isAdmin&&pages.some(([id])=>id===current))sessionStorage.setItem(ADMIN_PAGE_KEY,current);
-  $('#app').innerHTML=withAttendanceReadScope(map[current]||dashboard);if(isAdmin&&!document.querySelector('#app [data-organization-division]'))$('#app').insertAdjacentHTML('afterbegin',organizationScopeBar());window.PPMSOrganizationScope.applyTitles();bind();enhanceSelects();updateAuth();renderQRCodes();window.PPMS_FACTORY_LAYOUT?.mount();window.PPMS_MANPOWER?.mount();window.PPMSResignations?.mount();window.PPMSMonthReport?.mount();
+  const nextHTML=withAttendanceReadScope(map[current]||dashboard),stableOrganization=['dashboard','sectionChart'].includes(current),app=$('#app');
+  const organizationKey=JSON.stringify([current,isAdmin,organizationScope(),window.PPMSLanguage?.language,window.PPMSAccess?.canEdit()]);
+  if(stableOrganization&&lastOrganizationRender?.key===organizationKey&&lastOrganizationRender.html===nextHTML&&lastOrganizationRender.root?.isConnected&&app.contains(lastOrganizationRender.root))return;
+  nav();app.innerHTML=nextHTML;
+  lastOrganizationRender=stableOrganization?{key:organizationKey,html:nextHTML,root:app.querySelector('.division-org,.section-org-report')}:null;if(isAdmin&&!document.querySelector('#app [data-organization-division]'))$('#app').insertAdjacentHTML('afterbegin',organizationScopeBar());window.PPMSOrganizationScope.applyTitles();bind();enhanceSelects();updateAuth();renderQRCodes();window.PPMS_FACTORY_LAYOUT?.mount();window.PPMS_MANPOWER?.mount();window.PPMSResignations?.mount();window.PPMSMonthReport?.mount();
   if(focusState){
    let next=focusState.id?document.getElementById(focusState.id):null;
    if(!next&&focusState.name)next=document.querySelector(`[name="${CSS.escape(focusState.name)}"]`);

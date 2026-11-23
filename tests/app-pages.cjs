@@ -12,6 +12,7 @@ async function setup(admin=true,entry='index.html',seed={}){
  const errors=[],warnings=[],vc=new VirtualConsole();vc.on('jsdomError',e=>errors.push(e.message));vc.on('error',e=>errors.push(String(e)));vc.on('warn',e=>warnings.push(String(e)));
  const dom=new JSDOM(html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi,''),{url:'https://example.test/'+(entry==='index.html'?'':entry),runScripts:'outside-only',pretendToBeVisual:true,virtualConsole:vc,storageQuota:50*1024*1024});
  const w=dom.window;w.TextEncoder=TextEncoder;w.TextDecoder=TextDecoder;w.structuredClone=structuredClone;w.CSS={escape:s=>String(s).replace(/[^a-zA-Z0-9_-]/g,c=>'\\'+c)};Object.defineProperty(w.crypto,'subtle',{value:require('node:crypto').webcrypto.subtle});
+ w.HTMLCanvasElement.prototype.getContext=()=>null;
  w.alert=()=>{};w.confirm=()=>false;w.prompt=()=>null;w.print=()=>{};w.scrollTo=()=>{};w.HTMLElement.prototype.scrollIntoView=()=>{};w.matchMedia=()=>({matches:false,addEventListener(){},removeEventListener(){},addListener(){},removeListener(){}});
  w.fetch=async url=>({ok:true,status:200,headers:{get:()=>null},json:async()=>String(url).includes('adminAccounts')?[{username:'tester',passwordHash:'test',active:true,owner:false}]:String(url).includes('/employees.json')?employees:String(url).includes('/deletedEmployeeIds.json')?[]:null});
  w.localStorage.setItem('ppms_v3_employees',JSON.stringify(employees));
