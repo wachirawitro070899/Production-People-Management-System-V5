@@ -31,6 +31,9 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
   w.localStorage.setItem('ppms_employee_organization_v1',JSON.stringify({[person.id]:{division:'Warehouse Division',plant:'รวม'}}));
   w.dispatchEvent(new w.StorageEvent('storage',{key:'ppms_employee_organization_v1'}));
   exported=(await w.PPMSJDExport.snapshot([person]))[0];assert.equal(exported.division,'Warehouse Division');assert.equal(exported.plant,'รวม');assert.equal(exported.assignmentHistory.length,3);
+  const support=moved.map(e=>e.id===person.id?{...e,section:'คลังสินค้า สนับสนุนการผลิต',position:'Leader'}:e);
+  w.localStorage.setItem('ppms_v3_employees',JSON.stringify(support));w.localStorage.setItem('ppms_employee_organization_v1',JSON.stringify({[person.id]:scope}));w.dispatchEvent(new w.Event('ppms-employees-changed'));
+  exported=(await w.PPMSJDExport.snapshot([person]))[0];assert.equal(exported.position,'Leader');assert.equal(exported.section,'คลังสินค้า สนับสนุนการผลิต');assert(!/Tapping|ต๊าป/.test(exported.responsibilities),'New support-production duties do not retain the old tapping duties');assert(/สนับสนุนการผลิต|Support Production/.test(exported.responsibilities));
   assert.deepEqual(errors,[]);console.log('PASS current JD after promotion, section/division/plant transfer, saved role selection, generated fallback, history, stale-editor protection, exports and idempotent durable offline updates.');
  }finally{w.requestAnimationFrame=()=>0;await wait(150);dom.window.close()}
  process.exit(0);

@@ -887,8 +887,20 @@ function applyAttendanceMasterPayload(value,persistNow=true){
   localStorage.setItem(ATTENDANCE_DEVICES_KEY,JSON.stringify(attendanceDevices));
  }
 }
+let attendanceArchiveRecoveryJob=null,attendanceArchiveRecoveryScheduled=false;
+function scheduleAttendanceArchiveRecovery(){
+ // Historical repairs do not block ordinary check-in or initial navigation.
+ if(attendanceArchiveRecoveryScheduled||!isAdmin||window.PPMSAccess?.readOnly())return;
+ attendanceArchiveRecoveryScheduled=true;
+ setTimeout(()=>{void recoverAttendanceFromArchiveCloud()},1500);
+}
 async function recoverAttendanceFromArchiveCloud(){
  if(!cloudDb)return 0;
+ if(attendanceArchiveRecoveryJob)return attendanceArchiveRecoveryJob;
+ attendanceArchiveRecoveryJob=performAttendanceArchiveRecovery();
+ try{return await attendanceArchiveRecoveryJob}finally{attendanceArchiveRecoveryJob=null}
+}
+async function performAttendanceArchiveRecovery(){
  try{
   const [masterSnap,archiveSnap]=await Promise.all([cloudDb.ref(ATTENDANCE_CLOUD_ROOT).once('value'),cloudDb.ref('ppmsArchive/attendance').once('value')]);
   const master=firebaseDecodeData(masterSnap.val())||{},archived=flattenAttendanceArchive(firebaseDecodeData(archiveSnap.val()));
@@ -896,14 +908,26 @@ async function recoverAttendanceFromArchiveCloud(){
   const deletedDates=attendanceDeletedDates(master),deletedRecords=attendanceDeletedRecords(master);
   const current=mergeAttendanceRecords(Array.isArray(master.records)?master.records:Object.values(master.records||{}),master.recordsByKey&&typeof master.recordsByKey==='object'?Object.values(master.recordsByKey):[]);
   const eligible=archived.filter(r=>r&&r.employeeId&&r.date&&!attendanceRecordBlockedByDeletion(r,deletedDates,deletedRecords)&&!attendanceRecordBlockedByCleanup(r));
-  const merged=mergeAttendanceRecords(current,eligible);
-  const beforeKeys=new Set(current.filter(r=>r?.checkIn).map(r=>attendanceRecordDeleteKey(r.employeeId,r.date)));
-  const recovered=merged.filter(r=>r?.checkIn&&!beforeKeys.has(attendanceRecordDeleteKey(r.employeeId,r.date))).length;
-  if(recovered){
-   await cloudDb.ref(ATTENDANCE_CLOUD_ROOT).update({records:firebaseEncodeData(merged),recordsByKey:firebaseEncodeData(attendanceRecordsByKeyFromRows(merged)),meta:firebaseEncodeData({...(master.meta||{}),master:true,separated:true,version:APP_DATA_VERSION,updatedAt:new Date().toISOString(),reason:'V558 recover verified Attendance from archive',durableKeyedRecords:true})});
+  const beforeKeys=new Set(current.filter(r=>r?.checkIn||r?.exception?.manualAdmin).map(r=>attendanceRecordDeleteKey(r.employeeId,r.date)));
+  const missing=mergeAttendanceRecords([],eligible).filter(r=>r?.checkIn&&!beforeKeys.has(attendanceRecordDeleteKey(r.employeeId,r.date)));
+  let recovered=0;
+  for(const record of missing){
+   // Keep each write bounded. Rewriting the full history plus its keyed copy
+   // exceeded Firebase's request size and left the transport reconnecting.
+   const encoded=firebaseEncodeData(record);
+   if(new TextEncoder().encode(JSON.stringify(encoded)).byteLength>8*1024*1024){console.warn('Attendance archive row exceeds the repair request budget; original archive retained');continue}
+   const ref=cloudDb.ref(ATTENDANCE_CLOUD_ROOT+'/recordsByKey/'+attendanceRecordStorageKey(record.employeeId,record.date));
+   const result=await ref.transaction(value=>{
+    const latest=firebaseDecodeData(value);
+    if(latest?.checkIn||latest?.exception?.manualAdmin)return undefined;
+    return firebaseEncodeData(mergeAttendanceRecords(latest?[latest]:[],[record])[0]);
+   },undefined,false);
+   if(result.committed)recovered++;
+   await new Promise(resolve=>setTimeout(resolve,0));
   }
+  if(recovered)await cloudDb.ref(ATTENDANCE_CLOUD_ROOT+'/meta').update(firebaseEncodeData({master:true,separated:true,version:APP_DATA_VERSION,updatedAt:new Date().toISOString(),reason:'V981 recover missing keyed Attendance rows',durableKeyedRecords:true}));
   return recovered;
- }catch(err){console.warn('V558 attendance archive recovery failed',err);return 0}
+ }catch(err){console.warn('Attendance archive repair remains incomplete; original archive retained',err);return 0}
 }
 async function initAttendanceCloudMaster(legacyPpmsValue=null){
  if(!cloudDb)return false;
@@ -942,8 +966,6 @@ async function initAttendanceCloudMaster(legacyPpmsValue=null){
  // V558: migrate the old array master into per-employee/date durable records, then recover any verified rows that survived only in the archive.
  const existingRows=mergeAttendanceRecords(Array.isArray(master.records)?master.records:Object.values(master.records||{}),master.recordsByKey&&typeof master.recordsByKey==='object'?Object.values(master.recordsByKey):[]);
  if(!master.recordsByKey||Object.keys(master.recordsByKey||{}).length<existingRows.length){master={...master,records:existingRows,recordsByKey:attendanceRecordsByKeyFromRows(existingRows),meta:{...(master.meta||{}),master:true,separated:true,version:APP_DATA_VERSION,updatedAt:new Date().toISOString(),reason:'V558 keyed Attendance migration',durableKeyedRecords:true}};await ref.update(firebaseEncodeData({records:master.records,recordsByKey:master.recordsByKey,meta:master.meta}));}
- const recoveredCount=await recoverAttendanceFromArchiveCloud();
- if(recoveredCount){const refreshed=await ref.once('value');master=firebaseDecodeData(refreshed.val())||master;}
  applyAttendanceMasterPayload(master,true);
  attendanceCloudReady=true;
  if(!attendanceCloudListenerBound){
@@ -956,6 +978,7 @@ async function initAttendanceCloudMaster(legacyPpmsValue=null){
    if(pageAllowsLiveRemoteRender()){queueRemoteRender();if(current==='attendanceAdmin'&&!userInteractionBusy()){setTimeout(()=>{if(current==='attendanceAdmin'&&!userInteractionBusy())flushRemoteRender(true)},350)}}
   });
  }
+ scheduleAttendanceArchiveRecovery();
  return true;
 }
 async function updateAttendanceMasterMeta(reason='update'){
