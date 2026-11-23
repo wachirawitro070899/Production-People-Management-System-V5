@@ -3236,6 +3236,25 @@ window.openEmployeeEditor=openEmployeeEditor;
 window.getRendererHealth=()=>{try{const matrix=matrixPage(false),cards=cardsPage();return{ok:true,matrixLength:matrix.length,cardsLength:cards.length,wallet:typeof walletCardMarkup==='function',ng:typeof employeeNgHistoryPanel==='function'}}catch(err){return{ok:false,error:err.message,stack:String(err.stack||'')}}};
 window.getAppHealth=()=>({version:APP_DATA_VERSION,employees:employees.length,sections:new Set(employees.map(e=>e.section)).size,page:current,cloudReady,cloudConnected,shiftScheduleRules:Object.keys(shiftSchedules||{}).length,pendingCloudSync:localStorage.getItem(CLOUD_DIRTY_KEY)==='1',pendingShiftSync:localStorage.getItem(SHIFT_CLOUD_DIRTY_KEY)==='1'});
 window.PPMS_RUNTIME={
+ employeeImportContext(){return {allowed:isAdmin&&sessionStorage.getItem('ppms_admin')==='1'&&window.PPMSAccess?.permission?.()==='edit',admin:isAdmin,page:current,scope:{...organizationScope()},sections:[...sections],section:sessionStorage.getItem(current==='sectionChart'?'chartSec':'viewSec')||sections[0]||'',employees:organizationScopedEmployees(organizationRenderMaster?.employees||employees).filter(e=>!deletedEmployeeIds.has(String(e.id))).map(e=>({id:String(e.id),name:e.name,section:e.section}))}},
+ async importEmployeeBatch(batch){
+  const context=this.employeeImportContext();
+  if(!context.allowed)throw Error('กรุณาใช้บัญชีที่มีสิทธิ์เพิ่มพนักงาน');
+  const data=window.PPMSEmployeeImport.validateBatch(batch);
+  if(data.scope.division!==context.scope.division||data.scope.plant!==context.scope.plant||!context.sections.includes(data.section))throw Error('ฝ่าย โรงงาน หรือ Section เปลี่ยน กรุณาเปิดหน้านำเข้าใหม่');
+  if(navigator.onLine===false)throw Error('ยังไม่ได้ส่งข้อมูล กรุณาเชื่อมต่ออินเทอร์เน็ตแล้วลองอีกครั้ง');
+  if(cloudWritePending||Object.keys(pendingEmployeeSaves).length||pendingEmployeeDeletes.size)throw Error('มีรายการพนักงานรอซิงก์ กรุณารอให้บันทึกเดิมเสร็จก่อน');
+  cloudWritePending=true;employeeMasterWriteRevision++;clearTimeout(cloudTimer);
+  try{
+   const confirmed=firebaseDecodeData(await window.PPMS_EMPLOYEE_SAVE_SERVICE.importNewEmployees(firebaseEncodeData(data)));
+   deletedEmployeeIds=new Set([...confirmed.deletedEmployeeIds,...pendingEmployeeDeletes]);
+   employees=applySkillOverrides(withPendingEmployeeSaves(cloudEmployeeList(confirmed),[...deletedEmployeeIds]).filter(e=>!deletedEmployeeIds.has(String(e.id))));
+   if(organizationRenderMaster)organizationRenderMaster.employees=employees;
+   employeeMasterWriteRevision++;pendingRemoteSnapshot=null;persistCloudToLocal();
+   window.dispatchEvent(new Event('ppms-employees-changed'));queueRemoteRender();
+   return {importedIds:confirmed.importedIds};
+  }finally{cloudWritePending=false;flushPendingRemoteSnapshot()}
+ },
  refreshQuarterlyExamPage(){if(['exam','examCheck'].includes(current))renderFromUserControlChange()},
  certificateContext(){return {isAdmin:isAdmin&&window.PPMSAccess?.canEdit()!==false,allowed:isAdmin||isLeaderMode(),employees:(isAdmin||isLeaderMode()?organizationScopedEmployees(organizationRenderMaster?.employees||employees):[]).filter(e=>!deletedEmployeeIds.has(String(e.id))).map(e=>({...e})),actor:isAdmin?(sessionStorage.getItem('ppms_admin_user')||'admin'):leaderId}},
  refreshCertificates(){if(['training','cards','matrix'].includes(current))renderFromUserControlChange()},

@@ -164,7 +164,38 @@ async function saveCertificates(changes){
  }
  return {employees:roster.value,deletedEmployeeIds:Object.values(tombstones.value||{}).map(String)};
 }
-window.PPMS_EMPLOYEE_SAVE_SERVICE={upsert,saveCertificate,saveCertificates,isPermanent};
+// Import only new people. One conditional roster write keeps a duplicate or a
+// concurrent creation from leaving a partially imported file.
+async function importNewEmployees(batch){
+ if(window.sessionStorage?.getItem('ppms_admin')!=='1'||window.PPMSAccess?.permission?.()!=='edit')throw Error('กรุณาใช้บัญชีที่มีสิทธิ์เพิ่มพนักงาน');
+ const validate=window.PPMSEmployeeImport?.validateBatch;
+ if(!validate)throw Error('กรุณาโหลดระบบนำเข้าพนักงานใหม่');
+ const data=validate(batch),ids=new Set(data.employees.map(e=>String(e.id).toUpperCase()));
+ const deleted=await request('deletedEmployeeIds');
+ if(Object.values(deleted.value||{}).some(id=>ids.has(String(id).toUpperCase())))throw Error('มีรหัสอยู่ในประวัติการลบ กรุณาตรวจรหัสพนักงานก่อนนำเข้า');
+ // A stale organization override must never silently send a new person to a
+ // different plant. Read only the selected IDs and leave existing maps intact.
+ for(const e of data.employees){
+  const key=encodeURIComponent(e.id),override=(await request('employeeOrganization/'+key,{},'')).value;
+  if(override&&(override.division!==data.scope.division||override.plant!==data.scope.plant))throw Error('รหัส '+e.id+' มีฝ่ายหรือโรงงานเดิม กรุณาตรวจสอบก่อนนำเข้า');
+ }
+ await change('employees',value=>{
+  const people=records(value),existing=new Map(people.map(e=>[String(e.id).toUpperCase(),e]));
+  for(const e of data.employees){
+   const old=existing.get(e.id.toUpperCase());
+   if(old&&(old.employeeImportKey!==data.key||String(old.id)!==e.id||old.section!==e.section||old.organizationDivision!==data.scope.division||old.organizationPlant!==data.scope.plant))throw Error('รหัสพนักงาน '+e.id+' มีอยู่แล้วหรือข้อมูลเปลี่ยน ไม่ได้ทับรายชื่อเดิม');
+  }
+  const additions=data.employees.filter(e=>!existing.has(e.id.toUpperCase()));
+  if(!additions.length)return value;
+  if(Array.isArray(value)||value==null)return [...(value||[]),...additions];
+  const next={...value};for(const e of additions){if(Object.hasOwn(next,e.id))throw Error('รหัส '+e.id+' ชนกับข้อมูลเดิม');next[e.id]=e}return next;
+ });
+ const [roster,tombstones]=await Promise.all([request('employees'),request('deletedEmployeeIds')]);
+ const people=new Map(records(roster.value).map(e=>[String(e.id),e]));
+ for(const e of data.employees){const saved=people.get(e.id);if(!saved||saved.employeeImportKey!==data.key||saved.section!==data.section||saved.organizationDivision!==data.scope.division||saved.organizationPlant!==data.scope.plant||Object.values(tombstones.value||{}).map(String).includes(e.id))throw Error('ยังยืนยันข้อมูลไม่ครบ กรุณากดนำเข้าซ้ำจากรายการเดิม');if(['name','thaiName','position','startDate','contractType','photoData'].some(field=>String(saved[field]||'')!==String(e[field]||'')))throw Error('ข้อมูลหรือรูปของ '+e.id+' เปลี่ยนแล้ว กรุณาตรวจรายชื่อที่บันทึกก่อนทำรายการต่อ')}
+ return {employees:roster.value,deletedEmployeeIds:Object.values(tombstones.value||{}).map(String),importedIds:data.employees.map(e=>e.id)};
+}
+window.PPMS_EMPLOYEE_SAVE_SERVICE={upsert,saveCertificate,saveCertificates,isPermanent,importNewEmployees};
 // A small REST read still reaches other devices when the large root socket stalls.
 let deletionPollRunning=false;
 function realtimeRosterActive(){const health=window.getAppHealth?.();return health?.cloudReady===true&&health?.cloudConnected===true}
@@ -195,3 +226,4 @@ window.addEventListener('focus',pollDeletions);
 window.addEventListener('DOMContentLoaded',pollDeletions);
 window.PPMS_EMPLOYEE_DELETE_SERVICE={remove(id,snapshot){id=String(id);if(running.has(id))return running.get(id);const job=remove(id,snapshot).finally(()=>running.delete(id));running.set(id,job);return job}};
 })();
+
