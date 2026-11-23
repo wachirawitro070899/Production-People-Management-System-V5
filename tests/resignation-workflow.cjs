@@ -34,5 +34,5 @@ const wait=ms=>new Promise(resolve=>setTimeout(resolve,ms));
   // A second device may finish a pending deletion; history acknowledges it after refresh.
   offline=false;const pending=w.PPMSResignations.pending(offlineId);db.formerEmployeeHistory[pending.resignationEventId]=JSON.parse(JSON.stringify(pending));db.employees=db.employees.filter(e=>e.id!==offlineId);db.deletedEmployeeIds.push(offlineId);await w.PPMSResignations.refresh();assert.equal(w.PPMSResignations.pending(offlineId),null);
   assert.deepEqual(errors,[]);console.log('PASSED full app: delete confirmation, identity/date/reason, archive and roster sync, legacy history, detail view, TH/EN, offline pending preservation and confirmation from another device.');
- }finally{dom.window.close()}
+ }finally{w.requestAnimationFrame=()=>0;w.queueMicrotask=()=>{};await wait(80);dom.window.close()}
 })().catch(error=>{console.error(error);process.exitCode=1});

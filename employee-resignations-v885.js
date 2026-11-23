@@ -24,7 +24,7 @@
   if(employee.startDate&&resignationDate<employee.startDate)throw Error('วันที่ลาออกต้องไม่ก่อนวันที่เริ่มงาน');
   const snapshot=JSON.parse(JSON.stringify({...employee,organizationDivision:scope.division||employee.organizationDivision,organizationPlant:scope.plant||employee.organizationPlant,
    employmentRecords,resignationEventId:eventId,resignedAt:now,resignationDate,resignationReason:String(metadata.resignationReason||''),resignationNote:String(metadata.resignationNote||''),
-   recordedBy:sessionStorage.getItem('ppms_admin_user')||sessionStorage.getItem('ppms_leader_id')||'',employmentStatus:'resigned',archiveReason:'resigned'}));
+   recordedBy:(sessionStorage.getItem('ppms_admin')==='1'?sessionStorage.getItem('ppms_admin_user'):sessionStorage.getItem('ppms_leader_id'))||'',employmentStatus:'resigned',archiveReason:'resigned'}));
   const plan=window.PPMSPositionSlots?.planFor(employee);if(plan)snapshot._positionSlot=plan;
   cache[eventId]={employee:snapshot,pending:true};try{persist()}catch(error){delete cache[eventId];throw error}if(plan)window.PPMSPositionSlots.apply(window.PPMSOrganizationScope.master());return snapshot;
  }

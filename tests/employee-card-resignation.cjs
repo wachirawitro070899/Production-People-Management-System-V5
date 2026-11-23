@@ -28,11 +28,11 @@ function open(w){const card=w.document.querySelector('.division-org .person[data
   assert(w.document.querySelector('#modal').classList.contains('hidden'));assert(!w.document.querySelector('#modalBody #employeeForm'),'The stale editor cannot save the resigned employee back into the roster');assert(!w.document.querySelector('#resignationDialog'));
   w.document.querySelector('#nav [data-page="add"]').click();await wait(50);assert(!w.document.querySelector('#employeeForm [data-delete]'),'New employee drafts have no deletion action');assert.deepEqual(errors,[]);
   console.log('PASSED card-to-editor resignation, original identity, cancel/draft preservation, save overlap guard, validation recovery, archive/vacancy retention, and stale editor removal.');
- }finally{dom.window.close()}
+ }finally{w.requestAnimationFrame=()=>0;w.queueMicrotask=()=>{};await wait(80);dom.window.close()}
  const offline=await state();try{
   const {w}=offline,{id,button}=open(w);offline.setOffline(true);button.click();w.document.querySelector('#resignationForm').dispatchEvent(new w.Event('submit',{bubbles:true,cancelable:true}));await wait(200);
   assert(w.PPMSResignations.pending(id));assert(offline.db.ppms.employees.some(e=>e.id===id),'Cloud employee remains until the resignation can be archived');assert(w.document.querySelector('[data-resignation-save-status]').textContent.includes('รอเชื่อมต่อ'));assert(w.document.querySelector('#modal').classList.contains('hidden'));assert(!w.document.querySelector('#employeeForm'),'A locally pending resignation also closes the stale editor');assert.deepEqual(offline.errors,[]);
   console.log('PASSED offline card resignation with durable pending history and no stale employee editor.');
- }finally{offline.dom.window.close()}
- const publicApp=await setup(false);try{publicApp.w.PPMS_RUNTIME.openOrganizationEmployee(employees[0].id);assert(!publicApp.w.document.querySelector('#employeeForm [data-delete]'),'Only Admin sees the deletion action')}finally{publicApp.dom.window.close()}
+ }finally{offline.w.requestAnimationFrame=()=>0;offline.w.queueMicrotask=()=>{};await wait(80);offline.dom.window.close()}
+ const publicApp=await setup(false);try{publicApp.w.PPMS_RUNTIME.openOrganizationEmployee(employees[0].id);assert(!publicApp.w.document.querySelector('#employeeForm [data-delete]'),'Only Admin sees the deletion action')}finally{publicApp.w.requestAnimationFrame=()=>0;publicApp.w.queueMicrotask=()=>{};await wait(80);publicApp.dom.window.close()}
 })().catch(error=>{console.error(error);process.exitCode=1});

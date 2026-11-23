@@ -120,9 +120,31 @@ async function openLeaderEmployeeManager(){
  document.querySelectorAll('[data-leader-remove]').forEach(button=>button.onclick=async()=>{
   const id=String(button.dataset.leaderRemove||''),employee=list.find(item=>employeeKey(item.id)===employeeKey(id));
   if(!employee)return alert('ไม่พบพนักงาน');if(!sameSection(leader,employee))return alert('ไม่สามารถลบพนักงานต่างแผนก');
-  if(!confirm('ยืนยันว่า '+id+' • '+(employee.name||'')+' ลาออก?\n\nรายชื่อจะถูกนำออก แต่ประวัติ Attendance / สอบ / NG จะยังคงเก็บไว้'))return;
-  button.disabled=true;try{if(!window.PPMS_RUNTIME?.deleteEmployeeNow)throw Error('ระบบรายชื่อหลักยังไม่พร้อม กรุณารีเฟรชหน้าเว็บ');const ok=await window.PPMS_RUNTIME.deleteEmployeeNow(id);if(!ok)throw Error('ฐานข้อมูลยังไม่ยืนยันการลบ');alert('นำ '+id+' ออกจากรายชื่อปัจจุบันและเก็บประวัติแล้ว');await openLeaderEmployeeManager()}catch(error){button.disabled=false;alert('นำพนักงานออกไม่สำเร็จ: '+(error.message||String(error))) }
+  openLeaderRemoval(employee);
  });
+}
+function openLeaderRemoval(employee){
+ const t=(th,en)=>window.PPMSLanguage?.language==='en'?en:th,id=String(employee.id),today=dateKey();
+ openModal('<section data-i18n-ignore><h2>'+t('ระบุเหตุผลที่นำรายชื่อออก','Reason for removing employee')+'</h2><p><b>'+esc(id)+' · '+esc(employee.thaiName||employee.name||'')+'</b><br>'+esc(employee.section)+'</p><p>'+t('นำรายชื่อออกจากพนักงานปัจจุบัน โดยเก็บเหตุผล ผู้บันทึก และประวัติ Attendance / สอบ / NG ไว้ตรวจสอบย้อนหลัง','Remove from the active roster and retain the reason, recorder and attendance / exam / defect history.')+'</p><form id="leaderRemoveEmployee"><label>'+t('เหตุผลที่นำรายชื่อออก (จำเป็น)','Removal reason (required)')+'<select name="resignationReason" required><option value="">'+t('เลือกเหตุผล','Select a reason')+'</option>'+[['ย้ายแผนก','Department transfer'],['ลาออก','Resignation'],['คืนซัพ','Return to subcontractor']].map(([th,en])=>'<option value="'+th+'">'+t(th,en)+'</option>').join('')+'</select></label><p class="modal-note">'+t('กรณีย้ายแผนก: แบบฟอร์มนี้บันทึกเหตุผลและนำรายชื่อออกเท่านั้น หากต้องการย้ายพร้อมคงรายชื่อในระบบ ให้ Admin แก้ไขแผนกในข้อมูลพนักงาน','For department transfers, this form records the reason and removes the employee. To keep the employee active, ask an Admin to update their department instead.')+'</p><label>'+t('วันที่มีผล','Effective date')+'<input type="date" name="resignationDate" value="'+today+'" max="'+today+'" '+(employee.startDate?'min="'+esc(employee.startDate)+'" ':'')+'required></label><label>'+t('รายละเอียดเพิ่มเติม (ถ้ามี)','Additional details (optional)')+'<textarea name="resignationNote" maxlength="2000" placeholder="'+t('เช่น แผนกปลายทาง / บริษัทซัพ','For example, destination department / subcontractor company')+'"></textarea></label><p role="status" data-leader-removal-status></p><div class="actions"><button type="submit" class="danger">'+t('ยืนยันนำรายชื่อออก','Confirm removal')+'</button><button type="button" class="secondary" data-leader-removal-back>'+t('ยกเลิก / กลับรายชื่อ','Cancel / Back to roster')+'</button></div></form></section>');
+ const form=document.getElementById('leaderRemoveEmployee'),submit=form.querySelector('[type=submit]'),back=form.querySelector('[data-leader-removal-back]'),status=form.querySelector('[data-leader-removal-status]');
+ back.onclick=()=>openLeaderEmployeeManager().catch(error=>{status.textContent=error.message});
+ form.onsubmit=async event=>{
+  event.preventDefault();if(submit.disabled||!form.reportValidity())return;
+  const metadata=Object.fromEntries(new FormData(form));
+  submit.disabled=true;back.disabled=true;status.textContent=t('กำลังบันทึกและยืนยันข้อมูล…','Saving and verifying…');
+  try{
+   if(!window.PPMS_RUNTIME?.deleteEmployeeNow)throw Error(t('ระบบรายชื่อหลักยังไม่พร้อม กรุณารีเฟรชหน้าเว็บ','Employee system is not ready. Please refresh.'));
+   const ok=await window.PPMS_RUNTIME.deleteEmployeeNow(id,metadata);if(!ok)throw Error(t('ฐานข้อมูลยังไม่ยืนยันการลบ','The database has not confirmed removal.'));
+   status.textContent=t('บันทึกเหตุผลและนำรายชื่อออกแล้ว','Reason saved and employee removed.');
+   await openLeaderEmployeeManager();
+  }catch(error){
+   const pending=window.PPMSResignations?.pending(id);
+   status.textContent=pending?t('บันทึกเหตุผลในเครื่องแล้ว รอเชื่อมต่อเพื่อซิงก์ประวัติและรายชื่อ','Reason saved on this device. History and roster will sync when connected.'):String(error.message||error);
+   if(pending)for(const control of form.querySelectorAll('input,select,textarea'))control.disabled=true;
+   submit.disabled=!!pending;back.disabled=false;
+  }
+ };
+ form.elements.resignationReason.focus();
 }
 // Identify forms by their attribute: input[name=id] shadows form.id in Chromium.
 // Employee writes use the shared verified save service and durable retry outbox.
