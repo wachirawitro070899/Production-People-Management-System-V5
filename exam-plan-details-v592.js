@@ -236,8 +236,38 @@
   }
   async function readTrainingRecord(ctx, q, topicIndex) {
     if ((!trainingRestReady() && !dbReady()) || navigator.onLine === false) throw Error('กรุณาเชื่อมต่ออินเทอร์เน็ตเพื่อตรวจหลักฐานล่าสุด');
-    const record = await readTrainingValue(RECORD_ROOT + '/' + ctx.year + '/' + ctx.sectionKey + '/' + q + '/' + topicIndex);
+    let record = await readTrainingValue(RECORD_ROOT + '/' + ctx.year + '/' + ctx.sectionKey + '/' + q + '/' + topicIndex);
+    if(record?.evidenceSource){
+      if(q!=='NEW'||!/^ppmsTrainingImplementationRecords\/\d{4}\/[A-Za-z0-9_-]+\/NEW\/group_[A-Za-z0-9_-]+$/.test(record.evidenceSource))throw Error('ข้อมูลอ้างอิงหลักฐานกลุ่มไม่ถูกต้อง');
+      const group=await readTrainingValue(record.evidenceSource);
+      if(!group||group.trainingGroupId!==record.trainingGroupId||group.topic!==record.topic||!(record.attendeeIds||[]).every(id=>(group.attendeeIds||[]).map(String).includes(String(id))))throw Error('ยังโหลดหลักฐานอบรมกลุ่มไม่ได้ กรุณาลองใหม่');
+      record={...record,evidence:group.evidence||[]};
+    }
     rememberRecord(ctx,q,topicIndex,record); return record;
+  }
+  async function saveNewEmployeeGroup(ctx,record,employees,groupId){
+    if(!isAdmin())throw Error('บัญชีนี้ไม่มีสิทธิ์บันทึกผลการอบรม');
+    if((!trainingRestReady()&&!dbReady())||navigator.onLine===false)throw Error('กรุณาเชื่อมต่ออินเทอร์เน็ตก่อนบันทึกหลักฐาน');
+    if(!employees.length||!/^group_[A-Za-z0-9_-]+$/.test(groupId))throw Error('กรุณาเลือกผู้เข้าอบรมอย่างน้อย 1 คน');
+    const entries=employees.map(employee=>({employee,personal:window.PPMSNewEmployeeTraining.personalContext(ctx,employee)}));
+    const existing=await Promise.all(entries.map(({personal})=>readTrainingValue(RECORD_ROOT+'/'+personal.year+'/'+personal.sectionKey+'/NEW/bundle/topic')));
+    const recorded=employees.filter((_,i)=>existing[i]!=null);
+    if(recorded.length)throw Error('มีบันทึกอบรมแล้ว: '+recorded.map(person=>person.id).join(', ')+' กรุณานำออกจากกลุ่ม หรือแก้ไขผลอบรมรายคน');
+    const eligible=new Map(roster(ctx).map(person=>[String(person.id),person]));
+    if(employees.some(person=>!person.startDate||eligible.get(String(person.id))?.startDate!==person.startDate))throw Error('ข้อมูลพนักงานเปลี่ยนไป กรุณาเปิดฟอร์มกลุ่มใหม่');
+    const groupPath=RECORD_ROOT+'/'+ctx.year+'/'+ctx.sectionKey+'/NEW/'+groupId;
+    const group={...record,trainingGroupId:groupId},updates={[groupPath]:group};
+    // Upload shared evidence once and commit every personal record/status in the same write.
+    const saved=entries.map(({employee,personal})=>{
+      const value={...record,year:personal.year,attendeeIds:[String(employee.id)],attendees:[String(employee.id)+' - '+(employee.thaiName||employee.name)],trainingGroupId:groupId,groupAttendees:record.attendees,evidence:[],evidenceSource:groupPath};
+      const suffix='/'+personal.year+'/'+personal.sectionKey+'/NEW/bundle';
+      updates[RECORD_ROOT+suffix]=value;updates[STATUS_ROOT+suffix]=summaryOf({...value,evidence:record.evidence});
+      return {personal,value:{...value,evidence:record.evidence}};
+    });
+    if(trainingRestReady())await trainingRequest('',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(updates)},120000);
+    else await ensureFirebase().ref().update(updates);
+    for(const {personal,value} of saved)rememberRecord(personal,'NEW','bundle',value);
+    return saved;
   }
   async function saveTrainingRecord(ctx, q, topicIndex, record) {
     if (!isAdmin()) throw new Error('บัญชีนี้ไม่มีสิทธิ์บันทึกผลการอบรม');
@@ -526,24 +556,25 @@
       return '<tr><td>'+esc(e.id)+' · '+esc(e.thaiName || e.name)+'</td><td>'+(trainingDone(summaryOf(record))?'อบรมเรียบร้อยแล้ว':'รออบรม')+'</td><td>'+(result?'สอบเสร็จแล้ว':trainingDone(summaryOf(record))?'พร้อมสอบ':'รออบรม')+'</td><td>'+esc(outcome)+'</td></tr>';
     }).join('')+'</tbody></table></div>';
   }
-  function attendeePicker(ctx,current) {
+  function attendeePicker(ctx,current,groupEmployees) {
     const ids=new Set((current.attendeeIds || []).map(String));
     // Legacy names are retained in the text field until an administrator links employee IDs.
-    return '<fieldset class="full training-attendee-picker"><legend>เลือกผู้เข้าอบรม (เชื่อมสถานะสอบรายคน)</legend><input type="search" data-training-person-search placeholder="ค้นหา รหัส หรือชื่อพนักงาน"><div class="actions"><button type="button" class="secondary" data-training-select-all>เลือกทุกคนที่แสดง</button><button type="button" class="secondary" data-training-clear>ล้างที่เลือก</button></div><div class="training-attendee-list">'+roster(ctx).map(e=>'<label data-person-search="'+esc([e.id,e.name,e.thaiName].join(' ').toLowerCase())+'"><input type="checkbox" name="attendeeIds" value="'+esc(e.id)+'" '+(ids.has(String(e.id))?'checked':'')+'> '+esc(e.id)+' · '+esc(e.thaiName || e.name)+'</label>').join('')+'</div></fieldset>';
+    return '<fieldset class="full training-attendee-picker"><legend>เลือกผู้เข้าอบรม (เชื่อมสถานะสอบรายคน)</legend><input type="search" data-training-person-search placeholder="ค้นหา รหัส ชื่อ หรือวันเริ่มงาน"><div class="actions"><button type="button" class="secondary" data-training-select-all>เลือกทุกคนที่แสดง</button><button type="button" class="secondary" data-training-clear>ล้างที่เลือก</button><span data-training-selected-count role="status"></span></div>'+(groupEmployees?'<p class="modal-note">เลือกพนักงานใหม่ใน Section นี้ กรอกข้อมูลและแนบหลักฐานครั้งเดียว ระบบจะบันทึกแยกเป็นรายคน · ผู้ที่มีบันทึกแล้วให้แก้ไขจากหน้ารายคน</p>':'')+'<div class="training-attendee-list">'+(groupEmployees||roster(ctx)).map(e=>'<label data-person-search="'+esc([e.id,e.name,e.thaiName,...(groupEmployees?[e.startDate]:[])].join(' ').toLowerCase())+'"><input type="checkbox" name="attendeeIds" value="'+esc(e.id)+'" '+(ids.has(String(e.id))?'checked':'')+' '+(groupEmployees&&!e.startDate?'disabled':'')+'> '+esc(e.id)+' · '+esc(e.thaiName || e.name)+(groupEmployees?' · '+esc(e.startDate||'กรุณาระบุวันเริ่มงานก่อน'):'')+'</label>').join('')+'</div></fieldset>';
   }
   function openTrainingRecordEditor(ctx, q, quarter, index, item, existing, onSaved, options={}) {
-    options={...options,employee:options.employee?{...options.employee}:null};
+    options={...options,employee:options.employee?{...options.employee}:null,groupEmployees:options.groupEmployees?.map(person=>({...person}))};
+    const groupId=options.groupEmployees?'group_'+Date.now().toString(36)+'_'+Array.from(crypto.getRandomValues(new Uint32Array(3)),value=>value.toString(36)).join(''):null;
     const current = existing || (options.employee?{attendeeIds:[String(options.employee.id)]}:{});
     const evidence = Array.isArray(current.evidence) ? current.evidence : [];
     const overlay = document.createElement('div');
     overlay.className = 'exam-detail-overlay exam-topic-overlay';
-    overlay.innerHTML = '<form class="training-record-editor"><div class="exam-viewer-head"><div><span class="exam-viewer-quarter">' + q + '</span><h2>Training Implementation Record</h2><p>' + esc(ctx.section) + ' • ' + esc(item.title) + '</p></div><button type="button" class="secondary" data-close>ปิด</button></div>' +
+    overlay.innerHTML = '<form class="training-record-editor"><div class="exam-viewer-head"><div><span class="exam-viewer-quarter">' + q + '</span><h2>'+(options.groupEmployees?'อบรมพนักงานใหม่หลายคน':'Training Implementation Record')+'</h2><p>' + esc(ctx.section) + ' • ' + esc(item.title) + '</p></div><button type="button" class="secondary" data-close>ปิด</button></div>' +
       '<div class="training-record-fields"><label>วันที่อบรม<input type="date" name="trainingDate" max="'+today()+'" value="' + esc(current.trainingDate || today()) + '" required></label>' +
       '<label>เวลาอบรม<input type="text" name="trainingTime" value="' + esc(current.trainingTime || '') + '" placeholder="เช่น 09:00–11:00" required></label>' +
       '<label>สถานที่อบรม<input name="trainingPlace" value="' + esc(current.trainingPlace || '') + '" placeholder="Training place" required></label>' +
       '<label>ผู้ฝึกอบรม<input name="trainer" value="' + esc(current.trainer || '') + '" placeholder="Trainer" required></label>' +
       '<label class="full">หน่วยงานที่อบรม<input name="trainingUnit" value="' + esc(current.trainingUnit || ctx.section) + '" required></label>' +
-      (options.employee?'<fieldset class="full training-new-employee"><legend>พนักงานที่เข้าอบรม</legend><p>'+esc(options.employee.id)+' · '+esc(options.employee.thaiName||options.employee.name)+'<br>'+esc(ctx.section)+' • เริ่มงาน '+esc(options.employee.startDate||'—')+'</p><input type="hidden" name="attendeeIds" value="'+esc(options.employee.id)+'"></fieldset>':attendeePicker(ctx,current)) +
+      (options.employee?'<fieldset class="full training-new-employee"><legend>พนักงานที่เข้าอบรม</legend><p>'+esc(options.employee.id)+' · '+esc(options.employee.thaiName||options.employee.name)+'<br>'+esc(ctx.section)+' • เริ่มงาน '+esc(options.employee.startDate||'—')+'</p><input type="hidden" name="attendeeIds" value="'+esc(options.employee.id)+'"></fieldset>':attendeePicker(ctx,current,options.groupEmployees)) +
       '<label class="full">รายชื่อเพิ่มเติม / รายชื่อเดิมที่ยังไม่เชื่อมรหัส (1 คนต่อ 1 บรรทัด)<textarea name="attendees" rows="3" placeholder="ผู้เข้าอบรมเพิ่มเติม (ถ้ามี)">' + esc((current.additionalAttendees || (current.attendeeIds?.length ? [] : current.attendees) || []).join('\n')) + '</textarea><small>รายชื่อที่พิมพ์เพิ่มเติมจะไม่เชื่อมผลสอบอัตโนมัติ</small></label>' +
       '<label class="full">Training implementation effect / ผลการอบรม<textarea name="effect" rows="4" placeholder="สรุปผล ความเข้าใจ ผล OJT หรือสิ่งที่ต้องติดตาม" required>' + esc(current.effect || '') + '</textarea></label>' +
       '<fieldset class="full"><legend>Planned training?</legend><label><input type="radio" name="planned" value="yes" ' + (current.planned !== 'no' ? 'checked' : '') + '> Yes</label><label><input type="radio" name="planned" value="no" ' + (current.planned === 'no' ? 'checked' : '') + '> No, but recorded</label></fieldset>' +
@@ -553,12 +584,13 @@
       '<p class="modal-note">ยืนยันอบรมเสร็จแล้วบันทึกสำเร็จ จะแสดง “อบรมเรียบร้อยแล้ว • พร้อมสอบ” หากยังสอบไม่ครบ • ผลสอบจะอัปเดตจากการสอบจริง</p><label><input type="checkbox" name="printAfterSave"> เปิดแบบฟอร์มพิมพ์หลังบันทึก</label><p data-training-save-status role="status"></p><div class="actions"><button type="submit">บันทึกหลักฐาน / ผลอบรม</button><button type="button" class="secondary" data-close>ยกเลิก</button></div></form>';
     const selectedEvidence=evidenceSelection(overlay,evidence);let savingRecord=false;
     const picker=overlay.querySelector('.training-attendee-picker');
-    if(picker){picker.querySelector('[data-training-person-search]').oninput=event=>{picker.querySelectorAll('[data-person-search]').forEach(row=>row.hidden=!row.dataset.personSearch.includes(event.target.value.toLowerCase()));};
-    picker.querySelector('[data-training-select-all]').onclick=()=>{picker.querySelectorAll('[data-person-search]:not([hidden]) input').forEach(box=>box.checked=true);};
-    picker.querySelector('[data-training-clear]').onclick=()=>{picker.querySelectorAll('[name="attendeeIds"]').forEach(box=>box.checked=false);};}
-    if(options.employee){overlay.querySelector('[name=attendees]').closest('label').hidden=true;}
-    overlay.querySelectorAll('[data-close]').forEach(button => button.onclick = () => overlay.remove());
-    overlay.onclick = event => { if (event.target === overlay) overlay.remove(); };
+    if(picker){const count=()=>{picker.querySelector('[data-training-selected-count]').textContent='เลือกแล้ว '+picker.querySelectorAll('[name=attendeeIds]:checked').length+' คน';};picker.onchange=count;count();
+    picker.querySelector('[data-training-person-search]').oninput=event=>{picker.querySelectorAll('[data-person-search]').forEach(row=>row.hidden=!row.dataset.personSearch.includes(event.target.value.toLowerCase()));};
+    picker.querySelector('[data-training-select-all]').onclick=()=>{picker.querySelectorAll('[data-person-search]:not([hidden]) input:not(:disabled)').forEach(box=>box.checked=true);count();};
+    picker.querySelector('[data-training-clear]').onclick=()=>{picker.querySelectorAll('[name="attendeeIds"]').forEach(box=>box.checked=false);count();};}
+    if(options.employee||options.groupEmployees){overlay.querySelector('[name=attendees]').closest('label').hidden=true;}
+    overlay.querySelectorAll('[data-close]').forEach(button => button.onclick = () => {if(!savingRecord)overlay.remove();});
+    overlay.onclick = event => { if (event.target === overlay&&!savingRecord) overlay.remove(); };
     overlay.querySelector('form').onsubmit = async event => {
       event.preventDefault();
       if(savingRecord)return;
@@ -576,8 +608,13 @@
         if(options.employee&&eligible.get(String(options.employee.id))?.startDate!==options.employee.startDate)throw Error('ข้อมูลการจ้างงานเปลี่ยนไป กรุณาเปิดแผนพนักงานใหม่อีกครั้ง');
         if (attendeeIds.some(id=>!eligible.has(id))) throw Error('รายชื่อพนักงานเปลี่ยนไป กรุณาเปิดฟอร์มใหม่');
         if (String(fd.get('trainingDate')) > today()) throw Error('วันที่อบรมต้องไม่เป็นวันในอนาคต');
+        const groupPeople=options.groupEmployees?.filter(person=>attendeeIds.includes(String(person.id)));
+        if(groupPeople&&(!groupPeople.length||groupPeople.length!==attendeeIds.length))throw Error('กรุณาเลือกผู้เข้าอบรมอย่างน้อย 1 คน');
+        const newPeople=groupPeople||(options.employee?[options.employee]:[]);
+        if(newPeople.some(person=>!/^\d{4}-\d{2}-\d{2}$/.test(person.startDate||'')||eligible.get(String(person.id))?.startDate!==person.startDate))throw Error('ข้อมูลวันเริ่มงานเปลี่ยนไปหรือยังไม่ครบ กรุณาเปิดฟอร์มใหม่');
+        if(newPeople.some(person=>String(fd.get('trainingDate'))<person.startDate))throw Error('วันที่อบรมต้องไม่ก่อนวันเริ่มงานของผู้เข้าอบรม');
         if ((fd.has('trainingCompleted') || kept.length+added.length) && !attendeeIds.length && !lines(fd.get('attendees')).length) throw Error('กรุณาเลือกหรือระบุผู้เข้าอบรมอย่างน้อย 1 คน');
-        const additionalAttendees=options.employee?[]:lines(fd.get('attendees'));
+        const additionalAttendees=options.employee||options.groupEmployees?[]:lines(fd.get('attendees'));
         const record = {
           section:ctx.section, year:ctx.year, quarter:q, topicIndex:index, topic:item.title, detail:item.detail,
           trainingDate:String(fd.get('trainingDate') || ''), trainingTime:String(fd.get('trainingTime') || ''),
@@ -588,7 +625,10 @@
           method:quarter.method || '', criteria:quarter.criteria || '', updatedAt:new Date().toISOString()
         };
         if(options.trainingCourse)record.trainingCourse=JSON.parse(JSON.stringify(options.trainingCourse));
-        await saveTrainingRecord(ctx, q, index, record);
+        if(groupPeople){
+          if(q!=='NEW'||index!=='bundle')throw Error('ฟอร์มกลุ่มนี้ใช้สำหรับหลักสูตรพนักงานใหม่');
+          const saved=await saveNewEmployeeGroup(ctx,record,groupPeople,groupId);record.groupRecords=saved;
+        }else await saveTrainingRecord(ctx, q, index, record);
         overlay.remove();
         if (onSaved) onSaved(record);
         if (fd.get('printAfterSave')) {if(window.PPMSTrainingSignatureForm)window.PPMSTrainingSignatureForm.open({ctx,q,quarter,item,record});else openTrainingPrintForm(ctx,q,quarter,item,record);}
