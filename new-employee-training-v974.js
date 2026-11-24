@@ -9,9 +9,61 @@
  const openKey=ctx=>selectionKey(ctx)+'::open';
  const get=(key,fallback='')=>{try{return sessionStorage.getItem(key)||fallback}catch{return fallback}};
  const put=(key,value)=>{try{sessionStorage.setItem(key,value)}catch{}};
+ // Examples for recognition; acceptance limits always come from the approved Part standard.
+ function observationTopics(section){
+  const s=window.PPMSOrganizationScope?.sectionKey(section)||String(section||'').toLowerCase();
+  const profiles=[
+   [/mold|mould|tooling|แม่พิมพ์/,
+    ['Punch / Die บิ่น แตก หรือสึก','Guide / Pin หลวม คด หรือแตก','ผิวแม่พิมพ์เป็นรอยหรือมีเศษติด','ชิ้นงานหลังซ่อมมีครีบ รอย หรือมิติผิดเกณฑ์'],
+    ['เสียงกระแทกหรือการเคลื่อนที่ติดขัด','ระบบหล่อลื่นผิดปกติ น็อตหรืออุปกรณ์ยึดหลวม']],
+   [/smelt|หลอม/,
+    ['วัตถุดิบผิดชนิดหรือปะปน','วัตถุดิบชื้นหรือมีสิ่งปนเปื้อน','ตัวอย่างโลหะหรือผลตรวจไม่ผ่านเกณฑ์','Batch / ป้ายวัตถุดิบไม่ตรงหรือสอบย้อนกลับไม่ได้'],
+    ['อุณหภูมิหรือค่าควบคุมออกนอกมาตรฐาน / Alarm','เตา ภาชนะ หรืออุปกรณ์มีรอยเสียหาย รั่ว หรือควันผิดปกติ']],
+   [/die.?cast|หล่อ/,
+    ['Short Shot: เนื้อไม่เต็มหรือขาด','Flash / Crack: ครีบหรือรอยแตก','Porosity: รูพรุนตามวิธีตรวจที่กำหนด','เสียรูป รอยผิว หรือมิติผิดเกณฑ์'],
+    ['ฉีดไม่เต็มซ้ำ ชิ้นงานติดแม่พิมพ์ หรือปลดงานผิดปกติ','ค่าฉีด / อุณหภูมิผิดมาตรฐาน น้ำหรือระบบหล่อลื่นรั่ว']],
+   [/polish|shot.?blast|x.?ray|ขัด/,
+    ['งานขัด: เจียรกินเนื้อ ครีบค้าง หรือรอยลึก','Shot Blasting: ผิวไม่สม่ำเสมอหรือมีเม็ดขัดค้าง','X-Ray: ภาพบ่งชี้รูพรุนหรือรอยแตก ให้ผู้มีหน้าที่ตัดสิน','เสียรูป มิติผิดเกณฑ์ หรือ Part / Lot ปะปน'],
+    ['เครื่องสั่น เสียงผิดปกติ หรือวัสดุขัดเสื่อมสภาพ','ระบบดูดฝุ่น / การ์ด / Interlock ผิดปกติ หรือภาพตรวจไม่ชัด']],
+   [/stamping|ปั๊ม/,
+    ['Crack: รอยแตกบริเวณขอบ รู หรือแนวขึ้นรูป','Burr: ครีบคมที่ขอบตัดหรือรูเจาะ','Dent / Scratch: รอยบุบหรือรอยขีดข่วน','รูขาด รูเยื้อง เสียรูป หรือมิติผิดเกณฑ์'],
+    ['เสียงกระแทกผิดปกติ วัตถุดิบป้อนเอียงหรือซ้อน','เศษติด Die น้ำมันผิดปกติ หรือ Sensor / Poka-Yoke ไม่ทำงาน']],
+   [/welding|เชื่อม/,
+    ['Missing Weld: จุดเชื่อมขาดหรือตำแหน่งผิด','Weak Weld: รอยเชื่อมหลุดหรือผลทดสอบไม่ผ่านตาม WI','Burn / Spatter: รอยไหม้ ทะลุ หรือสะเก็ดเกินเกณฑ์','Deformation: ชิ้นงานบิดงอ ประกอบกลับด้าน หรือชิ้นส่วนขาด'],
+    ['Electrode สึก ติดงาน หรือสะเก็ดมากผิดปกติ','น้ำหล่อเย็นรั่ว / ไหลผิดปกติ หรือ Current / Time / Pressure ไม่ตรงมาตรฐาน']],
+   [/cnc/,
+    ['Dimension NG: ขนาดหรือรูผิดเกณฑ์','Tool Mark / Chatter: รอยเครื่องมือหรือรอยสั่นบนผิวงาน','Burr / Scratch: ครีบหรือรอยขีดข่วน','งานกัดไม่ครบ ผิวหยาบ หรือชิ้นงานเสียรูป'],
+    ['Tool สึก / หัก เสียงหรือการสั่นผิดปกติ','เศษอุดตัน Coolant ไหลผิดปกติ หรือ Program / Offset ไม่ตรงมาตรฐาน']],
+   [/tapping|ต๊าป/,
+    ['เกลียวไม่เต็ม ตื้น หรือขาดช่วง','เกลียวรูด เสียรูป หรือมีครีบ','รูเอียง เกลียวผิดขนาด หรือ Tap หักค้าง','ผลตรวจ Go / No-Go ไม่ผ่านเกณฑ์ตาม WI'],
+    ['Tap ฝืด เสียงผิดปกติ หรือเศษอุดตัน','น้ำมันหล่อลื่นผิดปกติ Jig หลวม หรือ Tool หมดอายุใช้งาน']],
+   [/bending|พับ|ดัด/,
+    ['มุมพับหรือระยะพับผิดเกณฑ์','Crack: รอยแตกตามแนวพับ','Dent / Scratch: รอยบุบหรือรอยขีดข่วน','บิดงอ พับกลับด้าน หรือพับไม่ครบขั้นตอน'],
+    ['Back Gauge เคลื่อนหรือ Tool / Jig หลวม','แรงกด เสียง การเคลื่อนที่ หรือระบบป้องกันผิดปกติ']],
+   [/sorting|คัด/,
+    ['Scratch / Dent: รอยขีดข่วนหรือรอยบุบ','Crack / Burr: รอยแตกหรือครีบ','Rust / สิ่งปนเปื้อน: สนิม คราบ หรือเศษติด','ประกอบผิด ชิ้นส่วนขาด หรือ Part / Lot ปะปน'],
+    ['แสงไม่พอ Sample OK/NG ไม่ชัด หรือจุดตรวจไม่ตรง Q-Point','เกจชำรุด ป้ายไม่ตรง หรือภาชนะ OK / NG ปะปน']],
+   [/maintenance|ซ่อมบำรุง/,
+    ['อุปกรณ์แตก สึก หลวม หรือการ์ดเสียหาย','น้ำมัน น้ำ หรือลมรั่ว','สายไฟชำรุดหรือจุดต่อไหม้ ให้ผู้มีหน้าที่ตรวจ','อาการเสียซ้ำ หรือผลทดลองหลังซ่อมไม่ผ่านเกณฑ์'],
+    ['เสียง สั่น ความร้อน กลิ่น หรือ Alarm ผิดปกติ','Sensor / Interlock ไม่ทำงาน หรือควบคุมพลังงานไม่ได้']],
+   [/warehouse|\bwh\b|คลัง/,
+    ['Part No. / Lot / Label ไม่ตรง','จำนวนขาด เกิน หรือรับจ่ายผิดรายการ','ชิ้นงานเป็นสนิม บุบ หรือบรรจุภัณฑ์ชำรุด','งาน NG ไม่มีป้าย หรือปะปนกับงานพร้อมจ่าย'],
+    ['ตำแหน่งจัดเก็บผิด FIFO ผิด หรือยอด Stock ไม่ตรง','ชั้นวางเสียหาย งานวางไม่มั่นคง หรือข้อมูลสอบย้อนกลับขาด']],
+   [/quality|\bqc\b|\bqa\b|คุณภาพ/,
+    ['รอยแตก ครีบ รอยบุบ หรือสนิมตาม Q-Point','มิติ เกลียว หรือผลทดสอบไม่ผ่านเกณฑ์ของ Part','ประกอบผิด ชิ้นส่วนขาด หรือ Part / Lot ปะปน','ผลตัดสินไม่ตรง Sample OK/NG ที่อนุมัติ'],
+    ['เครื่องมือวัดชำรุด หมดอายุสอบเทียบ หรือ Zero ไม่ตรง','Drawing / Q-Point คนละ Revision หรือผลตรวจซ้ำไม่สอดคล้อง']]
+  ];
+  const selected=profiles.find(([pattern])=>pattern.test(s));
+  const defects=selected?.[1]||['ชิ้นงานหรือผลลัพธ์ไม่ตรง WI / ข้อกำหนด','Part No. / Lot / Material ผิดหรือปะปน','เอกสารหรือข้อมูลไม่ครบ ไม่ตรง Revision','ผลตรวจหรือหลักฐานยืนยันไม่ผ่านเกณฑ์ของกระบวนการ'];
+  const abnormalities=selected?.[2]||['วิธีทำงาน อุปกรณ์ หรือค่าควบคุมต่างจากมาตรฐาน','ข้อมูล ป้ายสถานะ หรือผลตรวจไม่สอดคล้องกับงานจริง'];
+  return [
+   {topicKey:'process-defects',title:'การสังเกตงานเสียของ '+section,detail:'รู้จักอาการงานเสียและจุดสังเกตเฉพาะกระบวนการ เปรียบเทียบ Sample OK/NG และใช้เกณฑ์ตาม WI / Q-Point ของ Part',points:defects,family:'defect'},
+   {topicKey:'process-abnormalities',title:'การสังเกตและตอบสนองความผิดปกติของ '+section,detail:'รู้สัญญาณผิดปกติระหว่างทำงาน และฝึกหยุด แยกกัก แจ้ง และบันทึกตาม Reaction Plan',points:[...abnormalities,'หยุดงานตามขั้นตอนอย่างปลอดภัย แยกกักและติดป้ายงานต้องสงสัย ระบุ Part / Lot / จำนวน และแจ้ง Leader กับ QC/QA','บันทึกอาการและเวลาที่พบ ตรวจขอบเขตงานต้องสงสัยตาม Reaction Plan ห้ามปรับ Parameter หรือซ่อมเอง ให้ผู้มีอำนาจยืนยันก่อนเริ่มใหม่'],family:'defect'}
+  ];
+ }
  function requiredTopics(section){
   const api=service(),source=api.defaults(section,true).Q1.training+'\n'+api.sectionFocus(window.PPMSOrganizationScope?.sectionKey(section)||section),seen=new Set();
-  return api.trainingItems(source).filter(item=>{const key=item.title.trim().toLowerCase();if(seen.has(key))return false;seen.add(key);return true}).map((item,index)=>({...item,index}));
+  return [...api.trainingItems(source),...observationTopics(section)].filter(item=>{const key=item.title.trim().toLowerCase();if(seen.has(key))return false;seen.add(key);return true}).map((item,index)=>({...item,index}));
  }
  function personalContext(ctx,employee){
   const year=/^\d{4}-\d{2}-\d{2}$/.test(employee.startDate||'')?Number(employee.startDate.slice(0,4)):ctx.year;
@@ -93,5 +145,5 @@
  const init=()=>{const app=document.getElementById('app');if(app)new MutationObserver(()=>{clearTimeout(window.__newEmployeeTrainingMount);window.__newEmployeeTrainingMount=setTimeout(mount,60)}).observe(app,{childList:true,subtree:true});mount()};
  for(const event of ['ppms-quarterly-exams-changed','ppms-exam-result-confirmed','ppms-new-employee-course-changed','ppms-employees-changed','ppms-language-changed'])window.addEventListener(event,mount);
  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();
- window.PPMSNewEmployeeTraining={requiredTopics,personalContext,resultFor,stateOf,mount};
+ window.PPMSNewEmployeeTraining={requiredTopics,observationTopics,personalContext,resultFor,stateOf,mount};
 })();

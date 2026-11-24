@@ -17,6 +17,13 @@
  function readLocal(key){try{return JSON.parse(localStorage.getItem(key)||'null');}catch{return null;}}
  function writeLocal(key,value){localStorage.setItem(key,JSON.stringify(value));if(window.ppmsErrorGuard?.pendingStorageKeys?.().includes(key))throw Error('พื้นที่เก็บฉบับร่างเต็ม');}
  function sanitizePages(values,base){
+  // Extend older NEW courses in memory while retaining every published edit/image.
+  // Only these two appended curriculum topics may be inserted; other mismatches fail.
+  const additions=new Set(['process-defects','process-abnormalities']);
+  const legacy=base.filter(page=>!additions.has(page.topicKey));
+  if(Array.isArray(values)&&base.length-legacy.length===2&&values.length===legacy.length&&values.every((page,i)=>page?.type===legacy[i].type&&page.topicIndex===legacy[i].topicIndex)){
+   let index=0;values=base.map(page=>additions.has(page.topicKey)?copy(page):values[index++]);
+  }
   if(!Array.isArray(values)||values.length!==base.length||values.length>25)throw Error('จำนวนสไลด์ต้องครบตามหลักสูตร และไม่เกิน 25 สไลด์');
   const text=(value,max)=>String(value??'').slice(0,max);
   return base.map((page,i)=>{
