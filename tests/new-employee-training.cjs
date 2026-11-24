@@ -2,7 +2,7 @@ const assert=require('node:assert/strict'),{setup}=require('./app-pages.cjs');
 const wait=ms=>new Promise(r=>setTimeout(r,ms));
 async function until(fn){for(let i=0;i<150;i++){if(fn())return;await wait(10)}throw Error('New employee training did not settle')}
 (async()=>{
- const app=await setup(true,'index.html',{beforeScripts(w){w.HTMLCanvasElement.prototype.getContext=()=>null;}}),w=app.w;
+ const app=await setup(true,'index.html',{beforeScripts(w){w.HTMLCanvasElement.prototype.getContext=()=>null;const NativeDate=w.Date;w.Date=class extends NativeDate{constructor(...args){super(...(args.length?args:['2026-11-24T09:00:00Z']))}static now(){return NativeDate.parse('2026-11-24T09:00:00Z')}}}}),w=app.w;
  const scope={division:'Production Division',plant:'โรง 1'},section='Welding Section';
  const people=[{id:'NEW1',name:'New welder',section,startDate:'2026-11-01',organizationDivision:scope.division,organizationPlant:scope.plant},{id:'NEW2',name:'Second welder',section,startDate:'2026-11-02',organizationDivision:scope.division,organizationPlant:scope.plant},{id:'OTHER',name:'Other plant',section,startDate:'2026-11-01',organizationDivision:scope.division,organizationPlant:'โรง 2'}];
  const db={};let writes=0,failWrite=false;

@@ -179,6 +179,22 @@
         (api?.sameSection(e.section, ctx.section) ?? e.section === ctx.section);
     }).sort((a,b) => String(a.id).localeCompare(String(b.id), undefined, {numeric:true}));
   }
+  function newEmployeeEligible(employee,on=today()){
+    const start=String(employee?.startDate||'');
+    const valid=value=>/^\d{4}-\d{2}-\d{2}$/.test(value)&&!Number.isNaN(Date.parse(value+'T00:00:00Z'))&&new Date(value+'T00:00:00Z').toISOString().slice(0,10)===value;
+    if(!valid(start)||!valid(on)||on<start)return false;
+    const [year,month,day]=start.split('-').map(Number),deadline=new Date(Date.UTC(year,month+1,0));
+    // One calendar month, inclusive; clamp month-end hires to the next month's last day.
+    deadline.setUTCDate(Math.min(day,deadline.getUTCDate()));
+    return on<=deadline.toISOString().slice(0,10);
+  }
+  const newEmployeeRoster=ctx=>roster(ctx).filter(employee=>newEmployeeEligible(employee));
+  function assertNewEmployeeTraining(ctx,record){
+    const eligible=new Map(roster(ctx).map(person=>[String(person.id),person]));
+    if(!record.attendeeIds?.length||record.attendeeIds.some(id=>!newEmployeeEligible(eligible.get(String(id)))))throw Error('อบรมพนักงานใหม่ได้เฉพาะผู้มีอายุงานไม่เกิน 1 เดือนนับจากวันเริ่มงาน');
+    const date=String(record.trainingDate||'');
+    if(date>today()||record.attendeeIds.some(id=>!newEmployeeEligible(eligible.get(String(id)),date)))throw Error('วันที่อบรมต้องอยู่ภายใน 1 เดือนนับจากวันเริ่มงาน และไม่เป็นวันในอนาคต');
+  }
   function summaryOf(record) {
     return {topic:record.topic,trainingDate:record.trainingDate || '',evidenceCount:(record.evidence || []).length,
       trainingCompleted:record.trainingCompleted === true,attendeeIds:record.attendeeIds || [],updatedAt:record.updatedAt || '',...(record.trainingCourse?{courseRevision:record.trainingCourse.revision,courseTopics:record.trainingCourse.topics.map(topic=>topic.title)}:{})};
@@ -249,6 +265,7 @@
     if(!isAdmin())throw Error('บัญชีนี้ไม่มีสิทธิ์บันทึกผลการอบรม');
     if((!trainingRestReady()&&!dbReady())||navigator.onLine===false)throw Error('กรุณาเชื่อมต่ออินเทอร์เน็ตก่อนบันทึกหลักฐาน');
     if(!employees.length||!/^group_[A-Za-z0-9_-]+$/.test(groupId))throw Error('กรุณาเลือกผู้เข้าอบรมอย่างน้อย 1 คน');
+    assertNewEmployeeTraining(ctx,record);
     const entries=employees.map(employee=>({employee,personal:window.PPMSNewEmployeeTraining.personalContext(ctx,employee)}));
     const existing=await Promise.all(entries.map(({personal})=>readTrainingValue(RECORD_ROOT+'/'+personal.year+'/'+personal.sectionKey+'/NEW/bundle/topic')));
     const recorded=employees.filter((_,i)=>existing[i]!=null);
@@ -264,6 +281,7 @@
       updates[RECORD_ROOT+suffix]=value;updates[STATUS_ROOT+suffix]=summaryOf({...value,evidence:record.evidence});
       return {personal,value:{...value,evidence:record.evidence}};
     });
+    assertNewEmployeeTraining(ctx,record);
     if(trainingRestReady())await trainingRequest('',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(updates)},120000);
     else await ensureFirebase().ref().update(updates);
     for(const {personal,value} of saved)rememberRecord(personal,'NEW','bundle',value);
@@ -272,6 +290,7 @@
   async function saveTrainingRecord(ctx, q, topicIndex, record) {
     if (!isAdmin()) throw new Error('บัญชีนี้ไม่มีสิทธิ์บันทึกผลการอบรม');
     if ((!trainingRestReady() && !dbReady()) || navigator.onLine === false) throw new Error('กรุณาเชื่อมต่ออินเทอร์เน็ตก่อนบันทึกหลักฐาน');
+    if(q==='NEW')assertNewEmployeeTraining(ctx,record);
     const suffix = '/' + ctx.year + '/' + ctx.sectionKey + '/' + q + '/' + topicIndex;
     // Commit evidence and its small dashboard summary atomically; never download attachments for the four cards.
     const updates = {[RECORD_ROOT + suffix]:record,[STATUS_ROOT + suffix]:summaryOf(record)};
@@ -559,7 +578,7 @@
   function attendeePicker(ctx,current,groupEmployees) {
     const ids=new Set((current.attendeeIds || []).map(String));
     // Legacy names are retained in the text field until an administrator links employee IDs.
-    return '<fieldset class="full training-attendee-picker"><legend>เลือกผู้เข้าอบรม (เชื่อมสถานะสอบรายคน)</legend><input type="search" data-training-person-search placeholder="ค้นหา รหัส ชื่อ หรือวันเริ่มงาน"><div class="actions"><button type="button" class="secondary" data-training-select-all>เลือกทุกคนที่แสดง</button><button type="button" class="secondary" data-training-clear>ล้างที่เลือก</button><span data-training-selected-count role="status"></span></div>'+(groupEmployees?'<p class="modal-note">เลือกพนักงานใหม่ใน Section นี้ กรอกข้อมูลและแนบหลักฐานครั้งเดียว ระบบจะบันทึกแยกเป็นรายคน · ผู้ที่มีบันทึกแล้วให้แก้ไขจากหน้ารายคน</p>':'')+'<div class="training-attendee-list">'+(groupEmployees||roster(ctx)).map(e=>'<label data-person-search="'+esc([e.id,e.name,e.thaiName,...(groupEmployees?[e.startDate]:[])].join(' ').toLowerCase())+'"><input type="checkbox" name="attendeeIds" value="'+esc(e.id)+'" '+(ids.has(String(e.id))?'checked':'')+' '+(groupEmployees&&!e.startDate?'disabled':'')+'> '+esc(e.id)+' · '+esc(e.thaiName || e.name)+(groupEmployees?' · '+esc(e.startDate||'กรุณาระบุวันเริ่มงานก่อน'):'')+'</label>').join('')+'</div></fieldset>';
+    return '<fieldset class="full training-attendee-picker"><legend>เลือกผู้เข้าอบรม (เชื่อมสถานะสอบรายคน)</legend><input type="search" data-training-person-search placeholder="ค้นหา รหัส ชื่อ หรือวันเริ่มงาน"><div class="actions"><button type="button" class="secondary" data-training-select-all>เลือกทุกคนที่แสดง</button><button type="button" class="secondary" data-training-clear>ล้างที่เลือก</button><span data-training-selected-count role="status"></span></div>'+(groupEmployees?'<p class="modal-note">เลือกพนักงานใหม่อายุงานไม่เกิน 1 เดือนใน Section นี้ กรอกข้อมูลและแนบหลักฐานครั้งเดียว ระบบจะบันทึกแยกเป็นรายคน · ผู้ที่มีบันทึกแล้วให้แก้ไขจากหน้ารายคน</p>':'')+'<div class="training-attendee-list">'+(groupEmployees||roster(ctx)).map(e=>'<label data-person-search="'+esc([e.id,e.name,e.thaiName,...(groupEmployees?[e.startDate]:[])].join(' ').toLowerCase())+'"><input type="checkbox" name="attendeeIds" value="'+esc(e.id)+'" '+(ids.has(String(e.id))?'checked':'')+' '+(groupEmployees&&!e.startDate?'disabled':'')+'> '+esc(e.id)+' · '+esc(e.thaiName || e.name)+(groupEmployees?' · '+esc(e.startDate||'กรุณาระบุวันเริ่มงานก่อน'):'')+'</label>').join('')+'</div></fieldset>';
   }
   function openTrainingRecordEditor(ctx, q, quarter, index, item, existing, onSaved, options={}) {
     options={...options,employee:options.employee?{...options.employee}:null,groupEmployees:options.groupEmployees?.map(person=>({...person}))};
@@ -612,6 +631,7 @@
         if(groupPeople&&(!groupPeople.length||groupPeople.length!==attendeeIds.length))throw Error('กรุณาเลือกผู้เข้าอบรมอย่างน้อย 1 คน');
         const newPeople=groupPeople||(options.employee?[options.employee]:[]);
         if(newPeople.some(person=>!/^\d{4}-\d{2}-\d{2}$/.test(person.startDate||'')||eligible.get(String(person.id))?.startDate!==person.startDate))throw Error('ข้อมูลวันเริ่มงานเปลี่ยนไปหรือยังไม่ครบ กรุณาเปิดฟอร์มใหม่');
+        if(q==='NEW'&&newPeople.some(person=>!newEmployeeEligible(eligible.get(String(person.id)))))throw Error('อบรมพนักงานใหม่ได้เฉพาะผู้มีอายุงานไม่เกิน 1 เดือนนับจากวันเริ่มงาน');
         if(newPeople.some(person=>String(fd.get('trainingDate'))<person.startDate))throw Error('วันที่อบรมต้องไม่ก่อนวันเริ่มงานของผู้เข้าอบรม');
         if ((fd.has('trainingCompleted') || kept.length+added.length) && !attendeeIds.length && !lines(fd.get('attendees')).length) throw Error('กรุณาเลือกหรือระบุผู้เข้าอบรมอย่างน้อย 1 คน');
         const additionalAttendees=options.employee||options.groupEmployees?[]:lines(fd.get('attendees'));
@@ -757,7 +777,7 @@
       title.textContent = 'Training & Examination Plan';
     }
   }
-  window.PPMSTrainingPlanService={defaults,readPlan,trainingContext,trainingItems,readTrainingValue,esc,safeKey,readEvidenceFile,validateEvidence,evidenceLimits:EVIDENCE_LIMITS,sectionFocus,roster,isAdmin,summaryOf,trainingDone,readTrainingRecord,openTrainingRecordEditor,topicState,evidenceHtml};
+  window.PPMSTrainingPlanService={defaults,readPlan,trainingContext,trainingItems,readTrainingValue,esc,safeKey,readEvidenceFile,validateEvidence,evidenceLimits:EVIDENCE_LIMITS,sectionFocus,roster,newEmployeeEligible,newEmployeeRoster,isAdmin,summaryOf,trainingDone,readTrainingRecord,openTrainingRecordEditor,topicState,evidenceHtml};
   window.addEventListener('ppms-quarterly-exams-changed',()=>{
     const host=document.getElementById('examPlanDetailsV592'),ctx=host?.__trainingContext,plan=host?.__trainingPlan;
     if(!ctx||!plan)return;

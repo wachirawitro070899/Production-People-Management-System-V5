@@ -2,7 +2,7 @@ const assert=require('node:assert/strict'),{setup}=require('./app-pages.cjs');
 const wait=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 async function until(fn){for(let i=0;i<200;i++){if(fn())return;await wait(10)}throw Error('Group training did not settle')}
 (async()=>{
- const fixture=await setup(true,'index.html'),w=fixture.w,scope={division:'Production Division',plant:'โรง 1'},section='Welding Section';
+ const fixture=await setup(true,'index.html',{beforeScripts(w){const NativeDate=w.Date;w.Date=class extends NativeDate{constructor(...args){super(...(args.length?args:['2026-11-24T09:00:00Z']))}static now(){return NativeDate.parse('2026-11-24T09:00:00Z')}}}}),w=fixture.w,scope={division:'Production Division',plant:'โรง 1'},section='Welding Section';
  const people=[
   {id:'GROUP1',name:'New welder one',section,startDate:'2026-11-01'},
   {id:'GROUP2',name:'New welder two',section,startDate:'2026-11-02'},
@@ -29,7 +29,7 @@ async function until(fn){for(let i=0;i<200;i++){if(fn())return;await wait(10)}th
   const api=w.PPMSNewEmployeeTraining,ctx=w.document.querySelector('#newEmployeeTrainingV974').__ctx;
   const details=w.document.querySelector('[data-new-employee-details]');details.open=true;details.dispatchEvent(new w.Event('toggle'));
   async function openGroup(){w.document.querySelector('[data-new-group-record]').click();await until(()=>w.document.querySelector('.training-attendee-picker'));return w.document.querySelector('.training-record-editor')}
-  let form=await openGroup();assert(!form.querySelector('[value=OTHER]'));assert(!form.querySelector('[value=STAMP]'));assert(form.querySelector('[value=MISSING]').disabled);
+  let form=await openGroup();assert(!form.querySelector('[value=OTHER]'));assert(!form.querySelector('[value=STAMP]'));assert(!form.querySelector('[value=MISSING]'),'Missing start dates are excluded');
   const search=form.querySelector('[data-training-person-search]');search.value='GROUP1';search.dispatchEvent(new w.Event('input',{bubbles:true}));form.querySelector('[data-training-select-all]').click();assert.deepEqual([...form.querySelectorAll('[name=attendeeIds]:checked')].map(box=>box.value),['GROUP1']);
   form.querySelector('[data-training-clear]').click();search.value='';search.dispatchEvent(new w.Event('input',{bubbles:true}));
   for(const id of ['GROUP1','GROUP2']){const box=form.querySelector('[name=attendeeIds][value='+id+']');box.checked=true;box.dispatchEvent(new w.Event('change',{bubbles:true}))}
