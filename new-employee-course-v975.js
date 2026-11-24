@@ -18,7 +18,7 @@
  function compile(base,record){
   const deck=copy(base.deck);if(record){if(record.topic!==deck.source.topic)throw Error('ชื่อหลักสูตรไม่ตรงกับสไลด์ที่บันทึกไว้');deck.pages=window.PPMSTrainingLessonEditor.sanitizePages(record.pages,deck.pages)}
   const revision=hash(JSON.stringify([base.ctx.scope,base.ctx.section,deck.pages]));
-  const topics=deck.pages.filter(page=>Number.isInteger(page.topicIndex)).map(page=>({index:page.topicIndex,title:page.title,detail:[page.lead,...page.points].filter(Boolean).join('\n'),facts:[page.lead,...page.points].map(value=>String(value||'').trim()).filter(Boolean)}));
+  const topics=deck.pages.filter(page=>Number.isInteger(page.topicIndex)).map(page=>({index:page.topicIndex,title:page.title,skillKey:window.PPMSSkillTraining?.resolve(base.ctx.section,{title:page.title})||'',detail:[page.lead,...page.points].filter(Boolean).join('\n'),facts:[page.lead,...page.points].map(value=>String(value||'').trim()).filter(Boolean)}));
   const snapshot={kind:'new-employee-course',section:base.ctx.section,year:base.ctx.year,quarter:'NEW',organizationDivision:base.ctx.scope.division,organizationPlant:base.ctx.scope.plant,revision,slideCount:deck.pages.length,topics:topics.map(({facts,...topic})=>topic),method:base.input.quarter.method,criteria:base.input.quarter.criteria};
   return {...base,deck,topics,snapshot,revision,at:Date.now(),path:window.PPMSTrainingLessonEditor.identity(base.input)};
  }
@@ -34,12 +34,12 @@
   const count=Number(input.count)||40,used=new Set();
   return Array.from({length:count},(_,i)=>{
    const topic=course.topics[i%course.topics.length],saved=bank.find(q=>q.trainingPlanRevision===course.revision&&Number(q.trainingTopicIndex)===topic.index&&Array.isArray(q.options)&&q.options.length===4&&Number.isInteger(Number(q.correct))&&Number(q.correct)>=0&&Number(q.correct)<4&&!used.has(q.text));
-   if(saved){used.add(saved.text);return {...copy(saved),trainingTopic:topic.title,trainingTopicIndex:topic.index,trainingPlanRevision:course.revision}}
+   if(saved){used.add(saved.text);return {...copy(saved),skill:topic.skillKey||topic.title,skillKey:topic.skillKey,trainingTopic:topic.title,trainingTopicIndex:topic.index,trainingPlanRevision:course.revision}}
    const position=Math.floor(i/course.topics.length),factIndex=position%topic.facts.length,fact=topic.facts[factIndex];
    const prompts=['สาระสำคัญที่ต้องเข้าใจ','แนวทางปฏิบัติประเด็นที่ 1','แนวทางปฏิบัติประเด็นที่ 2','จุดตรวจยืนยันประเด็นที่ 1','จุดตรวจยืนยันประเด็นที่ 2'];
    const options=[fact,'ข้ามขั้นตอนที่กำหนดเพื่อให้งานเสร็จเร็วขึ้น','ใช้วิธีเดิมโดยไม่ตรวจ WI / Q-Point หรือยืนยันกับผู้สอน','ทำงานต่อเมื่อพบความผิดปกติ โดยไม่แยกงานและไม่แจ้งผู้รับผิดชอบ'];
    const shift=parseInt(hash([input.section,input.setName,i,course.revision].join('|')),16)%4;
-   return {id:'new-course-'+course.revision+'-'+(input.setName||'A')+'-'+i,text:'ตามสไลด์ “'+topic.title+'” '+prompts[factIndex]+' คือข้อใด?',skill:topic.title,level:Number(input.level)||1,options:options.map((_,j)=>options[(j+shift)%4]),correct:(4-shift)%4,explanation:fact,source:'new-employee-course',trainingTopic:topic.title,trainingTopicIndex:topic.index,trainingPlanRevision:course.revision};
+   return {id:'new-course-'+course.revision+'-'+(input.setName||'A')+'-'+i,text:'ตามสไลด์ “'+topic.title+'” '+prompts[factIndex]+' คือข้อใด?',skill:topic.skillKey||topic.title,skillKey:topic.skillKey,level:Number(input.level)||1,options:options.map((_,j)=>options[(j+shift)%4]),correct:(4-shift)%4,explanation:fact,source:'new-employee-course',trainingTopic:topic.title,trainingTopicIndex:topic.index,trainingPlanRevision:course.revision};
   });
  }
  function loadingMarkup(input){return '<section class="panel" data-new-course-loading data-context="'+esc(JSON.stringify(input))+'"><h3>ข้อสอบพนักงานใหม่อิงสไลด์อบรมของ Section</h3><p role="status">กำลังโหลดหลักสูตรเดียวกับสไลด์อบรม…</p><button type="button" disabled>ลองโหลดหลักสูตรอีกครั้ง</button></section>'}

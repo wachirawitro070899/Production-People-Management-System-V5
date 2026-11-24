@@ -43,9 +43,9 @@
     return 'Safety — อันตรายของพื้นที่ PPE จุดฉุกเฉิน และช่องทางแจ้งเหตุ\nWI / SOP — ลำดับงาน เงื่อนไขสำคัญ และข้อห้ามของตำแหน่ง\nQuality และ Defect Criteria — เกณฑ์ OK/NG ตัวอย่างมาตรฐาน และการกักงาน\n5S — แยกของ จัดวาง ทำความสะอาด รักษามาตรฐาน และสร้างวินัย\nAbnormal Response — หยุดงาน แยกของ แจ้งหัวหน้า และบันทึกเหตุการณ์';
   }
 
-  function defaults(section) {
+  function defaults(section,legacy=false) {
     const focus = sectionFocus(section);
-    return {
+    const plan = {
       Q1: {
         training: 'Safety ประจำพื้นที่ — รู้จุดอันตราย จุดหนีบ/จุดหมุน แหล่งพลังงาน เส้นทางหนีไฟ และปุ่ม Emergency Stop\nPPE ประจำงาน — เลือก สวม ตรวจสภาพ และเปลี่ยน PPE ให้เหมาะกับความเสี่ยงของงาน\nWI / SOP — อ่านเอกสาร Revision ล่าสุด เข้าใจลำดับงาน เงื่อนไขควบคุม และข้อห้าม\nQ-Point — ระบุจุดตรวจ วิธีตรวจ ความถี่ Sample และเกณฑ์ OK/NG ของ Part ที่รับผิดชอบ\n5S — แยกสิ่งของ จัดตำแหน่ง ทำความสะอาด ตรวจมาตรฐาน และรักษาวินัยประจำพื้นที่\nAbnormal Response — เมื่อพบเครื่อง/Material/ชิ้นงานผิดปกติ ให้หยุด แยก แจ้ง และบันทึกก่อนเริ่มงานต่อ\nBasic OJT — ฝึกเริ่มงาน ผลิต ตรวจ บันทึก และจบงานตามขั้นตอนโดยมีผู้สอนประเมิน',
         exam: 'Safety และตำแหน่งอุปกรณ์ฉุกเฉิน\nการเลือกและใช้ PPE\nลำดับ WI / SOP และข้อห้าม\nQ-Point และเกณฑ์ OK/NG\n5S ประจำพื้นที่\nขั้นตอน Stop–Segregate–Report–Record',
@@ -71,6 +71,7 @@
         criteria: 'ข้อสอบ 20 ข้อ ผ่านอย่างน้อย 80% • Case Study และภาคปฏิบัติผ่าน • Skill Matrix มีผลประเมินและแผนพัฒนาปีถัดไป'
       }
     };
+    return legacy?plan:window.PPMSSkillTraining?.defaults(section,plan)||plan;
   }
 
   function localRead(key) {
@@ -138,9 +139,9 @@
   function readPlan(ctx) {
     if (planRequests.has(ctx.key)) return planRequests.get(ctx.key);
     if ((!trainingRestReady() && !dbReady()) || navigator.onLine === false) return Promise.reject(new Error('ยังไม่เชื่อมต่อฐานข้อมูล'));
-    const request = readTrainingValue(ROOT + '/' + ctx.year + '/' + ctx.sectionKey).then(cloud => {
+    const request = Promise.all([readTrainingValue(ROOT + '/' + ctx.year + '/' + ctx.sectionKey),readTrainingValue(STATUS_ROOT+'/'+ctx.year+'/'+ctx.sectionKey)]).then(([cloud,status]) => {
       const plan = defaults(ctx.section);
-      QUARTERS.forEach(q => { if (cloud?.[q]) plan[q] = {...cloud[q], _saved:true}; });
+      QUARTERS.forEach(q => { if (cloud?.[q]) plan[q] = {...cloud[q], _saved:true};else if(Object.values(status?.[q]||{}).some(r=>r?.topic))plan[q]=defaults(ctx.section,true)[q]; });
       try { localWrite(ctx.key, plan); } catch (_) {}
       freshPlans.set(ctx.key, {plan, at:Date.now()});
       return plan;
@@ -336,7 +337,7 @@
     return '<article class="exam-detail-card" data-training-quarter="' + q + '"><div class="exam-detail-head"><h4>' + q + '</h4><span>' + months[q] + '</span></div>' +
       '<p class="training-plan-state">' + (data._saved ? esc(planStates[data.planStatus] || planStates.planned) : 'แผนแนะนำ · ยังไม่ได้บันทึก') + '</p>' +
       quarterProgress(ctx,q,data) +
-      '<h5>หัวข้อการเทรนนิ่ง (' + trainingItems(data.training).length + ')</h5><ol class="training-plan-topics">' + trainingItems(data.training).map(item => '<li><button type="button" data-plan-topic="' + item.index + '" data-quarter="' + q + '">' + esc(item.title) + '</button>' + topicBadge(ctx,q,item) + '<button type="button" class="training-slides-action no-print" data-plan-slides="'+item.index+'" data-quarter="'+q+'">เปิดสไลด์อบรม</button>' + '<button type="button" class="training-materials-action no-print" data-plan-materials="'+item.index+'" data-quarter="'+q+'">'+(isAdmin()?'ไฟล์สไลด์ / อัปโหลด':'ไฟล์สไลด์ที่จัดเก็บ')+'</button>' + '<button type="button" class="training-signature-action no-print" data-plan-signature="'+item.index+'" data-quarter="'+q+'">พิมพ์ใบลงชื่ออบรม</button>' + (isAdmin()?'<button type="button" class="training-evidence-action no-print" data-plan-evidence="'+item.index+'" data-quarter="'+q+'">บันทึกอบรม / หลักฐาน</button>':'') + '</li>').join('') + '</ol>' +
+      '<h5>หัวข้อการเทรนนิ่ง (' + trainingItems(data.training).length + ')</h5><ol class="training-plan-topics">' + trainingItems(data.training).map(item => '<li><button type="button" data-plan-topic="' + item.index + '" data-quarter="' + q + '">' + esc(item.title) + '</button>' + (window.PPMSSkillTraining?.badge(ctx.section,item,data)||'') + topicBadge(ctx,q,item) + '<button type="button" class="training-slides-action no-print" data-plan-slides="'+item.index+'" data-quarter="'+q+'">เปิดสไลด์อบรม</button>' + '<button type="button" class="training-materials-action no-print" data-plan-materials="'+item.index+'" data-quarter="'+q+'">'+(isAdmin()?'ไฟล์สไลด์ / อัปโหลด':'ไฟล์สไลด์ที่จัดเก็บ')+'</button>' + '<button type="button" class="training-signature-action no-print" data-plan-signature="'+item.index+'" data-quarter="'+q+'">พิมพ์ใบลงชื่ออบรม</button>' + (isAdmin()?'<button type="button" class="training-evidence-action no-print" data-plan-evidence="'+item.index+'" data-quarter="'+q+'">บันทึกอบรม / หลักฐาน</button>':'') + '</li>').join('') + '</ol>' +
       planMeta(data) + '<p><b>วิธีอบรม:</b> ' + esc(data.method || '-') + '</p><div class="actions no-print"><button type="button" class="exam-detail-view-button" data-exam-detail-view="' + q + '">ดูรายละเอียด ' + q + '</button>' + (isAdmin() ? '<button type="button" class="secondary" data-plan-edit="' + q + '">แก้ไขแผน ' + q + '</button>' : '') + '</div></article>';
   }
   function enhance() {
@@ -437,7 +438,7 @@
     overlay.innerHTML = '<section class="exam-detail-viewer" role="dialog" aria-modal="true" aria-label="รายละเอียด ' + q + '">' +
       '<div class="exam-viewer-head"><div><span class="exam-viewer-quarter">' + q + '</span><h2>รายละเอียด Training & Examination</h2><p>' + esc(ctx.section) + ' • ปี ' + esc(ctx.year) + '</p></div><button type="button" class="secondary" data-close>ปิด</button></div>' +
       '<div class="exam-viewer-section training"><h3>📘 หัวข้อการเทรนนิ่ง</h3><p class="exam-topic-hint">กดหัวข้อเพื่อดูรายละเอียดว่าอบรมอะไรและฝึกอย่างไร</p>' + trainingTopicHtml(current.training) + '</div>' +
-      '<div class="exam-viewer-section exam"><h3>📝 หัวข้อ Examination</h3>' + listHtml(current.exam) + '</div>' +
+      '<div class="exam-viewer-section exam"><h3>📝 หัวข้อ Examination</h3>' + listHtml(trainingItems(current.training).map(item=>item.title).join('\n')) + '</div>' +
       planMeta(current) + '<div class="exam-viewer-meta"><p><b>วิธีดำเนินการ:</b> ' + esc(current.method || '-') + '</p><p><b>เกณฑ์ผ่าน:</b> ' + esc(current.criteria || '-') + '</p></div>' +
       (isAdmin() ? '<div class="actions"><button type="button" data-edit>แก้ไขรายละเอียด ' + q + '</button></div>' : '') + '</section>';
     overlay.querySelector('[data-close]').onclick = () => overlay.remove();
@@ -461,7 +462,7 @@
       '<article><h3>📚 เนื้อหาที่ต้องอบรม</h3><p>' + esc(item.detail) + '</p></article>' +
       '<article><h3>🛠️ วิธีอบรมและฝึกปฏิบัติ</h3><p>' + esc(quarter.method || 'ผู้สอนอธิบายมาตรฐาน สาธิต แล้วให้พนักงานฝึกปฏิบัติจริง') + '</p></article>' +
       '<article><h3>✅ การประเมินผล</h3><p>' + esc(quarter.criteria || 'ประเมินความเข้าใจและตรวจการปฏิบัติงานจริง') + '</p></article></div>' +
-      '<div class="exam-topic-related"><h3>📝 หัวข้อสอบที่เกี่ยวข้อง</h3>' + listHtml(quarter.exam) + '</div>' +
+      '<div class="exam-topic-related"><h3>📝 หัวข้อสอบที่เกี่ยวข้อง</h3>' + listHtml(item.title+' — '+item.detail) + '</div>' +
       '<div class="training-record-panel" data-record-panel><h3>📋 แบบฟอร์มและหลักฐานการอบรม</h3><p>กำลังตรวจสอบข้อมูลการอบรม...</p></div>' +
       '<div class="actions"><button type="button" data-print-signature>พิมพ์ใบลงชื่ออบรม</button><button type="button" data-training-form disabled>แนบหลักฐาน / บันทึกผลอบรม</button><button type="button" class="secondary" data-print-training disabled>พิมพ์ผลอบรม / หลักฐาน</button></div></section>';
     overlay.querySelector('[data-close]').onclick = () => overlay.remove();
@@ -628,12 +629,14 @@
       '<label>กลุ่มเป้าหมาย<input name="targetGroup" maxlength="300" value="' + esc(current.targetGroup || 'พนักงานทุกคนใน Section') + '"></label>' +
       '<label>สถานะแผน<select name="planStatus">' + Object.entries(planStates).map(([key,label]) => '<option value="' + key + '" ' + (key === (current.planStatus || 'planned') ? 'selected' : '') + '>' + label + '</option>').join('') + '</select></label>' +
       '<label>หัวข้อและรายละเอียด Training (1 บรรทัดต่อ 1 หัวข้อ พร้อมอธิบายสิ่งที่ต้องสอน)<textarea name="training" rows="7" required>' + esc(current.training) + '</textarea></label>' +
-      '<label>หัวข้อ Examination (1 บรรทัดต่อ 1 หัวข้อ)<textarea name="exam" rows="7" required>' + esc(current.exam) + '</textarea></label>' +
+      '<div data-skill-links></div><p>หัวข้อ Examination ใช้หัวข้อเดียวกับ Training และเนื้อหาสไลด์ที่บันทึกไว้</p>' +
       '<label>วิธีดำเนินการ<input name="method" value="' + esc(current.method) + '" required></label>' +
       '<label>เกณฑ์ผ่าน<input name="criteria" value="' + esc(current.criteria) + '" required></label>' +
       '<div class="actions"><button type="submit">บันทึกแผน ' + q + '</button><button type="button" class="secondary" data-close>ยกเลิก</button></div></form>';
     overlay.querySelector('[data-close]').onclick = () => overlay.remove();
     overlay.onclick = event => { if (event.target === overlay) overlay.remove(); };
+    const linkHost=overlay.querySelector('[data-skill-links]'),trainingField=overlay.querySelector('[name=training]');
+    const drawLinks=()=>{if(!linkHost||!window.PPMSSkillTraining)return;const api=window.PPMSSkillTraining,existing={...current.skillLinks};for(const select of linkHost.querySelectorAll('select'))existing[select.dataset.topic]=select.value;linkHost.innerHTML='<h3>เชื่อมหัวข้อกับ Skill Matrix</h3>'+trainingItems(trainingField.value).map(item=>{const name=api.normalize(item.title),key=api.resolve(ctx.section,item,{skillLinks:existing});return '<label>'+esc(item.title)+'<select data-topic="'+esc(name)+'"><option value="">หัวข้อเสริม (ไม่ปรับ Skill)</option>'+api.skills(ctx.section).map(skill=>'<option '+(skill===key?'selected':'')+'>'+esc(skill)+'</option>').join('')+'</select></label>'}).join('')};drawLinks();if(trainingField)trainingField.addEventListener('change',drawLinks);
     overlay.querySelector('form').onsubmit = async event => {
       event.preventDefault();
       const form = event.currentTarget, submit = form.querySelector('[type="submit"]');
@@ -646,7 +649,8 @@
         const draft = {...plan, [q]: {
           plannedDate:date, trainer:String(fd.get('trainer') || '').trim(), targetGroup:String(fd.get('targetGroup') || '').trim(), planStatus:String(fd.get('planStatus') || 'planned'),
           training: String(fd.get('training') || '').trim(),
-          exam: String(fd.get('exam') || '').trim(),
+          exam:trainingItems(String(fd.get('training')||'')).map(item=>item.title).join('\n'),
+          skillLinks:Object.fromEntries([...linkHost.querySelectorAll('select')].map(select=>[select.dataset.topic,select.value])),
           method: String(fd.get('method') || '').trim(),
           criteria: String(fd.get('criteria') || '').trim()
         }};
@@ -713,7 +717,7 @@
       title.textContent = 'Training & Examination Plan';
     }
   }
-  window.PPMSTrainingPlanService={defaults,trainingContext,trainingItems,readTrainingValue,esc,safeKey,readEvidenceFile,validateEvidence,evidenceLimits:EVIDENCE_LIMITS,sectionFocus,roster,isAdmin,summaryOf,trainingDone,readTrainingRecord,openTrainingRecordEditor,topicState,evidenceHtml};
+  window.PPMSTrainingPlanService={defaults,readPlan,trainingContext,trainingItems,readTrainingValue,esc,safeKey,readEvidenceFile,validateEvidence,evidenceLimits:EVIDENCE_LIMITS,sectionFocus,roster,isAdmin,summaryOf,trainingDone,readTrainingRecord,openTrainingRecordEditor,topicState,evidenceHtml};
   window.addEventListener('ppms-quarterly-exams-changed',()=>{
     const host=document.getElementById('examPlanDetailsV592'),ctx=host?.__trainingContext,plan=host?.__trainingPlan;
     if(!ctx||!plan)return;

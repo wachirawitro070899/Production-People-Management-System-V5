@@ -6,7 +6,8 @@
  const plans=new Map(),jobs=new Map(),notices=new Map(),noticeJobs=new Map();
  const hash=value=>{let h=2166136261;for(const c of String(value)){h^=c.charCodeAt(0);h=Math.imul(h,16777619)}return(h>>>0).toString(16);};
  const normalize=v=>String(v||'').normalize('NFKC').toLowerCase().replace(/[^a-z0-9ก-๙]+/g,' ').trim();
- const key=input=>{const ctx=trainingContext(input);return ctx.key+'__'+input.quarter;};
+ const quarterOf=input=>/^Q[1-4]$/.test(input.quarter)?input.quarter:(input.trainingQuarter||'Q'+Math.ceil(Number(new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Bangkok',month:'numeric'}).format(new Date()))/3));
+ const key=input=>{const ctx=trainingContext(input);return ctx.key+'__'+quarterOf(input);};
  const revision=plan=>hash(JSON.stringify([plan.training||'',plan.exam||'',plan.method||'',plan.criteria||'']));
  const tags=[
   ['safety',/safety|ppe|ความปลอดภัย|ฉุกเฉิน|emergency|loto/i],['5s',/5s|5ส|สะสาง|สะดวก|สะอาด/i],
@@ -29,31 +30,45 @@
  }
  function snapshot(input){const state=plans.get(key(input));return state?JSON.parse(JSON.stringify(state.snapshot)):null;}
  async function prepare(input){
-  const k=key(input);if(plans.has(k))return plans.get(k);if(jobs.has(k))return jobs.get(k);
+  const k=key(input);if(plans.has(k)&&Date.now()-plans.get(k).at<60000)return plans.get(k);if(jobs.has(k))return jobs.get(k);
   const ctx=trainingContext(input);
-  const job=readTrainingValue('ppmsExamPlanDetails/'+ctx.year+'/'+ctx.sectionKey).then(data=>{
-   const saved=data?.[input.quarter],plan=saved||defaults(ctx.section)[input.quarter];
+  const job=(service.readPlan?service.readPlan(ctx):readTrainingValue('ppmsExamPlanDetails/'+ctx.year+'/'+ctx.sectionKey)).then(async data=>{
+   const quarter=quarterOf(input),saved=data?.[quarter],plan=saved||defaults(ctx.section)[quarter];
    if(!plan)throw Error('ไม่พบแผนอบรมสำหรับไตรมาสนี้');
    const topics=trainingItems(plan.training);if(!topics.length)throw Error('กรุณากำหนดหัวข้ออบรมก่อนออกข้อสอบ');
-   const state={ctx,quarter:input.quarter,plan,topics,snapshot:{section:ctx.section,year:ctx.year,quarter:input.quarter,organizationDivision:ctx.scope.division,organizationPlant:ctx.scope.plant,revision:revision(plan),source:saved?'saved-plan':'suggested-plan',topics:topics.map(t=>({index:t.index,title:t.title,detail:t.detail})),method:plan.method||'',criteria:plan.criteria||''}};
+   const aligned=!!window.PPMSSkillTraining;
+   const compiled=await Promise.all(topics.map(async topic=>{
+    const skillKey=window.PPMSSkillTraining?.resolve(ctx.section,topic,plan)||'';
+    if(!window.PPMSTrainingLessons||!window.PPMSTrainingLessonEditor)return {...topic,skillKey};
+    const lessonInput={ctx,q:quarter,quarter:plan,item:topic},deck=window.PPMSTrainingLessons.build(lessonInput),path=window.PPMSTrainingLessonEditor.identity(lessonInput);
+    const record=await readTrainingValue(path);
+    if(record){if(record.topic!==topic.title)throw Error('ชื่อสไลด์ไม่ตรงกับแผนอบรม');deck.pages=window.PPMSTrainingLessonEditor.sanitizePages(record.pages,deck.pages)}
+    const facts=deck.pages.filter(p=>['flow','check','case','list','practice'].includes(p.type)).flatMap(p=>p.points||[]).map(String).filter(Boolean);
+    const quiz=deck.pages.flatMap(p=>p.questions||[]).filter(q=>q.question&&q.answer);
+    return {...topic,skillKey,facts,quiz,lessonRevision:hash(JSON.stringify(deck.pages))};
+   }));
+   const rev=aligned?hash(JSON.stringify([revision(plan),compiled.map(t=>[t.skillKey,t.lessonRevision||''])])):revision(plan);
+   const state={ctx,quarter,plan,aligned,at:Date.now(),topics:compiled,snapshot:{section:ctx.section,year:ctx.year,quarter,organizationDivision:ctx.scope.division,organizationPlant:ctx.scope.plant,revision:rev,source:plan._saved?'saved-plan':'suggested-plan',topics:compiled.map(t=>({index:t.index,title:t.title,detail:t.detail,skillKey:t.skillKey,lessonRevision:t.lessonRevision||''})),method:plan.method||'',criteria:plan.criteria||''}};
    plans.set(k,state);return state;
   }).finally(()=>jobs.delete(k));jobs.set(k,job);return job;
  }
- function planQuestion(topic,input,index,planRevision){
-  const detail=topic.detail||topic.title,variant=index%3;
+ function planQuestion(topic,input,index,planRevision,position=0){
+  const quiz=position<(topic.quiz?.length||0)?topic.quiz[position]:null,facts=topic.facts||[],detail=quiz?.answer||facts[Math.max(0,position-(topic.quiz?.length||0))%facts.length]||topic.detail||topic.title,variant=index%3;
   const prompts=[`ตามแผนอบรม ${input.quarter} หัวข้อ “${topic.title}” จุดควบคุมหรือวิธีปฏิบัติที่กำหนดคือข้อใด?`,`การปฏิบัติงานข้อใดสอดคล้องกับเนื้อหาอบรม ${input.quarter} หัวข้อ “${topic.title}”?`,`เมื่อต้องยืนยันความเข้าใจเรื่อง “${topic.title}” ตามแผน ${input.quarter} ควรอ้างอิงข้อใด?`];
   const choices=[detail,'ข้ามจุดควบคุมที่กำหนดเพื่อทำงานให้เร็วขึ้น','ใช้วิธีตามความเคยชินโดยไม่ตรวจมาตรฐานที่กำหนด','ดำเนินงานต่อโดยไม่บันทึกหรือแจ้งเมื่อพบความผิดปกติ'];
   const shift=parseInt(hash([input.section,input.quarter,input.setName,index,planRevision].join('|')),16)%4;
-  return {id:'training-'+planRevision+'-'+input.setName+'-'+index,skill:topic.title,level:Number(input.level)||1,text:prompts[variant],options:choices.map((_,i)=>choices[(i+shift)%4]),correct:(4-shift)%4,explanation:detail,source:'training-plan'};
+  return {id:'training-'+planRevision+'-'+input.setName+'-'+index,skill:topic.title,level:Number(input.level)||1,text:quiz?'ตามสไลด์ “'+topic.title+'” '+quiz.question+' (เลือกคำตอบที่ถูกต้อง)':prompts[variant],options:choices.map((_,i)=>choices[(i+shift)%4]),correct:(4-shift)%4,explanation:detail,source:'training-plan'};
  }
  function questions(input,bank,pool=[]){
   const state=plans.get(key(input));if(!state)throw Error('ยังโหลดแผนอบรมไม่สำเร็จ');
-  const {topics}=state,rev=state.snapshot.revision,count=Number(input.count)||20,used=new Set();
+  const topics=input.examType==='upskill'&&input.targetSkills?.length?state.topics.filter(t=>input.targetSkills.includes(t.skillKey)):state.topics;
+  if(!topics.length)throw Error('ไม่มีหัวข้ออบรมที่ตรงกับสกิลเป้าหมาย กรุณาเพิ่มหัวข้อในแผนอบรมก่อนสอบ');
+  const rev=state.snapshot.revision,count=Number(input.count)||20,used=new Set();
   const candidates=[...(bank||[]),...pool].filter(q=>q&&q.text&&Array.isArray(q.options)&&q.options.length===4&&Number.isInteger(Number(q.correct))&&Number(q.correct)>=0&&Number(q.correct)<4);
   return Array.from({length:count},(_,i)=>{
-   const topic=topics[i%topics.length],matches=candidates.filter(q=>!used.has(normalize(q.text))).map(q=>({q,score:match(q,topic,rev)})).filter(x=>x.score>0).sort((a,b)=>b.score-a.score||parseInt(hash(input.setName+'|'+a.q.text),16)-parseInt(hash(input.setName+'|'+b.q.text),16));
-   let q=matches[0]?.q;if(q){used.add(normalize(q.text));q={...q,options:[...q.options]};}else q=planQuestion(topic,input,i,rev);
-   return {...q,trainingTopicIndex:topic.index,trainingTopic:topic.title,trainingPlanRevision:rev};
+   const topic=topics[i%topics.length],matches=candidates.filter(q=>!used.has(normalize(q.text))).map(q=>({q,score:state.aligned?(q.trainingPlanRevision===rev&&Number(q.trainingTopicIndex)===topic.index?100:0):match(q,topic,rev)})).filter(x=>x.score>0).sort((a,b)=>b.score-a.score||parseInt(hash(input.setName+'|'+a.q.text),16)-parseInt(hash(input.setName+'|'+b.q.text),16));
+   let q=matches[0]?.q;if(q){used.add(normalize(q.text));q={...q,options:[...q.options]};}else q=planQuestion(topic,input,i,rev,Math.floor(i/topics.length));
+   return {...q,...(topic.skillKey?{skill:topic.skillKey,skillKey:topic.skillKey}:{}),trainingTopicIndex:topic.index,trainingTopic:topic.title,trainingPlanRevision:rev};
   });
  }
  function loadingMarkup(input){return '<section class="panel" data-quarter-exam-loading data-context="'+esc(JSON.stringify(input))+'"><h3>ข้อสอบอิงแผนอบรม '+esc(input.quarter)+'</h3><p role="status">กำลังโหลดแผนอบรมล่าสุด...</p><button type="button" disabled>ลองโหลดแผนอบรมใหม่</button></section>';}
@@ -91,5 +106,6 @@
  setInterval(()=>{const host=document.getElementById('examPlanDetailsV592');if(host?.__trainingContext&&navigator.onLine!==false&&document.visibilityState!=='hidden')void refreshNotices(host.__trainingContext);},15000);
  window.addEventListener('ppms-exam-result-confirmed',()=>{const ctx=document.getElementById('examPlanDetailsV592')?.__trainingContext;if(ctx)void refreshNotices(ctx);});
  const invalidate=input=>{const prefix=trainingContext(input).key+'__';for(const k of plans.keys())if(k.startsWith(prefix))plans.delete(k);};
- window.PPMSQuarterlyTraining={prepare,ready:input=>plans.has(key(input)),questions,snapshot,revision,loadingMarkup,mount,refreshNotices,notifications:noticeRows,invalidate};
+ window.addEventListener('ppms-training-lesson-saved',()=>plans.clear());
+ window.PPMSQuarterlyTraining={prepare,ready:input=>plans.has(key(input))&&Date.now()-plans.get(key(input)).at<60000,questions,snapshot,revision,loadingMarkup,mount,refreshNotices,notifications:noticeRows,invalidate};
 })();

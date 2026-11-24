@@ -10,7 +10,7 @@
  const get=(key,fallback='')=>{try{return sessionStorage.getItem(key)||fallback}catch{return fallback}};
  const put=(key,value)=>{try{sessionStorage.setItem(key,value)}catch{}};
  function requiredTopics(section){
-  const api=service(),source=api.defaults(section).Q1.training+'\n'+api.sectionFocus(window.PPMSOrganizationScope?.sectionKey(section)||section),seen=new Set();
+  const api=service(),source=api.defaults(section,true).Q1.training+'\n'+api.sectionFocus(window.PPMSOrganizationScope?.sectionKey(section)||section),seen=new Set();
   return api.trainingItems(source).filter(item=>{const key=item.title.trim().toLowerCase();if(seen.has(key))return false;seen.add(key);return true}).map((item,index)=>({...item,index}));
  }
  function personalContext(ctx,employee){

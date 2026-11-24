@@ -1,0 +1,28 @@
+const assert=require('node:assert/strict'),{setup,employees}=require('./app-pages.cjs');
+const wait=ms=>new Promise(r=>setTimeout(r,ms));
+(async()=>{
+ const db={},reads=[];const t=await setup(true,'index.html',{session:{examEmp:'TEST-4-0',employeeExamType:'quarterly'},beforeScripts(w){const fetch=w.fetch;w.fetch=async(url,options={})=>{const path=new URL(String(url)).pathname.slice(1).replace(/\.json$/,'');reads.push(path);if(path.startsWith('ppmsExamPlanDetails/')||path.startsWith('ppmsTrainingLessonDecks/')||path.startsWith('ppmsTrainingImplementationStatus/'))return{ok:true,json:async()=>db[path]||null};if(path==='ppms'&&options.method==='PATCH'){Object.assign(db,JSON.parse(options.body));return{ok:true,json:async()=>null}}if(path.startsWith('ppms/examResultsByKey/'))return{ok:true,json:async()=>db[path.slice(5)]||null};return fetch(url,options)}}});const w=t.w;
+ try{
+ const a=w.PPMSSkillTraining,service=w.PPMSTrainingPlanService,scope={division:'Production Division',plant:'โรง 1'};
+ for(const section of new Set(employees.map(e=>e.section))){for(const plan of Object.values(service.defaults(section))){assert.deepEqual(Array.from(service.trainingItems(plan.training),x=>x.title),Array.from(w.PPMSSkillCatalog.forSection(section)),section)}}
+ const input={section:'Stamping Section',year:2026,quarter:'Q4',scope,level:2,setName:'A',count:20};
+ await w.PPMSQuarterlyTraining.prepare(input);const before=w.PPMSQuarterlyTraining.snapshot(input);assert.equal(before.topics.length,7);
+ let questions=w.PPMSQuarterlyTraining.questions(input,[{text:'WRONG BANK CONTENT',skill:'Safety',options:['a','b','c','d'],correct:0}]);assert(!questions.some(q=>q.text==='WRONG BANK CONTENT'));assert(questions.every(q=>a.skills(input.section).includes(q.skillKey)));
+ const ctx=service.trainingContext(input),quarter=service.defaults(input.section).Q4,item=service.trainingItems(quarter.training)[0],lessonInput={ctx,q:'Q4',quarter,item};const deck=w.PPMSTrainingLessons.build(lessonInput),path=w.PPMSTrainingLessonEditor.identity(lessonInput);
+ for(const page of deck.pages){if(page.points)page.points=['PUBLISHED SLIDE FACT 986'];if(page.questions)page.questions=[{question:'What is the published fact?',answer:'PUBLISHED SLIDE FACT 986'}]};db[path]={topic:item.title,pages:deck.pages};
+ w.PPMSQuarterlyTraining.invalidate(input);await w.PPMSQuarterlyTraining.prepare(input);const after=w.PPMSQuarterlyTraining.snapshot(input);assert.notEqual(after.revision,before.revision,'Published lesson changes invalidate question revision');
+ questions=w.PPMSQuarterlyTraining.questions(input,[]);assert(questions.filter(q=>q.skillKey==='Safety').every(q=>q.options[q.correct]==='PUBLISHED SLIDE FACT 986'));
+ assert.equal(before.topics.length,7,'Earlier attempt remains frozen');
+ const up=w.PPMSQuarterlyTraining.questions({...input,examType:'upskill',quarter:'UPSKILL',trainingQuarter:'Q4',targetSkills:['Safety','Machine Operation','Die Setup'],count:40},[]);assert.equal(up.length,40);assert.deepEqual([...new Set(up.map(q=>q.skillKey))].sort(),['Die Setup','Machine Operation','Safety']);
+ // Submit a passing examination with all Safety questions wrong. Safety must stay unchanged.
+ w.document.querySelector('#nav [data-page="exam"]').click();await wait(600);const form=w.document.querySelector('#examForm');assert(form);
+ const active=w.PPMSQuarterlyTraining.questions(input,[]);for(let i=0;i<active.length;i++){const q=active[i],answer=q.skillKey==='Safety'?(q.correct+1)%4:q.correct;form.querySelector('[name="q'+(i+1)+'"][value="'+answer+'"]').checked=true}
+ form.dispatchEvent(new w.Event('submit',{bubbles:true,cancelable:true}));await wait(900);const result=Object.entries(db).find(([key])=>key.startsWith('examResultsByKey/'))?.[1];assert(result);assert(result.score>=80);assert.equal(result.skillScores.Safety.score,0);assert(!result.targetSkills.includes('Safety'));assert(result.targetSkills.every(k=>result.skillScores[k].score>=80));assert.equal(result.skillAlignmentVersion,986);
+ // Existing evidence keeps its legacy topic index and title when the plan was never saved.
+ const legacySection='Welding Section',legacyCtx=service.trainingContext({...input,section:legacySection});db['ppmsTrainingImplementationStatus/2026/'+legacyCtx.sectionKey]={Q1:{0:{topic:'Safety ประจำพื้นที่',trainingDate:'2026-01-10'}}};const legacy=await service.readPlan(legacyCtx);assert.equal(service.trainingItems(legacy.Q1.training)[0].title,'Safety ประจำพื้นที่');
+ assert.equal(a.resolve(input.section,{title:'Custom topic'},{skillLinks:{'custom topic':'Die Setup'}}),'Die Setup');
+ // The editor provides a Matrix mapping for every topic; evidence editing remains independent.
+ w.document.querySelector('#nav [data-page="trainingPlan"]').click();await wait(400);const sectionPicker=w.document.querySelector('#examPlanSection');sectionPicker.value=input.section;sectionPicker.dispatchEvent(new w.Event('change',{bubbles:true}));await wait(500);w.document.querySelector('[data-plan-edit="Q4"]').click();const editor=w.document.querySelector('.exam-detail-editor');assert(editor);assert.equal(editor.querySelectorAll('[data-skill-links] select').length,7);assert(!editor.querySelector('[name=exam]'),'Exam outline cannot drift from training');editor.querySelector('[data-close]').click();
+ assert.deepEqual(t.errors,[]);console.log('PASS all section/quarter Matrix keys, exact slide revisions, unrelated bank exclusion, 40-question target coverage, per-skill passing gate and frozen attempt.');
+ }finally{w.requestAnimationFrame=()=>0;w.queueMicrotask=()=>{};await wait(100);w.close()}
+})().catch(e=>{console.error(e);process.exitCode=1});
