@@ -66,6 +66,9 @@
 ข้อมูลแผนล่าสุด|Latest plan data
 ลองเชื่อมต่อใหม่|Retry connection
 แผนเทรนนิ่งรายไตรมาส|Quarterly Training Plan
+แผนอบรมและการสอบ|Training & Examination Plan
+แผนอบรม หัวข้อสอบ และสถานะสอบรายบุคคล Q1–Q4|Quarterly training, exam topics and individual exam status
+แผนการสอบรายบุคคล Q1–Q4|Individual Examination Plan Q1–Q4
 หัวข้ออบรม Q1–Q4 แยกตาม Section|Q1–Q4 training topics by Section
 แผนการเทรนนิ่ง Q1–Q4|Q1–Q4 Training Plan
 อบรมก่อนสอบประจำไตรมาส|Train before the quarterly examination
