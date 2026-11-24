@@ -568,7 +568,7 @@
     const evidence = Array.isArray(current.evidence) ? current.evidence : [];
     const overlay = document.createElement('div');
     overlay.className = 'exam-detail-overlay exam-topic-overlay';
-    overlay.innerHTML = '<form class="training-record-editor"><div class="exam-viewer-head"><div><span class="exam-viewer-quarter">' + q + '</span><h2>'+(options.groupEmployees?'อบรมพนักงานใหม่หลายคน':'Training Implementation Record')+'</h2><p>' + esc(ctx.section) + ' • ' + esc(item.title) + '</p></div><button type="button" class="secondary" data-close>ปิด</button></div>' +
+    overlay.innerHTML = '<form class="training-record-editor"><div class="exam-viewer-head"><div><span class="exam-viewer-quarter">' + q + '</span><h2>'+(options.groupEmployees?'อบรมพนักงานเป็นกลุ่ม':'Training Implementation Record')+'</h2><p>' + esc(ctx.section) + ' • ' + esc(item.title) + '</p></div><button type="button" class="secondary" data-close>ปิด</button></div>' +
       '<div class="training-record-fields"><label>วันที่อบรม<input type="date" name="trainingDate" max="'+today()+'" value="' + esc(current.trainingDate || today()) + '" required></label>' +
       '<label>เวลาอบรม<input type="text" name="trainingTime" value="' + esc(current.trainingTime || '') + '" placeholder="เช่น 09:00–11:00" required></label>' +
       '<label>สถานที่อบรม<input name="trainingPlace" value="' + esc(current.trainingPlace || '') + '" placeholder="Training place" required></label>' +
