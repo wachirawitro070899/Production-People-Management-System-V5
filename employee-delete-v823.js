@@ -224,6 +224,56 @@ setInterval(pollDeletions,5000);
 window.addEventListener('online',pollDeletions);
 window.addEventListener('focus',pollDeletions);
 window.addEventListener('DOMContentLoaded',pollDeletions);
-window.PPMS_EMPLOYEE_DELETE_SERVICE={remove(id,snapshot){id=String(id);if(running.has(id))return running.get(id);const job=remove(id,snapshot).finally(()=>running.delete(id));running.set(id,job);return job}};
+async function updateLeaderEmployee(oldId,changes,leaderId){
+ oldId=String(oldId||'').trim();leaderId=String(leaderId||'').trim();
+ const newId=String(changes?.id||'').trim(),contractType=String(changes?.contractType||'').trim(),effectiveDate=String(changes?.permanentStartDate||'').trim();
+ if(!oldId||!leaderId||!newId)throw Error('กรุณากรอกรหัสพนักงานให้ครบ');
+ if(/[.#$\/\[\]]/.test(newId))throw Error('รหัสพนักงานมีอักขระที่ระบบไม่รองรับ');
+ if(!['Permanent','Subcontractor'].includes(contractType))throw Error('กรุณาเลือกประเภทพนักงาน');
+ const result=await request('employees'),roster=records(result.value),leader=roster.find(e=>String(e.id)===leaderId),employee=roster.find(e=>String(e.id)===oldId);
+ const normalize=value=>String(value||'').normalize('NFKC').trim().toLowerCase().replace(/\b(section|department|dept)\b/g,'').replace(/[\s._\-/]+/g,'');
+ if(!leader||!window.PPMSSectionAccess?.eligible({position:leader.position}))throw Error('ไม่พบสิทธิ์ Leader กรุณา Login ใหม่');
+ const sameScope=employee&&normalize(employee.section)===normalize(leader.section)&&normalize(employee.organizationDivision||'Production Division')===normalize(leader.organizationDivision||'Production Division')&&normalize(employee.organizationPlant||'โรง 1')===normalize(leader.organizationPlant||'โรง 1');
+ if(!sameScope)throw Error('แก้ไขได้เฉพาะพนักงานในแผนกและโรงงานเดียวกัน');
+ if(oldId===leaderId)throw Error('ไม่สามารถเปลี่ยนข้อมูลบัญชี Leader ที่ Login อยู่ได้');
+ const key=value=>String(value||'').normalize('NFKC').trim().toUpperCase().replace(/[\s._\-/]+/g,'');
+ const conflict=roster.find(e=>key(e.id)===key(newId)&&String(e.id)!==oldId);
+ if(conflict)throw Error('รหัสพนักงานนี้มีอยู่แล้ว');
+ const today=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Bangkok',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
+ if(contractType==='Permanent'&&employee.contractType!=='Permanent'){
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(effectiveDate))throw Error('กรุณาระบุวันที่ปรับเป็นพนักงานประจำ');
+  if(effectiveDate>today)throw Error('วันที่ปรับเป็นพนักงานประจำต้องไม่เป็นวันที่ในอนาคต');
+  if(employee.startDate&&effectiveDate<employee.startDate)throw Error('วันที่ปรับเป็นพนักงานประจำต้องไม่ก่อนวันที่เริ่มงาน');
+ }
+ const changedAt=new Date().toISOString(),idChanged=newId!==oldId,statusChanged=contractType!==String(employee.contractType||'Permanent');
+ let updated;
+ await change('employees',value=>{
+  const current=records(value),latest=current.find(e=>String(e.id)===oldId);
+  if(!latest)throw Error('ไม่พบพนักงานในรายชื่อล่าสุด กรุณาโหลดใหม่');
+  if(normalize(latest.section)!==normalize(leader.section)||normalize(latest.organizationDivision||'Production Division')!==normalize(leader.organizationDivision||'Production Division')||normalize(latest.organizationPlant||'โรง 1')!==normalize(leader.organizationPlant||'โรง 1'))throw Error('แผนกหรือโรงงานพนักงานเปลี่ยนแล้ว กรุณาโหลดรายชื่อใหม่');
+  if(current.some(e=>key(e.id)===key(newId)&&String(e.id)!==oldId))throw Error('รหัสพนักงานนี้มีอยู่แล้ว');
+  const codeHistory=Array.isArray(latest.employeeCodeHistory)?latest.employeeCodeHistory.slice():[];
+  if(idChanged)codeHistory.unshift({from:oldId,to:newId,changedAt,changedBy:leaderId});
+  const statusHistory=Array.isArray(latest.employmentStatusHistory)?latest.employmentStatusHistory.slice():[];
+  if(statusChanged)statusHistory.unshift({from:String(latest.contractType||'Permanent'),to:contractType,effectiveDate:contractType==='Permanent'?effectiveDate:'',changedAt,changedBy:leaderId});
+  updated={...latest,id:newId,contractType,permanentStartDate:contractType==='Permanent'?(effectiveDate||latest.permanentStartDate||''):'',employeeCodeHistory:codeHistory.slice(0,50),employmentStatusHistory:statusHistory.slice(0,50),updatedAt:changedAt};
+  if(idChanged)updated.previousEmployeeIds=[...new Set([...(latest.previousEmployeeIds||[]).map(String),oldId])];
+  if(Array.isArray(value))return value.map(e=>e&&String(e.id)===oldId?updated:e);
+  const next={...(value||{})};for(const [recordKey,e] of Object.entries(next))if(e&&String(e.id)===oldId)delete next[recordKey];
+  const safe=!newId.startsWith('__ppmskey__')&&!/[.#$\/\[\]]/.test(newId)?newId:'__ppmskey__'+encodeURIComponent(newId).replace(/\./g,'%2E');
+  next[safe]=updated;return next;
+ });
+ if(idChanged){
+  const tombstone=await change('deletedEmployeeIds',value=>{const ids=new Set(Object.values(value||{}).map(String));ids.delete(newId);ids.add(oldId);return [...ids]});
+  const oldKey=!oldId.startsWith('__ppmskey__')&&!/[.#$\/\[\]]/.test(oldId)?oldId:'__ppmskey__'+encodeURIComponent(oldId).replace(/\./g,'%2E');
+  const newKey=!newId.startsWith('__ppmskey__')&&!/[.#$\/\[\]]/.test(newId)?newId:'__ppmskey__'+encodeURIComponent(newId).replace(/\./g,'%2E');
+  await change('employeeOrganization',value=>{const next={...(value||{})};if(next[oldKey]){next[newKey]=next[oldKey];delete next[oldKey]}return next},'');
+  if(!Array.isArray(tombstone)||!tombstone.includes(oldId))throw Error('บันทึกประวัติรหัสเดิมไม่สำเร็จ');
+ }
+ const confirmed=records((await request('employees')).value).find(e=>String(e.id)===newId);
+ if(!confirmed||confirmed.updatedAt!==changedAt)throw Error('Firebase ยังไม่ยืนยันการบันทึก กรุณาเปิดหน้าลีดเดอร์ใหม่');
+ return confirmed;
+}
+window.PPMS_EMPLOYEE_DELETE_SERVICE={updateLeaderEmployee,remove(id,snapshot){id=String(id);if(running.has(id))return running.get(id);const job=remove(id,snapshot).finally(()=>running.delete(id));running.set(id,job);return job}};
 })();
 
